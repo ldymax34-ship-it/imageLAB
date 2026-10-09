@@ -59,16 +59,32 @@ export async function run({ page, base, browser, check, sleep }) {
   const backToAll = await page.$$eval(".card", (n) => n.length);
   check.ok("切回「全部」恢复所有卡片", backToAll === cardCount, `${backToAll} 张`);
 
-  // 搜索
-  await page.type("#q", "zzzz-no-such-tool", { delay: 10 });
-  await sleep(300);
+  // 搜索：tools.js 的 keywords 是字符串（不是数组），首页必须能搜索到相应工具。
+  const setSearch = async (value) => {
+    await page.$eval(
+      "#q",
+      (n, v) => {
+        n.value = v;
+        n.dispatchEvent(new Event("input", { bubbles: true }));
+      },
+      value
+    );
+    await sleep(300);
+  };
+
+  await setSearch("bayer");
+  const bayerHits = await page.$$eval(".card h3", (ns) => ns.map((n) => n.textContent.trim()));
+  check.ok(
+    "搜索 bayer 命中抖动工具（字符串关键词可搜索）",
+    bayerHits.length === 1 && bayerHits[0].includes("抖动"),
+    `命中 ${bayerHits.length} 张：${bayerHits.join("、") || "无"}`
+  );
+
+  await setSearch("zzzz-no-such-tool");
   const emptyShown = await page.$(".empty");
   check.ok("搜索无结果时给出空态", !!emptyShown);
-  await page.$eval("#q", (n) => {
-    n.value = "";
-    n.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await sleep(300);
+
+  await setSearch("");
   const restored = await page.$$eval(".card", (n) => n.length);
   check.ok("清空搜索后卡片恢复", restored === cardCount, `${restored} 张`);
 

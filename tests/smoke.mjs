@@ -50,12 +50,13 @@ if (!specs.length) {
 const needWebgpu = specs.some((s) => s.gpu === "webgpu");
 console.log(`[smoke] 启动 Vite dev server :${PORT}`);
 const server = await startVite(PORT);
-const browser = await launchBrowser({ headless: process.env.SMOKE_HEADFUL !== "1", webgpu: needWebgpu });
 
 const summary = [];
 let hardFail = 0;
+let browser = null;
 
 try {
+  browser = await launchBrowser({ headless: process.env.SMOKE_HEADFUL !== "1", webgpu: needWebgpu });
   for (const spec of specs) {
     console.log(`\n=== ${spec.id} · ${spec.title || ""} ===`);
     const page = await newPage(browser);
@@ -93,12 +94,32 @@ try {
       pageErrors: page.errors.length,
       crashed: crashed ? String(crashed.message || crashed) : null
     });
-    await downloads.cleanup();
-    await page.close();
+    // 清理失败不得掩盖规格本身的主失败：只记录，不抛出。
+    try {
+      await downloads.cleanup();
+    } catch (e) {
+      console.warn(`[smoke] ${spec.id} 下载目录清理失败：${e.message}`);
+    }
+    try {
+      await page.close();
+    } catch (e) {
+      console.warn(`[smoke] ${spec.id} 关闭页面失败：${e.message}`);
+    }
   }
 } finally {
-  await browser.close();
-  server.close();
+  // 无论成功、失败还是中断，都关掉本次自己启动的 Chrome 与 Vite（各自独立捕获）。
+  if (browser) {
+    try {
+      await browser.close();
+    } catch (e) {
+      console.error(`[smoke] 关闭 Chrome 失败：${e.message}`);
+    }
+  }
+  try {
+    server.close();
+  } catch (e) {
+    console.error(`[smoke] 关闭 Vite 失败：${e.message}`);
+  }
 }
 
 console.log("\n================ SMOKE 汇总 ================");

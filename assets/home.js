@@ -94,8 +94,15 @@
     host.appendChild(section);
   }
 
+  // tools.js 的 keywords 是字符串；这里同时兼容数组写法，避免搜索整体失效。
+  function keywordsText(t) {
+    var k = t.keywords;
+    if (Array.isArray(k)) return k.join(" ");
+    return k == null ? "" : String(k);
+  }
+
   function haystack(t) {
-    return [t.name, t.en || "", t.cat, t.desc, (t.keywords || []).join(" ")]
+    return [t.name, t.en || "", t.cat, t.desc, keywordsText(t)]
       .join(" ")
       .toLowerCase();
   }

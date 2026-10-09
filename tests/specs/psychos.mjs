@@ -12,7 +12,7 @@
 import { createServer } from "node:http";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
-import { pngInfo, ROOT } from "../harness.mjs";
+import { pngInfo, ROOT, sleep } from "../harness.mjs";
 
 export const id = "psychos";
 export const title = "生成式版式切片（节点式）";
@@ -22,12 +22,15 @@ const SITE_DIR = resolve(ROOT, "dist", "tools", "psychos");
 const PORT = Number(process.env.PSYCHOS_PORT || 5261);
 const FRAME = 2048; // presets.ts collageDoc frame — the exported PNG must match
 
+/** 预置文档名（应用自己的预置按钮文案）。封面脚本复用同一常量。 */
+export const PRESET_NAME = "image grid collage";
+
 // localStorage key + a deliberately tiny first-run document: the app reads it at
 // boot instead of cooking the heavy factory poster, so the first cook is instant.
 // The Slice + Shuffle document is then loaded through the app's own preset
 // button (no document definition is duplicated in this spec).
-const STORAGE_KEY = "gfx.document.v2";
-const BOOT_DOC = {
+export const STORAGE_KEY = "gfx.document.v2";
+export const BOOT_DOC = {
   frame: { width: 32, height: 32 },
   layers: [
     {
@@ -118,6 +121,57 @@ function readCookLog(page) {
 }
 
 /**
+ * 导航前把 boot 文档写进 localStorage。
+ * psychos 启动时会读取它，从而跳过一次重型 factory poster 的 cook。
+ */
+export async function seedBootDocument(page) {
+  await page.evaluateOnNewDocument(
+    (key, doc) => {
+      try {
+        localStorage.setItem(key, JSON.stringify(doc));
+      } catch {
+        /* about:blank has no storage */
+      }
+    },
+    STORAGE_KEY,
+    BOOT_DOC
+  );
+}
+
+/** 点击应用自己的「image grid collage」预置按钮（不用自造文档定义）。 */
+export function clickImageGridPreset(page) {
+  return page.evaluate((name) => {
+    const b = [...document.querySelectorAll(".presets-list .preset-btn")].find(
+      (x) => x.textContent.trim() === name
+    );
+    if (!b) return false;
+    b.click();
+    return true;
+  }, PRESET_NAME);
+}
+
+/**
+ * 等这次 cook 算完：返回 cook log（{ cooked, pending, error }）。
+ * 调用方自行决定「超时/报错」算硬失败还是软断言。
+ */
+export async function waitForCookDone(page) {
+  let log = null;
+  const deadline = Date.now() + 120000;
+  while (Date.now() < deadline) {
+    log = await readCookLog(page);
+    if (log.error) break;
+    if (!log.pending && log.cooked.includes("Slice") && log.cooked.includes("Shuffle") && log.cooked.includes("Output")) {
+      await sleep(300); // 确认不是中间态
+      const again = await readCookLog(page);
+      if (!again.pending && !again.error) return again;
+      log = again;
+    }
+    await sleep(200);
+  }
+  return log;
+}
+
+/**
  * 采样舞台画布（WebGPU canvas）。
  *
  * 这个页面的 canvas 来自 `gpu.present()`（WebGPU 上下文）。实测本机 Chrome：
@@ -198,7 +252,7 @@ async function scanBuiltAssets(dir) {
   return hits;
 }
 
-export async function run({ page, downloads, check, sleep }) {
+export async function run({ page, downloads, check }) {
   const server = await serveSite(SITE_DIR, PORT);
   // every request the page makes, so cross-origin traffic can be asserted away
   const requests = [];
@@ -208,17 +262,7 @@ export async function run({ page, downloads, check, sleep }) {
   });
 
   try {
-    await page.evaluateOnNewDocument(
-      (key, doc) => {
-        try {
-          localStorage.setItem(key, JSON.stringify(doc));
-        } catch {
-          /* about:blank has no storage — the check below still works on http */
-        }
-      },
-      STORAGE_KEY,
-      BOOT_DOC
-    );
+    await seedBootDocument(page);
     await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
 
     // 1) 页面可进入
@@ -250,33 +294,11 @@ export async function run({ page, downloads, check, sleep }) {
     const presets = await page.$$eval(".presets-list .preset-btn", (bs) => bs.map((b) => b.textContent.trim()));
     check.ok("预置文档面板列出 image grid collage", presets.includes("image grid collage"), presets.join(", "));
 
-    const clicked = await page.evaluate(() => {
-      const b = [...document.querySelectorAll(".presets-list .preset-btn")].find(
-        (x) => x.textContent.trim() === "image grid collage"
-      );
-      if (!b) return false;
-      b.click();
-      return true;
-    });
+    const clicked = await clickImageGridPreset(page);
     check.ok("已点击 image grid collage 预置（Slice → Shuffle → Place）", clicked);
 
     // 5) 等这次 cook 算完：cook log 里出现 Slice + Shuffle，且没有 pending / error
-    let log = null;
-    const deadline = Date.now() + 120000;
-    while (Date.now() < deadline) {
-      log = await readCookLog(page);
-      if (log.error) break;
-      if (!log.pending && log.cooked.includes("Slice") && log.cooked.includes("Shuffle") && log.cooked.includes("Output")) {
-        await sleep(300); // 确认不是中间态
-        const again = await readCookLog(page);
-        if (!again.pending && !again.error) {
-          log = again;
-          break;
-        }
-        log = again;
-      }
-      await sleep(200);
-    }
+    const log = await waitForCookDone(page);
     check.ok("Slice / Shuffle / Output 参与 cook", !!log && log.cooked.includes("Slice") && log.cooked.includes("Shuffle"), log && log.cooked.join(" → "));
     check.ok("cook 无错误", !!log && !log.error, (log && log.error) || "no .cook-error");
 

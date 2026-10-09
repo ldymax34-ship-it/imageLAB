@@ -169,6 +169,9 @@ function trackBrowser(browser) {
 export async function newPage(browser, { width = 1440, height = 960 } = {}) {
   const page = await browser.newPage();
   await page.setViewport({ width, height, deviceScaleFactor: 1 });
+  // 关闭浏览器 HTTP 缓存：开发服务器会发 ETag，带上 If-None-Match 后导航响应可能是
+  // 304（内容并未变化），会让 `res.status() === 200` 这类断言产生假失败。
+  await page.setCacheEnabled(false);
   const errors = [];
   const warnings = [];
   page.on("console", (msg) => {

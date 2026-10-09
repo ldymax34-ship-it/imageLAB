@@ -3,7 +3,10 @@
  *
  * 原则：封面必须是工具**真实跑出来的画面**——
  *   1) 优先使用工具自己导出的 PNG（真实导出结果）；
- *   2) 没有导出能力时，只截取**画布/预览区域元素**，不做整页截图（避免把侧栏小字当视觉素材）。
+ *   2) 没有导出结果时，只截取**真实预览画布元素**，不做整页截图、也绝不截节点编辑器 UI。
+ *
+ * 下载隔离：每个工具都使用独立的临时下载目录（mkdtemp），只等待「这一次点击产生的新
+ * PNG」，工具结束后清理。因此不会像共享 .tmp/cover-downloads 那样复用上一次运行的旧文件。
  *
  * 默认关闭，需显式开启：
  *   IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs [id ...]
@@ -13,7 +16,15 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { requireBrowserOptIn } from "../tests/browser-policy.mjs";
-import { ROOT, launchBrowser, newPage, sleep } from "../tests/harness.mjs";
+import { ROOT, launchBrowser, newPage, sleep, withDownloads, pngInfo } from "../tests/harness.mjs";
+import {
+  BOOT_DOC,
+  PRESET_NAME,
+  STORAGE_KEY,
+  clickImageGridPreset,
+  seedBootDocument,
+  waitForCookDone
+} from "../tests/specs/psychos.mjs";
 
 requireBrowserOptIn("scripts/capture-covers.mjs");
 
@@ -76,93 +87,131 @@ async function shrink(page, bytes, maxW = 1280) {
 
 /**
  * 每个工具：
- *  - setup: 让页面进入「有内容的默认状态」
- *  - export: 若工具真有导出按钮，点它并取下载到的 PNG（首选）
- *  - canvas: 退路：只截这个元素（画布 / 预览区），绝不做整页截图
+ *  - prepare: 导航前注入（psychos 需要先写 boot 文档）
+ *  - setup:   让页面进入「有内容的默认状态」
+ *  - export:  真实导出按钮选择器（首选）
+ *  - canvas:  退路：只截真实预览画布，绝不截节点编辑器 UI
  */
 const TARGETS = {
   texture: {
     path: "/tools/texture/index.html",
     async setup(page) {
-      await page.waitForSelector("canvas", { timeout: 30000 });
+      await page.waitForSelector("#canvas", { timeout: 30000 });
+      if (await page.$("#scale")) await page.select("#scale", "1").catch(() => {});
       await sleep(1800);
     },
     export: "#export-png",
-    canvas: "canvas"
+    canvas: "#canvas"
   },
   pixelit: {
     path: "/tools/pixelit/index.html",
     async setup(page) {
-      await upload(page, "input[type=file]", FIXTURE);
+      await upload(page, "#pixlInput", FIXTURE);
       await sleep(2500);
     },
-    export: "#downloadBtn, .dothings button",
-    canvas: "canvas"
+    export: "#downloadimage",
+    canvas: "#pixelitcanvas"
   },
   "image-to-ascii": {
     path: "/tools/image-to-ascii/index.html",
     async setup(page) {
-      await upload(page, "input[type=file]", FIXTURE);
+      await upload(page, "#file", FIXTURE);
       await sleep(3000);
     },
     export: "#export-png",
-    canvas: "canvas"
+    canvas: "#ascii-canvas"
   },
   "image-to-pixel": {
     path: "/tools/image-to-pixel/index.html",
     async setup(page) {
       await upload(page, "input[type=file]", FIXTURE);
-      await sleep(2500);
+      await sleep(3000);
     },
     export: "#export-png",
-    canvas: "canvas"
+    canvas: "#preview canvas"
   },
   "shaders-logo": {
     path: "/tools/shaders-logo/index.html",
     async setup(page) {
-      await sleep(3000);
+      // 不上传图片：先用页面内置示例 Logo，再暂停到确定单帧。
+      await page.waitForSelector("#btn-sample-logo", { timeout: 30000 });
+      await page.click("#btn-sample-logo");
+      await page
+        .waitForFunction(() => window.imagelab && window.imagelab.hasImage && window.imagelab.hasImage() === true, { timeout: 30000 })
+        .catch(() => {});
+      await sleep(1200);
+      await page.click("#btn-pause").catch(() => {});
+      await sleep(500);
     },
-    export: "#export-png",
+    export: "#btn-export",
     canvas: "canvas"
   },
   "shaders-bg": {
     path: "/tools/shaders-bg/index.html",
     async setup(page) {
       await sleep(3000);
+      await page.click("#btn-pause").catch(() => {});
+      await sleep(400);
     },
-    export: "#export-png",
+    export: "#btn-export",
     canvas: "canvas"
   },
   "shaders-halftone": {
     path: "/tools/shaders-halftone/index.html",
     async setup(page) {
-      await upload(page, "input[type=file]", FIXTURE).catch(() => {});
+      await upload(page, "#image-file", FIXTURE);
       await sleep(3000);
+      await page.click("#btn-pause").catch(() => {});
+      await sleep(400);
     },
-    export: "#export-png",
+    export: "#btn-export",
     canvas: "canvas"
   },
   extrude3d: {
     path: "/tools/extrude3d/index.html",
     async setup(page) {
-      await page.waitForSelector("canvas", { timeout: 30000 });
-      await sleep(3000);
+      await page.waitForSelector("#view-canvas", { timeout: 30000 });
+      await page
+        .waitForFunction(
+          () => {
+            const el = document.getElementById("status");
+            return el && el.textContent.includes("已建模");
+          },
+          { timeout: 30000 }
+        )
+        .catch(() => {});
+      await sleep(1200);
     },
     export: "#export-png",
-    canvas: "canvas"
+    canvas: "#view-canvas"
   },
   psychos: {
     path: "/tools/psychos/index.html",
     webgpu: true,
-    async setup(page) {
-      // 先套一个预置把画布填满，再等一帧算完
-      const preset = await page.$("text=image grid collage");
-      if (preset) await preset.click().catch(() => {});
-      await page.waitForSelector("canvas", { timeout: 30000 }).catch(() => {});
-      await sleep(4000);
+    async prepare(page) {
+      // 与 tests/specs/psychos.mjs 完全同一套：先写 boot 文档，再用应用自己的预置按钮
+      // 载入 image grid collage，并等待这次 cook 真正算完。
+      await seedBootDocument(page);
     },
-    export: null,
-    canvas: ".react-flow__viewport, canvas"
+    async setup(page) {
+      await page.waitForSelector(".palette", { timeout: 120000 });
+      const clicked = await clickImageGridPreset(page);
+      if (!clicked) throw new Error(`未找到预置按钮「${PRESET_NAME}」`);
+      const log = await waitForCookDone(page);
+      if (!log || log.error || !log.cooked.includes("Slice") || !log.cooked.includes("Shuffle")) {
+        throw new Error(`image grid collage 未完成 cook：${log ? JSON.stringify(log) : "无日志"}`);
+      }
+      await page.waitForFunction(
+        () => {
+          const b = document.querySelector(".export-btn");
+          return b && !b.disabled;
+        },
+        { timeout: 30000 }
+      );
+    },
+    export: ".export-btn",
+    // 输出是舞台画布；.react-flow__viewport 是节点编辑器 UI，绝不能当封面。
+    canvas: ".stage canvas:not(.guide-overlay)"
   }
 };
 
@@ -179,76 +228,71 @@ if (!existsSync(resolve(ROOT, "dist", "index.html"))) {
 
 const PORT = Number(process.env.COVER_PORT || 5299);
 const server = await startStatic(PORT);
-const browser = await launchBrowser({ headless: true, webgpu: true });
 
+let browser = null;
 const done = [];
 const failed = [];
 try {
+  browser = await launchBrowser({ headless: true, webgpu: true });
   for (const id of ids) {
     const target = TARGETS[id];
     // 抓的是构建产物：dist/<path>
     const htmlPath = resolve(ROOT, "dist", target.path.replace(/^\//, ""));
     if (!existsSync(htmlPath)) {
-      console.warn(`[covers] 跳过 ${id}：dist${target.path} 不存在（先跑 npm run build）`);
+      failed.push(`${id}: dist${target.path} 不存在（先跑 npm run build）`);
+      console.warn(`[covers] 失败 ${id}：dist${target.path} 不存在`);
       continue;
     }
     const page = await newPage(browser, { width: 1440, height: 900 });
+    const dl = await withDownloads(page);
     try {
+      if (target.prepare) await target.prepare(page);
       await page.goto(server.url + target.path, { waitUntil: "networkidle2", timeout: 60000 });
       await target.setup(page);
 
       let bytes = null;
       let how = "";
       if (target.export) {
-        try {
-          const cdp = await page.createCDPSession();
-          const dlDir = resolve(ROOT, ".tmp", "cover-downloads");
-          await mkdir(dlDir, { recursive: true });
-          await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: dlDir });
-          const btn = await page.$(target.export);
-          if (btn) {
-            await btn.click();
-            const deadline = Date.now() + 25000;
-            const { readdir } = await import("node:fs/promises");
-            while (Date.now() < deadline) {
-              const files = (await readdir(dlDir)).filter((f) => f.endsWith(".png"));
-              if (files.length) {
-                const { readFile } = await import("node:fs/promises");
-                bytes = await readFile(resolve(dlDir, files[files.length - 1]));
-                how = "export";
-                break;
-              }
-              await sleep(250);
-            }
-          }
-        } catch (e) {
-          console.warn(`[covers] ${id} 导出取图失败，改用画布区域：${e.message}`);
-        }
+        const btn = await page.$(target.export);
+        if (!btn) throw new Error(`找不到导出控件 ${target.export}`);
+        await btn.click();
+        // 独立目录从空开始，等到的就一定是「这一次点击」产生的 PNG。
+        const file = await dl.waitForFile({ ext: ".png", timeoutMs: 30000 });
+        bytes = file.bytes;
+        how = "export";
       }
-
       if (!bytes && target.canvas) {
         const el = await page.$(target.canvas);
-        if (el) {
-          bytes = await el.screenshot({ type: "png" });
-          how = "canvas-region";
-        }
+        if (!el) throw new Error(`找不到预览画布 ${target.canvas}`);
+        bytes = await el.screenshot({ type: "png" });
+        how = "canvas-region";
       }
-      if (!bytes) throw new Error("既没有导出结果，也找不到画布元素");
+      if (!bytes) throw new Error("既没有导出结果，也找不到预览画布");
+
+      const info = pngInfo(bytes);
+      if (!(bytes.length > 1000 && info.width > 0 && info.height > 0)) {
+        throw new Error(`PNG 无效：${bytes.length}B ${info.width}x${info.height}`);
+      }
 
       const final = how === "export" ? await shrink(page, bytes) : bytes;
-      const out = resolve(outDir, `${id}.png`);
-      await writeFile(out, final);
-      done.push(`${id}.png(${how},${(final.length / 1024).toFixed(0)}KB)`);
-      console.log(`[covers] ${id} -> ${how} ${(final.length / 1024).toFixed(0)}KB`);
+      const finalInfo = pngInfo(final);
+      if (!(final.length > 1000 && finalInfo.width > 0 && finalInfo.height > 0)) {
+        throw new Error(`缩图后 PNG 无效：${final.length}B ${finalInfo.width}x${finalInfo.height}`);
+      }
+
+      await writeFile(resolve(outDir, `${id}.png`), final);
+      done.push(`${id}.png(${how},${finalInfo.width}x${finalInfo.height},${(final.length / 1024).toFixed(0)}KB)`);
+      console.log(`[covers] ${id} -> ${how} ${finalInfo.width}x${finalInfo.height} ${(final.length / 1024).toFixed(0)}KB`);
     } catch (e) {
       failed.push(`${id}: ${e.message}`);
       console.warn(`[covers] ${id} 失败：${e.message}`);
     } finally {
+      await dl.cleanup().catch(() => {});
       await page.close().catch(() => {});
     }
   }
 } finally {
-  await browser.close().catch(() => {});
+  if (browser) await browser.close().catch(() => {});
   server.child.kill("SIGTERM");
 }
 
