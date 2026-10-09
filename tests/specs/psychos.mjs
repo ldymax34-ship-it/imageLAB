@@ -15,7 +15,7 @@ import { extname, join, resolve } from "node:path";
 import { pngInfo, ROOT, sleep } from "../harness.mjs";
 
 export const id = "psychos";
-export const title = "生成式版式切片（节点式）";
+export const title = "图片拼贴（节点式）";
 export const gpu = "webgpu";
 
 const SITE_DIR = resolve(ROOT, "dist", "tools", "psychos");

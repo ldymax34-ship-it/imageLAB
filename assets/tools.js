@@ -29,7 +29,7 @@ window.IMAGELAB_TOOLS = [
   },
   {
     id: "image-to-pixel",
-    name: "像素化与抖动",
+    name: "图片抖动",
     en: "Dither Studio",
     cat: "像素与点阵",
     desc: "把照片做成颗粒分明的像素画或抖动网点，颗粒大小、抖动方式与颜色可调，导出 PNG。",
@@ -53,7 +53,7 @@ window.IMAGELAB_TOOLS = [
   },
   {
     id: "shaders-logo",
-    name: "Logo 材质",
+    name: "标志材质",
     en: "Shader Logo",
     cat: "着色器效果",
     desc: "上传透明底 Logo，套上液态金属或宝石烟雾材质；也可用内置形状直接调。",
@@ -77,7 +77,7 @@ window.IMAGELAB_TOOLS = [
   },
   {
     id: "shaders-halftone",
-    name: "半调与网点",
+    name: "半调网点",
     en: "Halftone",
     cat: "着色器效果",
     desc: "CMYK 四色半调、单色网点、有限色阶抖动，上传本地图片即可开始。",
@@ -89,10 +89,10 @@ window.IMAGELAB_TOOLS = [
   },
   {
     id: "extrude3d",
-    name: "SVG 挤出三维",
+    name: "SVG立体",
     en: "Extrude 3D",
     cat: "三维与立体",
-    desc: "把简单闭合的 SVG 挤出成立体：厚度、倒角、圆滑度与材质可调，导出透明背景 PNG。",
+    desc: "把简单闭合的 SVG 挤出成立体：厚度、倒角、平滑度与材质可调，导出透明背景 PNG。",
     href: "tools/extrude3d/index.html",
     cover: "assets/covers/extrude3d.png",
     span: 8,
@@ -101,7 +101,7 @@ window.IMAGELAB_TOOLS = [
   },
   {
     id: "psychos",
-    name: "节点式版式",
+    name: "图片拼贴",
     en: "Generative Layout",
     cat: "版式与切片",
     desc: "节点式拼版：网格、切片、洗牌、放置，可导出 2048×2048 PNG。",
@@ -126,7 +126,7 @@ window.IMAGELAB_TOOLS = [
   },
   {
     id: "shader-lab",
-    name: "效果堆叠",
+    name: "图片特效",
     en: "Shader Lab",
     cat: "着色器效果",
     desc: "叠加 ASCII、CRT、像素排序等效果，实时调节并导出图片。",

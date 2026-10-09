@@ -98,7 +98,7 @@ export async function run({ page, base, browser, check, sleep }) {
   // 不向外部 URL 发请求（会 CORS 失败），也不把外部入口纳入本地封面 / 可达断言。
   const EXPECT_EXTERNAL = [
     { id: "space-type-generator", name: "动态文字", href: "https://spacetypegenerator.com/" },
-    { id: "shader-lab", name: "效果堆叠", href: "https://eng.basement.studio/tools/shader-lab" },
+    { id: "shader-lab", name: "图片特效", href: "https://eng.basement.studio/tools/shader-lab" },
     { id: "tooooools", name: "图像网点", href: "https://www.tooooools.app/" }
   ];
   const externalCards = await page.$$eval(".card.is-external", (cards) =>
@@ -158,7 +158,7 @@ export async function run({ page, base, browser, check, sleep }) {
   const stgHits = await searchHits("spacetypegenerator");
   check.ok("搜索 spacetypegenerator 命中动态文字", stgHits.length === 1 && stgHits[0] === "动态文字", `命中 ${stgHits.length}：${stgHits.join("、") || "无"}`);
   const slHits = await searchHits("basement");
-  check.ok("搜索 basement 命中效果堆叠", slHits.length === 1 && slHits[0] === "效果堆叠", `命中 ${slHits.length}：${slHits.join("、") || "无"}`);
+  check.ok("搜索 basement 命中图片特效", slHits.length === 1 && slHits[0] === "图片特效", `命中 ${slHits.length}：${slHits.join("、") || "无"}`);
   const tooHits = await searchHits("tooooools");
   check.ok("搜索 tooooools 命中图像网点", tooHits.length === 1 && tooHits[0] === "图像网点", `命中 ${tooHits.length}：${tooHits.join("、") || "无"}`);
   await setSearch("");

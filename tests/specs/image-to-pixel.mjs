@@ -1,5 +1,5 @@
 /**
- * 工具③「像素化与抖动」smoke 规格。
+ * 工具③「图片抖动」smoke 规格。
  *
  * 覆盖：
  *  - 页面 HTTP 200 / 标题 / MIT 库以原文载入（字节数自检 + window.pixelate 可用）
@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { pngInfo, ROOT } from "../harness.mjs";
 
 export const id = "image-to-pixel";
-export const title = "像素化与抖动";
+export const title = "图片抖动";
 export const gpu = null;
 
 const TOOL_DIR = join(ROOT, "tools", "image-to-pixel");
@@ -190,7 +190,7 @@ export async function run({ page, base, downloads, check }) {
   const res = await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
   check.ok("页面可进入（HTTP 200）", !!res && res.status() === 200, `status=${res && res.status()}`);
   const pageTitle = await page.title();
-  check.ok("标题正确", pageTitle.includes("像素化") && pageTitle.includes("imageLAB"), pageTitle);
+  check.ok("标题正确", pageTitle.includes("图片抖动") && pageTitle.includes("imageLAB"), pageTitle);
 
   // 初始化等待：`window.__imageToPixel` 在库载入之前就已挂载（好让载入失败也能被读到），
   // 所以「只等它存在」会踩到竞态（isVendorReady 仍为 false、last 仍为 null）。

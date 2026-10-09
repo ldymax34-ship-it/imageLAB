@@ -49,7 +49,8 @@
       article.appendChild(extShot);
 
       article.appendChild(el("h3", null, t.name));
-      article.appendChild(el("div", "cat", t.cat + (t.en ? " · " + t.en : "")));
+      // 类别行只显示现有中文分类；英文副标题 en 仅保留在数据里供来源记录与搜索用。
+      article.appendChild(el("div", "cat", t.cat));
       article.appendChild(el("p", null, t.desc));
 
       var extEnter = el("a", "enter");
@@ -83,7 +84,8 @@
     article.appendChild(shot);
 
     article.appendChild(el("h3", null, t.name));
-    article.appendChild(el("div", "cat", t.cat + (t.en ? " · " + t.en : "")));
+    // 类别行只显示现有中文分类；英文副标题 en 仅保留在数据里供来源记录与搜索用。
+    article.appendChild(el("div", "cat", t.cat));
     article.appendChild(el("p", null, t.desc));
 
     var enter = el("a", "enter");

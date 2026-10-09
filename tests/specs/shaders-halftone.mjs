@@ -8,7 +8,7 @@ import { webglReport, canvasLooksDrawn, pngInfo } from "../harness.mjs";
 import { fileURLToPath } from "node:url";
 
 export const id = "shaders-halftone";
-export const title = "CMYK 半调 / 网点 / 抖动";
+export const title = "半调网点";
 export const gpu = "webgl2";
 
 /** 工作区路径含空格，必须走 fileURLToPath 解码 */

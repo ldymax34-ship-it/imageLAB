@@ -10,7 +10,7 @@ import { webglReport, canvasLooksDrawn, pngInfo } from "../harness.mjs";
 import { fileURLToPath } from "node:url";
 
 export const id = "shaders-logo";
-export const title = "Logo 液态金属 / 宝石烟雾";
+export const title = "标志材质（液态金属 / 宝石烟雾）";
 export const gpu = "webgl2";
 
 /** 工作区路径含空格，必须走 fileURLToPath 解码，不能直接用 URL.pathname */
@@ -80,7 +80,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   const url = `${base}/tools/shaders-logo/index.html`;
   const res = await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
   check.ok("页面可进入（HTTP 200）", res && res.status() === 200, `status=${res && res.status()}`);
-  check.ok("标题正确", (await page.title()).includes("液态金属"), await page.title());
+  check.ok("标题正确", (await page.title()).includes("标志材质"), await page.title());
 
   // Vite 首次依赖预打包可能触发一次 reload，等模块真正挂载完成
   await page.waitForFunction(() => window.imagelab && window.imagelab.shader, { timeout: 60000 });

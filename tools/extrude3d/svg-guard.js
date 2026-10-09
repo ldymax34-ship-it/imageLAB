@@ -156,7 +156,7 @@ export function inspectSvg(svgText, options = {}) {
 /**
  * 几何级硬上限：解析后的 Shape 先按上游曲线细分采样，再估算挤出顶点。
  *
- * `curveSegments` / `bevelSegments` 只由圆滑度、图形数量与顶点预算决定，
+ * `curveSegments` / `bevelSegments` 只由平滑度、图形数量与顶点预算决定，
  * 与 `maxFlatDim` 无关（后者只影响厚度与倒角尺寸），因此这里传占位尺寸 1，
  * 不为了取参数而提前构建任何临时几何。
  *
@@ -217,7 +217,7 @@ export function inspectShapes(shapes, options = {}) {
       reason:
         `已拒绝导入：路径曲线过多，按采样轮廓点估算约 ${estVerts.toLocaleString("en-US")} 个挤出顶点，` +
         `超过上限 ${vertexBudget.toLocaleString("en-US")}（${sampledPoints.toLocaleString("en-US")} 个采样点 × ${factor}）。` +
-        "请减少曲线/节点，或降低圆滑度。",
+        "请减少曲线/节点，或降低平滑度。",
       shapeCount,
       sampledPoints,
       estVerts,

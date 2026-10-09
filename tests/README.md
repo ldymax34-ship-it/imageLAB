@@ -46,10 +46,14 @@ CHROME_PATH=/path/to/chrome
 
 ## 本轮状态
 
-规格均由 Codex 执行浏览器验收：纹理间、像素画、字符画、SVG 挤出三维、像素化与抖动（34 项）、
-Logo 材质（独立 19 项）、半调与网点（28 项）、节点式版式（20 项，WebGPU）已通过；
+规格均由 Codex 执行浏览器验收：纹理间、像素画、字符画、SVG立体、图片抖动（34 项）、
+标志材质（独立 19 项）、半调网点（28 项）、图片拼贴（20 项，WebGPU）已通过；
 动态背景的渲染/参数/导出断言全部通过，此前的失败是开发服务器 HTTP 304 假失败，
 已在 `harness.mjs` 关闭浏览器缓存修复。首页新增 bayer 搜索回归，待 Codex 验证。
+
+本轮名称定稿：`extrude3d` 规格新增轻量断言——38 个材质预设全部有中文名、value（上游 preset id）
+不变且无重复、常用材质（塑料 / 镜面金属 / 透明玻璃 / 黄金）可从下拉选中并生效。浏览器断言仍由
+Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实现侧不启动 Chrome。
 
 首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
 `target="_blank" rel="noopener noreferrer"`、准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。

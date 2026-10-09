@@ -1,5 +1,5 @@
 /**
- * SVG 挤出三维 · imageLAB 工具⑧
+ * SVG立体 · imageLAB 工具⑧
  *
  * 全部能力都是「官方现成件 + 上游库」的接线：
  *   - 解析 / 挤出 / 平滑法线 / 三平面 UV：`@visant/extrude3d`（MIT，0.1.0）
@@ -55,7 +55,7 @@ const MATERIAL_LABELS_ZH = {
   plastic: "塑料",
   clay: "陶土",
   emissive: "自发光",
-  chrome: "铬",
+  chrome: "镜面金属",
   brushedSteel: "拉丝钢",
   gold: "黄金",
   roseGold: "玫瑰金",
@@ -65,16 +65,16 @@ const MATERIAL_LABELS_ZH = {
   leather: "皮革",
   carbonFiber: "碳纤维",
   carPaint: "车漆",
-  glass: "玻璃",
+  glass: "透明玻璃",
   frostedGlass: "磨砂玻璃",
-  diamond: "钻石",
+  diamond: "水晶效果",
   pearl: "珍珠",
   obsidian: "黑曜石",
   holographic: "镭射",
-  y2kGloss: "千禧亮面",
+  y2kGloss: "亮面",
   liquidChrome: "液态金属",
   titanium: "钛",
-  candyInflate: "糖果",
+  candyInflate: "糖果塑料",
   soapBubble: "肥皂泡",
   opal: "欧泊",
   neonTube: "霓虹管",
@@ -431,7 +431,7 @@ function rebuild() {
     geometry.dispose();
     setError(
       `已拒绝导入：实际生成 ${actualVerts.toLocaleString("en-US")} 个顶点，超过上限 ` +
-        `${LIMITS.vertexBudget.toLocaleString("en-US")}。请减少曲线或降低圆滑度。`
+        `${LIMITS.vertexBudget.toLocaleString("en-US")}。请减少曲线或降低平滑度。`
     );
     setStatus("已拒绝 · 画布保留上一次成功模型");
     return;
@@ -466,7 +466,7 @@ function rebuild() {
   setError(null);
   updateStats();
   setStatus(
-    `已建模 · ${state.svgName} · 厚度 ${state.depth} · 圆滑度 ${state.smoothness.toFixed(2)} · 材质 ${state.preset}`
+    `已建模 · ${state.svgName} · 厚度 ${state.depth} · 平滑度 ${state.smoothness.toFixed(2)} · 材质 ${materialLabel(state.preset)}`
   );
 }
 

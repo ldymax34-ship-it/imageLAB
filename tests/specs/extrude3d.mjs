@@ -1,5 +1,5 @@
 /**
- * SVG 挤出三维（tools/extrude3d）外部 smoke 规格。
+ * SVG立体（tools/extrude3d）外部 smoke 规格。
  *
  * 覆盖：页面可进入 / WebGL2 可用 / 真实渲染出 3D 内容 / 参数与材质变化真的改变像素 /
  * 上传样例成功建模 / 危险 SVG 被明确拒绝且不崩 / 导出 PNG 非空且尺寸正确 / 透明导出带 alpha。
@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import { ROOT, canvasLooksDrawn, pngInfo, webglReport } from "../harness.mjs";
 
 export const id = "extrude3d";
-export const title = "SVG 挤出三维";
+export const title = "SVG立体";
 export const gpu = "webgl2";
 
 const SAMPLE = resolve(ROOT, "tools/extrude3d/samples/square-ring.svg");
@@ -102,7 +102,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   check.ok("页面可进入（HTTP 200）", res && res.status() === 200, `status=${res && res.status()}`);
 
   const pageTitle = await page.title();
-  check.ok("标题正确", pageTitle.includes("挤出三维"), pageTitle);
+  check.ok("标题正确", pageTitle.includes("SVG立体"), pageTitle);
 
   const webgl = await webglReport(page);
   check.ok("WebGL2 可用", webgl.webgl2 === true, `renderer=${webgl.renderer || "n/a"}`);
@@ -127,6 +127,60 @@ export async function run({ page, base, downloads, check, sleep }) {
   for (const required of ["chrome", "glass", "frostedGlass", "plastic"]) {
     check.ok(`材质预设含 ${required}`, presetIds.includes(required), `共 ${presetIds.length} 项`);
   }
+
+  // 轻量名称断言：38 个材质预设全部有中文名，value（上游 preset id）不变，
+  // 常用材质仍然可从下拉里选中并生效。
+  const materialOptions = await page.$$eval("#material option", (nodes) =>
+    nodes.map((n) => ({ value: n.value, label: (n.textContent || "").trim() }))
+  );
+  check.ok("材质预设共 38 个", materialOptions.length === 38, `共 ${materialOptions.length} 项`);
+  const noChinese = materialOptions.filter((o) => !/[\u4e00-\u9fff]/.test(o.label));
+  check.ok(
+    "38 个材质中文名齐全",
+    noChinese.length === 0,
+    noChinese.length ? noChinese.map((o) => `${o.value}=${o.label}`).join("、") : "全部含中文"
+  );
+  check.ok(
+    "材质 value（上游 preset id）无重复",
+    new Set(presetIds).size === presetIds.length,
+    `${new Set(presetIds).size}/${presetIds.length}`
+  );
+  const MATERIAL_ZH = {
+    chrome: "镜面金属",
+    glass: "透明玻璃",
+    diamond: "水晶效果",
+    y2kGloss: "亮面",
+    candyInflate: "糖果塑料",
+    plastic: "塑料",
+    gold: "黄金",
+    frostedGlass: "磨砂玻璃"
+  };
+  for (const [value, label] of Object.entries(MATERIAL_ZH)) {
+    const option = materialOptions.find((o) => o.value === value);
+    check.ok(`材质 ${value} 中文名为「${label}」`, !!option && option.label === label, option ? option.label : "缺失");
+  }
+  // 常用材质：通过界面 change 事件选一遍，value 未改、状态跟随。
+  const commonPicked = await page.evaluate(() => {
+    const select = document.getElementById("material");
+    const wanted = ["plastic", "chrome", "glass", "gold"];
+    return wanted.map((id) => {
+      const exists = Array.from(select.options).some((o) => o.value === id);
+      if (!exists) return { id, exists, active: null };
+      select.value = id;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return { id, exists, active: window.__extrude3d.getState().preset };
+    });
+  });
+  for (const item of commonPicked) {
+    check.ok(
+      `常用材质「${item.id}」可选且生效`,
+      item.exists && item.active === item.id,
+      item.exists ? `当前=${item.active}` : "下拉里没有"
+    );
+  }
+  // 恢复默认材质，后续「改材质像素变化」从 chrome 起算。
+  await setControl(page, "material", "chrome", "change");
+  await sleep(300);
 
   // 参数变化 → 几何重建 → 几何厚度真的变了，并且画面像素变化
   const beforeDepth = await page.evaluate(() => window.__extrude3d.getInfo());
@@ -255,7 +309,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   );
   check.ok("导出文件名含 extrude3d", /extrude3d/i.test(file.name), file.name);
   check.ok(
-    "PNG 倍率生效（2× 视图宽度）",
+    "导出尺寸生效（2× 视图宽度）",
     Math.abs(info.width - viewWidth * 2) <= 10,
     `png=${info.width}px 视图=${viewWidth}px`
   );

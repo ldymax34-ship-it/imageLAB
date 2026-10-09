@@ -4,6 +4,27 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 第四轮：名称定稿与轻量提示文案（不新增渲染 / 业务功能）
+- 首页 12 个入口名称定稿：`texture` 纹理间（保护原 8 份源码）、`pixelit` 像素画、`image-to-pixel` 图片抖动、
+  `image-to-ascii` 字符画、`shaders-logo` 标志材质、`shaders-bg` 动态背景、`shaders-halftone` 半调网点、
+  `extrude3d` SVG立体、`psychos` 图片拼贴、`space-type-generator` 动态文字、`shader-lab` 图片特效、`tooooools` 图像网点。
+- 首页卡片类别行不再拼接英文副标题；`tools.js` 的 `en` 字段保留，仅用于来源记录与关键词搜索，类别仍用现有中文分类。
+- `tools/extrude3d`：页面标题 / 窗口标题 / 画布 `aria-label` 改「SVG立体」；「挤出参数」改「立体设置」、
+  「圆滑度」改「平滑度」、「PNG 倍率」改「导出尺寸」、「覆盖预设颜色 / 粗糙度」改「自定义颜色 / 自定义粗糙度」；
+  材质帮助改成可读操作提示，并如实说明「石材、木材等为基础光泽效果，暂不含纹理」；
+  去掉「本工具不另写材质参数」「程序化环境反射」「文件名形如 extrude3d-*.png」等实现说明。
+- 材质中文名复核 38 项全部为中文：`chrome` 镜面金属、`glass` 透明玻璃、`diamond` 水晶效果、
+  `y2kGloss` 亮面、`candyInflate` 糖果塑料；其余保留常用中文；`value`（上游 preset id）与实际参数一律未改。
+- 其他自建适配页只改常用中文标题 / 去掉英文装饰副标题（`shaders-logo` / `shaders-bg` / `shaders-halftone` /
+  `image-to-pixel` / `psychos`）；未翻译第三方 psychos 节点编辑器与 pixelit / ascii 原 UI，未改动纹理间原 8 份源码，
+  未修改外部网站。
+- 测试同步：`home` / `image-to-pixel` / `shaders-logo` / `extrude3d` 的名称断言改为新名称；
+  `tests/specs/extrude3d.mjs` 新增轻量浏览器断言——38 个材质预设全部有中文名、`value` 不变且无重复、
+  常用材质（塑料 / 镜面金属 / 透明玻璃 / 黄金）可从下拉选中并生效。浏览器仍由 Codex 执行，实现侧不启动 Chrome。
+- 边界（本轮不变）：只保留现有 SVG 立体工具，不建高级入口、不接 vgpu / 路径追踪，不新增依赖 / 后端 /
+  材质算法或纹理库，不新建规划文档。
+- 验证：`npm run check` 与 `npm run build` 通过（纯 Node，未启动浏览器）。
+
 ### 第二轮：首页视觉调整（名称定为 ImageLAB）
 - 名称统一为 **ImageLAB**（`I` 大写 / `mage` 小写 / `LAB` 大写）：首页标题、页脚、`package.json`、README 同步。
 - 首页配色收敛为纯白 `#fff` + 纯黑 `#000`，次要信息只用中性灰；删除米色 / 暖白 / 棕灰变量、渐变、圆角与过渡动画。

@@ -35,16 +35,22 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/texture/` | 纹理间 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG 挤出三维 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 圆滑度 / 材质 / 环境与背景 | PNG（可选透明背景） | 已通过浏览器验收（29 项） |
-| `tools/image-to-pixel/` | 像素化与抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
-| `tools/shaders-logo/` | 着色器 Logo | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
+| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 环境与背景 | PNG（可选透明背景） | 已通过浏览器验收（29 项） |
+| `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
+| `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
-| `tools/shaders-halftone/` | 半调与抖动 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
-| `tools/psychos/` | 节点式版式 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
+| `tools/shaders-halftone/` | 半调网点 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
+| `tools/psychos/` | 图片拼贴 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
 
 首页按上表登记全部 9 个内置入口（含 `tools/psychos`）；**浏览器验收已全部完成**（真实上传、调参、
 下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、
 bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部通过。
+
+> 本轮为**轻量名称 / 提示文案调整**：不新增渲染或业务功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
+> 不建高级入口、不接 vgpu / 路径追踪，不新增依赖、后端、材质算法或纹理库。首页卡片类别行只显示现有中文分类
+> （`en` 英文副标题仅保留在数据字段里，供来源记录与搜索）。`tools/extrude3d` 的 38 个材质预设统一显示中文名
+> （如镜面金属 / 透明玻璃 / 水晶效果 / 亮面 / 糖果塑料）；石材、木材等为基础光泽效果，**暂不含纹理贴图**，
+> 页面已如实提示，不冒充真实纹理；未翻译第三方 psychos 节点编辑器与 pixelit / ascii 原 UI，未改动纹理原 8 份源码。
 
 ### 外部网站入口（仅跳转，不接入）
 
@@ -56,7 +62,7 @@ bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部�
 | 入口 id | 名称 | 类别 | 官网地址 |
 | --- | --- | --- | --- |
 | `space-type-generator` | 动态文字（Space Type Generator） | 字符与文字 | https://spacetypegenerator.com/ |
-| `shader-lab` | 效果堆叠（Shader Lab） | 着色器效果 | https://eng.basement.studio/tools/shader-lab |
+| `shader-lab` | 图片特效（Shader Lab） | 着色器效果 | https://eng.basement.studio/tools/shader-lab |
 | `tooooools` | 图像网点（Tooooools） | 像素与点阵 | https://www.tooooools.app/ |
 
 搜索分类沿用现有系统（不新增 tab / filter 开关）。`scripts/check.mjs` 对内置入口校验本地文件 / spec / dist，
@@ -114,7 +120,7 @@ CHANGELOG.md               变更记录
 | --- | --- |
 | 大部分工具 | 任意现代浏览器 |
 | 着色器工具（WebGL2） | Chrome / Edge / Firefox / Safari 支持 WebGL2 的版本 |
-| `tools/psychos`（节点式版式） | 需要 **WebGPU**，且必须在 `http://127.0.0.1` 或 HTTPS 这类安全上下文下打开 |
+| `tools/psychos`（图片拼贴） | 需要 **WebGPU**，且必须在 `http://127.0.0.1` 或 HTTPS 这类安全上下文下打开 |
 
 ## 测试与验收
 
