@@ -4,71 +4,17 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
-### 修复：SVG立体 setSize 清屏 + 表面贴图选择竞态（Codex 浏览器回归后修复）
-- `renderer.setSize` 会清空画布，此前要等下一帧 RAF 才恢复：导出 PNG 的 `toBlob` 回调恢复预览尺寸后，
-  以及 `resize()`（错误提示等布局变化触发 ResizeObserver）在相机 / 取景更新后，都立即
-  `renderer.render(scene, camera)` 补绘一帧。导出语义（倍率 / 透明背景 / 文件名）不变，非空断言 / 阈值不放宽。
-- 表面贴图加载序列号 `++textureSeq` 移到 `loadTextureFile` 开头（非空文件之后、MIME / 体积校验之前）：
-  最新一次选择即使是会被拒的非白名单 / 超大文件，也会先作废更早的「进行中」加载，不再让过期回调
-  `acceptTexture` 顶替 baseline 贴图并清掉 `setError` 的拒绝原因；原有回调 seq 守卫与
-  「加载中点移除贴图 → 保持为空」行为不变。
-- `tests/specs/extrude3d.mjs`：导出 PNG 断言改为真正解码下载到的字节（data URL → `Image`），在
-  40×40 下与预览画布比对（覆盖像素数 / 模型内部差异允许抗锯齿容差），并要求存在带 alpha 的彩色模型
-  像素——不再只看 map 标志或 IHDR 头，且复用同一次导出、不重复导出。
-- 新增紧凑浏览器回归：页内用 `canvas.toBlob` 生成 PNG `File` + `DataTransfer`，同一 tick 内
-  pending.png → invalid.txt，断言 baseline（test-photo.png）保留且拒绝原因不被清掉；再加
-  「加载中点移除贴图」断言贴图保持 `null`。全部使用浏览器内建能力，不写自定义图像算法。
-- Codex 在 258ad31 独立复跑 64/65 PASS，唯一失败为「拒绝含 `<text>` SVG 后 `canvasLooksDrawn`」
-  `opaqueRatio=0`（即上述 setSize 清屏）；本轮 resize 补绘后待 Codex 再复跑
-  （`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），尚未标记浏览器最终通过。
-  实现侧只跑纯 Node：`npm run check`（41 项）、`npm test`（5 套 Node 测试共 35 项）、`npm run build` 全过。
-- 未改纹理间原 8 份源码，未新增依赖 / 后端 / CDN，未启动浏览器 / Chrome。
-
-### 第五轮：SVG立体新增基础色表面贴图（用户专项授权）
-- `tools/extrude3d` 材质区新增可访问中文 UI「上传表面贴图」（`#texture-file`，accept PNG / JPEG / WebP）
-  与「移除贴图」（`#texture-remove`），文件名与状态显示在 `#texture-name`（`aria-live="polite"`）。
-- 接线只用现成件：three 0.186.1 自带 `TextureLoader` + blob URL（本地读取，零网络请求）载入图片，
-  设 `SRGBColorSpace`，挂到 `MeshPhysicalMaterial.map`；UV 直接用上游 `@visant/extrude3d` 0.1.0
-  `buildExtrudedGeometry` 已生成的三平面 UV，不写自定义着色器 / UV 算法，不打包贴图素材，
-  不做法线 / 粗糙度 / 置换编辑器。
-- 校验：MIME 白名单（`image/png`、`image/jpeg`、`image/webp`）→ 体积 ≤10 MiB → 实际解码成功 →
-  单边 ≤4096 像素；不通过时给出中文原因（「贴图未更换」）并保留当前贴图与模型。
-- 颜色语义：未勾选「自定义颜色」且贴图激活时基色用 `#ffffff`（贴图按原色显示）；勾选后可用颜色给贴图染色；
-  「移除贴图」释放贴图并恢复材质预设颜色。切换材质预设、重建几何、导出 PNG 都保留贴图。
-- 资源生命周期：成功 / 失败 / 过期均 `URL.revokeObjectURL`；替换 / 移除 / 过期回调都 `texture.dispose()`；
-  加载序列号丢弃过期回调（含「加载中点移除贴图」与「连续换图」）；file input 每次处理完即重置，可重复选同一文件。
-- 调试钩子只在既有 `window.__extrude3d.getInfo()` 增加最小只读字段 `texture`（`{name,width,height}` 或 `null`），
-  不新增测试专用 API。
-- 测试：`tests/specs/extrude3d.mjs` 新增表面贴图断言——真实 PNG 改变画布像素、材质绑定 sRGB map 且基色为白、
-  自定义颜色可染色、切换材质 / 切换 SVG 后贴图保留、伪 PNG（解码失败）与非白名单类型被拒且保留好贴图、
-  移除后 `map` 为 `null` 且基色恢复预设颜色（黄金 `#ffd891`）且像素变化、重选同一文件可再次上传、
-  贴图激活时导出 PNG 非空。浏览器验收仍由 Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），
-  实现侧不启动 Chrome。
-- 文案：材质帮助改为「预设提供基础光泽，上传图片提供表面图案」；README 同步；不改纹理间原 8 份源码，
-  不新增依赖 / 后端 / CDN / 规划文档。
-- 验证：`npm run check`（41 项全过）、`npm test`（5 套 Node 测试共 35 项 + 静态自检全过）、`npm run build` 通过；
-  浏览器断言待 Codex 复验。
-
-### 第四轮：名称定稿与轻量提示文案（不新增渲染 / 业务功能）
-- 首页 12 个入口名称定稿：`texture` 纹理间（保护原 8 份源码）、`pixelit` 像素画、`image-to-pixel` 图片抖动、
-  `image-to-ascii` 字符画、`shaders-logo` 标志材质、`shaders-bg` 动态背景、`shaders-halftone` 半调网点、
-  `extrude3d` SVG立体、`psychos` 图片拼贴、`space-type-generator` 动态文字、`shader-lab` 图片特效、`tooooools` 图像网点。
-- 首页卡片类别行不再拼接英文副标题；`tools.js` 的 `en` 字段保留，仅用于来源记录与关键词搜索，类别仍用现有中文分类。
-- `tools/extrude3d`：页面标题 / 窗口标题 / 画布 `aria-label` 改「SVG立体」；「挤出参数」改「立体设置」、
-  「圆滑度」改「平滑度」、「PNG 倍率」改「导出尺寸」、「覆盖预设颜色 / 粗糙度」改「自定义颜色 / 自定义粗糙度」；
-  材质帮助改成可读操作提示，并如实说明「石材、木材等为基础光泽效果，暂不含纹理」；
-  去掉「本工具不另写材质参数」「程序化环境反射」「文件名形如 extrude3d-*.png」等实现说明。
-- 材质中文名复核 38 项全部为中文：`chrome` 镜面金属、`glass` 透明玻璃、`diamond` 水晶效果、
-  `y2kGloss` 亮面、`candyInflate` 糖果塑料；其余保留常用中文；`value`（上游 preset id）与实际参数一律未改。
-- 其他自建适配页只改常用中文标题 / 去掉英文装饰副标题（`shaders-logo` / `shaders-bg` / `shaders-halftone` /
-  `image-to-pixel` / `psychos`）；未翻译第三方 psychos 节点编辑器与 pixelit / ascii 原 UI，未改动纹理间原 8 份源码，
-  未修改外部网站。
-- 测试同步：`home` / `image-to-pixel` / `shaders-logo` / `extrude3d` 的名称断言改为新名称；
-  `tests/specs/extrude3d.mjs` 新增轻量浏览器断言——38 个材质预设全部有中文名、`value` 不变且无重复、
-  常用材质（塑料 / 镜面金属 / 透明玻璃 / 黄金）可从下拉选中并生效。浏览器仍由 Codex 执行，实现侧不启动 Chrome。
-- 边界（本轮不变）：只保留现有 SVG 立体工具，不建高级入口、不接 vgpu / 路径追踪，不新增依赖 / 后端 /
-  材质算法或纹理库，不新建规划文档。
-- 验证：`npm run check` 与 `npm run build` 通过（纯 Node，未启动浏览器）。
+### 修复与第四 / 第五轮：中文名、基础色表面贴图与导出清屏（Codex 浏览器复验通过）
+- 第四轮名称定稿：首页 12 个入口（9 内置 + 3 外链）用常用中文名，卡片不再拼英文副标题；
+  `tools/extrude3d` 38 个材质预设全部中文名，`value`（上游 preset id）不变且无重复。
+- 第五轮基础色表面贴图（用户专项授权）：材质区上传本地 PNG / JPEG / WebP，经白名单 + 实际解码 +
+  ≤10 MiB / 单边 ≤4096 像素校验，用 three 自带 `TextureLoader`（blob URL）与上游三平面 UV 挂 `map`；
+  未自定义颜色用纯白显示原色，勾选可染色，移除恢复预设颜色；素材只本地读取、不上传，无效文件给中文原因并保留当前贴图与模型。
+- 修复：`renderer.setSize` 清屏后立即补绘一帧（导出回填预览尺寸、resize 均生效）；贴图加载序列号移到
+  `loadTextureFile` 开头，最新一次选择即使会被拒也先作废更早的进行中加载。无新增依赖 / 后端 / CDN / 贴图素材。
+- 验证：Codex 独立复跑 SVG立体 65/65 PASS（真实下载 PNG 解码比对、透明背景、贴图 / 材质 / 预设 / SVG 持久化、
+  清除 / 重选、无效文件、异步最新-无效 / 取消竞态、拒绝复杂 SVG 后保留原模型）；PNG / JPEG / WebP 均可载入，
+  >10 MiB 与 4097×1 被拒且保留原贴图；纯 Node `npm run check`（41 项）、`npm test`（35 项）、`npm run build` 全过。
 
 ### 第二轮：首页视觉调整（名称定为 ImageLAB）
 - 名称统一为 **ImageLAB**（`I` 大写 / `mage` 小写 / `LAB` 大写）：首页标题、页脚、`package.json`、README 同步。

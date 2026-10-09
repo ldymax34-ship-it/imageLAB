@@ -46,10 +46,10 @@ CHROME_PATH=/path/to/chrome
 
 ## 本轮状态
 
-规格均由 Codex 执行浏览器验收：纹理间、像素画、字符画、SVG立体、图片抖动（34 项）、
+规格均由 Codex 执行浏览器验收：纹理间、像素画、字符画、SVG立体（65 项）、图片抖动（34 项）、
 标志材质（独立 19 项）、半调网点（28 项）、图片拼贴（20 项，WebGPU）已通过；
 动态背景的渲染/参数/导出断言全部通过，此前的失败是开发服务器 HTTP 304 假失败，
-已在 `harness.mjs` 关闭浏览器缓存修复。首页新增 bayer 搜索回归，待 Codex 验证。
+已在 `harness.mjs` 关闭浏览器缓存修复。首页 bayer 搜索回归与 9 个内置入口回归已通过。
 
 本轮名称定稿：`extrude3d` 规格新增轻量断言——38 个材质预设全部有中文名、value（上游 preset id）
 不变且无重复、常用材质（塑料 / 镜面金属 / 透明玻璃 / 黄金）可从下拉选中并生效。浏览器断言仍由
@@ -59,8 +59,8 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 且未自定义颜色时基色为白、自定义颜色可给贴图染色、切换材质预设 / 切换 SVG 重建几何后贴图保留、
 伪 PNG（解码失败）与非白名单类型被拒且保留当前好贴图、移除后 `map` 为 `null` 且基色恢复预设颜色
 （黄金 `#ffd891`）并且像素变化、重选同一文件可再次上传、贴图激活时导出 PNG 非空。
-**待 Codex 复验**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；实现侧只跑
-`npm run check` / `npm test` / `npm run build`。
+**已由 Codex 独立复跑 65/65 PASS**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
+实现侧只跑 `npm run check` / `npm test` / `npm run build`。
 
 首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
 `target="_blank" rel="noopener noreferrer"`、准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。
