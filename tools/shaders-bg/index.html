@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- imagelab:entry -->
+<title>动态背景 · 图像实验室 imageLAB</title>
+<meta name="description" content="八个可动的动态背景效果，每个带多组预设；暂停、定格到某一帧后导出 PNG。本地实时渲染，无需上传素材。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314120f'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23f6f4f1'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/backlink.css">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./main.js"></script>
+</head>
+<body>
+
+<header class="il-head">
+  <h1>动态背景<span>BACKGROUNDS</span></h1>
+  <p>
+    八个背景效果：网格渐变、颗粒渐变、烟环、扭曲织纹、点阵网格、神光、融球、神经噪声。每个都配了几组预设，调好参数可以暂停或定格到某一帧，再导出 PNG。本地实时渲染，不需要上传素材。
+  </p>
+</header>
+
+<main class="il-main">
+  <!--
+    左侧面板的「固定外壳」直接写在这里（效果按钮 / 速度 / 定格 / 导出），
+    每个效果的参数控件由 ui.js 按效果目录动态填进 #param-* 容器。
+    这样常用控件不会随效果切换被反复重建。
+  -->
+  <aside class="il-panel" id="panel">
+
+    <section class="il-group">
+      <h2>效果</h2>
+      <p class="il-note" id="effect-note"></p>
+      <div class="il-chips" id="effect-chips">
+        <button type="button" id="effect-mesh-gradient" data-effect="mesh-gradient" aria-pressed="true">网格渐变</button>
+        <button type="button" id="effect-grain-gradient" data-effect="grain-gradient" aria-pressed="false">颗粒渐变</button>
+        <button type="button" id="effect-smoke-ring" data-effect="smoke-ring" aria-pressed="false">烟环</button>
+        <button type="button" id="effect-warp" data-effect="warp" aria-pressed="false">扭曲织纹</button>
+        <button type="button" id="effect-dot-grid" data-effect="dot-grid" aria-pressed="false">点阵网格</button>
+        <button type="button" id="effect-god-rays" data-effect="god-rays" aria-pressed="false">神光</button>
+        <button type="button" id="effect-metaballs" data-effect="metaballs" aria-pressed="false">融球</button>
+        <button type="button" id="effect-neuro-noise" data-effect="neuro-noise" aria-pressed="false">神经噪声</button>
+      </div>
+    </section>
+
+    <section class="il-group" id="group-image" hidden>
+      <h2 id="image-title">图片</h2>
+      <p class="il-note" id="image-hint"></p>
+      <input type="file" id="image-file" accept="image/png,image/jpeg,image/webp">
+      <div class="il-image-slot" id="image-slot">
+        <img class="il-thumb" id="image-thumb" alt="已上传图片预览" hidden>
+        <button type="button" id="image-clear" hidden>清除图片</button>
+
+      </div>
+    </section>
+
+    <section class="il-group" id="group-presets" hidden>
+      <h2 id="presets-title">预设</h2>
+      <div class="il-chips" id="preset-chips"></div>
+    </section>
+
+    <section class="il-group" id="group-main">
+      <h2>主要参数</h2>
+      <div id="param-main"></div>
+    </section>
+
+    <details class="il-group" id="group-advanced" hidden>
+      <summary id="advanced-title">进阶参数</summary>
+      <div class="il-params" id="param-advanced"></div>
+    </details>
+
+    <details class="il-group" id="group-sizing">
+      <summary>构图</summary>
+      <div class="il-params" id="param-sizing"></div>
+    </details>
+
+    <section class="il-group">
+      <h2>速度与单帧</h2>
+      <div class="il-range">
+        <label for="p-speed">速度</label>
+        <input type="range" id="p-speed" min="0" max="4" step="0.05" value="1">
+        <input type="number" id="n-speed" min="0" max="20" step="0.05" value="1">
+      </div>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-pause" title="停在当前画面">暂停</button>
+        <button type="button" id="btn-play" title="继续播放动画">播放</button>
+      </div>
+      <div class="il-range">
+        <label for="p-frame">帧（毫秒）</label>
+        <input type="range" id="p-frame" min="0" max="20000" step="50" value="0">
+        <input type="number" id="n-frame" min="0" max="600000" step="50" value="0">
+      </div>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-freeze" title="停到指定时间点，得到确定的单帧">定格取帧</button>
+      </div>
+      <p class="il-note" id="anim-note"></p>
+    </section>
+
+    <section class="il-group">
+      <h2>导出</h2>
+      <button type="button" id="btn-export">导出当前帧 PNG</button>
+      <p class="il-note" id="export-info">导出的是预览区当前这一帧。</p>
+    </section>
+
+  </aside>
+
+  <section>
+    <div class="il-stage">
+      <div class="il-canvas" id="stage">
+      </div>
+    </div>
+    <div class="il-legend">
+      <span id="status">初始化中…</span>
+      <span>本地渲染 · 无需素材 · 可导出 PNG</span>
+    </div>
+  </section>
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+</body>
+</html>

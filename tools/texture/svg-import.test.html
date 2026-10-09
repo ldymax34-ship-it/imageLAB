@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>SVG 导入安全测试 · 纹理间</title>
+  <style>
+    body{font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;margin:32px;color:#263b36;background:#f6f7f3}
+    h1{font-size:20px}
+    #summary{font-weight:600;margin:14px 0}
+    .pass{color:#23644f}
+    .fail{color:#b23b30}
+    ol{padding-left:22px}
+    li{margin:3px 0}
+    li.ok::marker{color:#23644f}
+    li.no::marker{color:#b23b30}
+    .err{color:#b23b30;font-size:12px}
+    code{background:#fff;border:1px solid #e2e6df;border-radius:4px;padding:1px 5px}
+  </style>
+</head>
+<body>
+  <h1>SVG 导入安全测试（本地浏览器）</h1>
+  <p>直接用浏览器打开本文件即可运行。测试使用本地生成的合成 SVG 夹具，验证几何导入与安全拒绝；不使用网络、不下载任何资源。</p>
+  <div id="summary">运行中…</div>
+  <ol id="results"></ol>
+
+  <script src="engine.js"></script>
+  <script src="curve-fit.js"></script>
+  <script src="curve-engine.js"></script>
+  <script src="svg-path-data.js"></script>
+  <script src="svg-import.js"></script>
+  <script src="svg-import-harness.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      var list = document.getElementById("results");
+      var summary = document.getElementById("summary");
+      if (!window.SvgImportTests) {
+        summary.textContent = "测试未加载：请确认 svg-import.js 与 svg-import-harness.js 位于同一目录。";
+        summary.className = "fail";
+        return;
+      }
+      var results = window.SvgImportTests.run();
+      results.forEach(function (r) {
+        var li = document.createElement("li");
+        li.className = r.ok ? "ok" : "no";
+        li.textContent = r.name;
+        if (!r.ok) {
+          var span = document.createElement("span");
+          span.className = "err";
+          span.textContent = " — " + r.error;
+          li.appendChild(span);
+        }
+        list.appendChild(li);
+      });
+      var passed = results.filter(function (r) { return r.ok; }).length;
+      var failed = results.length - passed;
+      summary.textContent = passed + " 通过 / " + failed + " 失败（共 " + results.length + " 项）";
+      summary.className = failed ? "fail" : "pass";
+    })();
+  </script>
+</body>
+</html>

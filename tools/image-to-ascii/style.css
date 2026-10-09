@@ -1,0 +1,22 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.container {
+  display: flex;
+  margin: 15px;
+}
+
+video {
+  width: 150px;
+  height: 100px;
+}
+#file {
+  margin: 10px 0 0 65px;
+}

@@ -1,0 +1,254 @@
+@charset "UTF-8";
+/* SVG 挤出三维 · 视觉约定：微暖白底 / 近黑文字 / 浅灰分割线，
+   原生控件、1px 实线边框、圆角 ≤ 2px、无彩色装饰、无玻璃拟态。 */
+
+:root {
+  --il-bg: #f6f4f1;
+  --il-ink: #14120f;
+  --il-line: #ddd8d1;
+  --il-muted: #6f6a63;
+  --il-faint: #8d8880;
+  --il-panel: #fbfaf8;
+  --il-stage: #eceae5;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--il-bg);
+  color: var(--il-ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select { font: inherit; color: inherit; }
+
+button, select, input[type="file"] { border-radius: 2px; }
+
+button {
+  padding: 7px 12px;
+  border: 1px solid var(--il-line);
+  background: #fff;
+  cursor: pointer;
+}
+button:hover { background: #f1eee9; }
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible { outline: 1px solid var(--il-ink); outline-offset: 1px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.il-primary { background: var(--il-ink); border-color: var(--il-ink); color: #f6f4f1; }
+button.il-primary:hover { background: #2c2823; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .92em;
+  padding: 0 3px;
+  border: 1px solid var(--il-line);
+  background: #fff;
+}
+
+/* ---------- 顶栏 ---------- */
+.il-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 53px;
+  padding: 0 18px;
+  background: var(--il-bg);
+  border-bottom: 1px solid var(--il-line);
+}
+.il-head-title { display: flex; align-items: baseline; gap: 9px; }
+.il-head-title b { font-size: 15px; font-weight: 600; letter-spacing: .04em; }
+.il-head-title span { font-size: 9px; letter-spacing: .18em; color: var(--il-faint); }
+.il-head-meta { font-size: 11px; color: var(--il-muted); }
+.il-head-meta i {
+  display: inline-block;
+  width: 5px; height: 5px;
+  margin-right: 6px;
+  background: var(--il-ink);
+  vertical-align: 1px;
+}
+
+/* ---------- 布局：左参数栏 + 右 3D 视图 ---------- */
+.il-main {
+  display: grid;
+  grid-template-columns: 322px minmax(0, 1fr);
+  height: calc(100vh - 53px);
+  min-height: 0;
+}
+
+.il-panel {
+  min-width: 0;
+  padding: 0 16px 26px;
+  overflow: auto;
+  background: var(--il-panel);
+  border-right: 1px solid var(--il-line);
+}
+
+.il-sec { padding: 15px 0 17px; border-bottom: 1px solid var(--il-line); }
+.il-sec:last-child { border-bottom: 0; }
+.il-sec h2 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.il-sec h2 b { margin-right: 8px; font-size: 9px; font-weight: 500; color: var(--il-faint); }
+
+.il-field {
+  display: block;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--il-muted);
+}
+.il-field select,
+.il-field input[type="file"] {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 7px;
+  border: 1px solid var(--il-line);
+  background: #fff;
+}
+.il-field input[type="file"] { padding: 5px; font-size: 11px; }
+
+.il-color { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.il-color input[type="color"] {
+  width: 64px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--il-line);
+  background: #fff;
+  cursor: pointer;
+}
+.il-color input[type="color"]:disabled { opacity: .45; cursor: not-allowed; }
+
+.il-file {
+  display: block;
+  margin-top: 12px;
+  padding: 8px;
+  border: 1px dashed var(--il-line);
+  background: #fff;
+  text-align: center;
+  font-size: 11px;
+  color: var(--il-muted);
+  cursor: pointer;
+}
+.il-file:hover { border-style: solid; }
+.il-file input { display: none; }
+
+.il-name {
+  margin: 9px 0 0;
+  font-size: 11px;
+  color: var(--il-ink);
+  overflow-wrap: anywhere;
+}
+
+.il-slider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 13px;
+  font-size: 11px;
+  color: var(--il-muted);
+}
+.il-slider output {
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--il-ink);
+  border: 1px solid var(--il-line);
+  background: #fff;
+  padding: 1px 5px;
+}
+
+input[type="range"] {
+  display: block;
+  width: 100%;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--il-ink);
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
+
+.il-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--il-muted);
+  cursor: pointer;
+}
+.il-check input { width: 13px; height: 13px; margin: 0; accent-color: var(--il-ink); }
+
+.il-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+
+.il-help {
+  margin: 10px 0 0;
+  font-size: 10px;
+  line-height: 1.75;
+  color: var(--il-faint);
+  overflow-wrap: anywhere;
+}
+.il-help b { color: var(--il-muted); font-weight: 600; }
+
+/* ---------- 3D 视图 ---------- */
+.il-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 14px 0;
+}
+
+.il-alert {
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--il-ink);
+  background: #fff;
+  color: var(--il-ink);
+  font-size: 11px;
+  line-height: 1.7;
+}
+.il-alert b { display: block; margin-bottom: 3px; font-size: 11px; }
+
+.il-view {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 260px;
+  border: 1px solid var(--il-line);
+  background: var(--il-stage);
+  background-image: radial-gradient(rgba(20, 18, 15, .09) .6px, transparent .6px);
+  background-size: 12px 12px;
+  overflow: hidden;
+}
+.il-view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+.il-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 1px 12px;
+  font-size: 10px;
+  color: var(--il-muted);
+  overflow-wrap: anywhere;
+}
+.il-status #stats { flex: none; color: var(--il-faint); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 900px) {
+  .il-main { display: flex; flex-direction: column; height: auto; }
+  .il-stage { order: 0; padding: 12px 12px 0; }
+  .il-view { flex: none; height: 58vh; min-height: 300px; }
+  .il-panel { order: 1; overflow: visible; border-right: 0; border-top: 1px solid var(--il-line); }
+}

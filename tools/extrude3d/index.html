@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVG 挤出三维 · 图像实验室 imageLAB</title>
+<meta name="description" content="本地把 SVG 轮廓挤出成三维：厚度、倒角、圆滑度可调，材质预设来自本地材质库，程序化环境反射，可导出透明背景 PNG。素材不上传。">
+<!-- imagelab:entry -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314120f'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23f6f4f1'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/backlink.css">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="il-head">
+  <div class="il-head-title">
+    <b>SVG 挤出三维</b>
+    <span>EXTRUDE 3D</span>
+  </div>
+  <div class="il-head-meta">
+    <i></i>本地处理 · 素材不上传
+  </div>
+</header>
+
+<main class="il-main">
+
+  <aside class="il-panel" aria-label="挤出参数">
+
+    <section class="il-sec">
+      <h2><b>01</b>SVG 导入</h2>
+      <label class="il-field" for="sample">内置样例
+        <select id="sample">
+          <option value="square-ring">方块 + 圆孔</option>
+          <option value="letter-a-star">字母 A + 星形</option>
+          <option value="hex-nest">六边形套环</option>
+        </select>
+      </label>
+      <label class="il-file" for="svg-file">选择本地 SVG 文件
+        <input id="svg-file" type="file" accept=".svg,image/svg+xml">
+      </label>
+      <p class="il-name" id="svg-name" title="当前使用的 SVG">—</p>
+      <p class="il-help">
+        导入简单、轮廓闭合的 SVG；<b>文字请先转曲</b>。
+        含文本 / 图片 / 滤镜 / 渐变描边的文件会被拒绝并说明原因。
+        上限 2 MB、500 条图形。
+      </p>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>02</b>挤出参数</h2>
+
+      <label class="il-slider" for="depth">厚度 <output id="depth-out">1.6</output></label>
+      <input id="depth" type="range" min="0.2" max="10" step="0.1" value="1.6">
+
+      <label class="il-check"><input id="bevel-enabled" type="checkbox" checked>启用倒角</label>
+
+      <label class="il-slider" for="bevel-thickness">倒角厚度 <output id="bevel-thickness-out">0.5</output></label>
+      <input id="bevel-thickness" type="range" min="0" max="2" step="0.05" value="0.5">
+
+      <label class="il-slider" for="bevel-size">倒角尺寸 <output id="bevel-size-out">0.5</output></label>
+      <input id="bevel-size" type="range" min="0" max="2" step="0.05" value="0.5">
+
+      <label class="il-slider" for="smoothness">圆滑度 <output id="smoothness-out">0.50</output></label>
+      <input id="smoothness" type="range" min="0" max="1" step="0.02" value="0.5">
+
+      <p class="il-help">改参数即时重建模型；圆滑度越高，倒角与曲线越顺。</p>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>03</b>材质</h2>
+      <label class="il-field" for="material">材质
+        <select id="material"></select>
+      </label>
+      <label class="il-check"><input id="color-override" type="checkbox">覆盖预设颜色</label>
+      <label class="il-field il-color" for="color">自定义颜色
+        <input id="color" type="color" value="#c9c4bd" disabled>
+      </label>
+      <label class="il-check"><input id="roughness-override" type="checkbox">覆盖预设粗糙度</label>
+      <label class="il-slider" for="roughness">粗糙度 <output id="roughness-out">0.30</output></label>
+      <input id="roughness" type="range" min="0" max="1" step="0.02" value="0.3" disabled>
+      <p class="il-help">材质来自本地预设库，本工具不另写材质参数；颜色与粗糙度可作为覆盖项。</p>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>04</b>环境与背景</h2>
+      <label class="il-slider" for="env-intensity">环境光 <output id="env-intensity-out">1.00</output></label>
+      <input id="env-intensity" type="range" min="0" max="3" step="0.05" value="1">
+
+      <label class="il-slider" for="exposure">曝光 <output id="exposure-out">1.00</output></label>
+      <input id="exposure" type="range" min="0.2" max="2" step="0.05" value="1">
+
+      <label class="il-field il-color" for="bg">背景色
+        <input id="bg" type="color" value="#efede8">
+      </label>
+      <label class="il-check"><input id="transparent-bg" type="checkbox">透明背景（导出带透明通道的 PNG）</label>
+      <p class="il-help">环境反射为本地程序化生成，不加载任何远程贴图。</p>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>05</b>视图与导出</h2>
+      <div class="il-row">
+        <button id="reset-view" type="button">重置视角</button>
+        <button id="export-png" class="il-primary" type="button">导出 PNG</button>
+      </div>
+      <label class="il-field" for="export-scale">PNG 倍率
+        <select id="export-scale">
+          <option value="1">1× · 视图尺寸</option>
+          <option value="2" selected>2× · 高清</option>
+        </select>
+      </label>
+      <p class="il-help">拖拽旋转 · 滚轮缩放 · 右键（或双指）平移。文件名形如 <code>extrude3d-*.png</code>。</p>
+    </section>
+
+  </aside>
+
+  <section class="il-stage">
+    <div class="il-alert" id="error" role="alert" hidden></div>
+    <div class="il-view" id="view">
+      <canvas id="view-canvas" aria-label="SVG 挤出三维实时预览：可旋转、缩放、平移"></canvas>
+    </div>
+    <div class="il-status">
+      <span id="status" aria-live="polite">正在载入样例…</span>
+      <span id="stats">—</span>
+    </div>
+  </section>
+
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+<script type="module" src="./main.js"></script>
+
+</body>
+</html>

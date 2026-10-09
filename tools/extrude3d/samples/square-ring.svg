@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <title>样例：方块 + 圆孔</title>
+  <path fill="#111111" fill-rule="evenodd"
+    d="M20 20 H180 V180 H20 Z M100 60 A40 40 0 1 0 100 140 A40 40 0 1 0 100 60 Z"/>
+</svg>

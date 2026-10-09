@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>应用冒烟测试 · 纹理间</title>
+  <style>
+    body{font:13px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;margin:24px;color:#263b36;background:#f6f7f3}
+    iframe{width:1280px;height:820px;border:1px solid #e2e6df;border-radius:8px;background:#fff}
+    #summary{font-weight:600;margin:14px 0}
+    .pass{color:#23644f}.fail{color:#b23b30}
+    li.ok::marker{color:#23644f}li.no::marker{color:#b23b30}
+    .err{color:#b23b30;font-size:12px}
+  </style>
+</head>
+<body>
+  <h1>应用冒烟测试（本地浏览器）</h1>
+  <p>通过 iframe 加载 <code>index.html</code>，以黑盒方式驱动标签页、曲线面板与本地 SVG 导入。若直接以 file:// 打开而被浏览器拦截同源访问，请用本地静态服务器（见 README）访问本文件。</p>
+  <div id="summary">运行中…</div>
+  <ol id="results"></ol>
+  <iframe id="app" src="index.html" title="应用"></iframe>
+
+  <script>
+    (function () {
+      "use strict";
+      var frame = document.getElementById("app");
+      var list = document.getElementById("results");
+      var summary = document.getElementById("summary");
+
+      function finish(results) {
+        results.forEach(function (r) {
+          var li = document.createElement("li");
+          li.className = r.ok ? "ok" : "no";
+          li.textContent = r.name;
+          if (!r.ok) {
+            var span = document.createElement("span");
+            span.className = "err";
+            span.textContent = " — " + r.error;
+            li.appendChild(span);
+          }
+          list.appendChild(li);
+        });
+        var passed = results.filter(function (r) { return r.ok; }).length;
+        var failed = results.length - passed;
+        summary.textContent = passed + " 通过 / " + failed + " 失败（共 " + results.length + " 项）";
+        summary.className = failed ? "fail" : "pass";
+      }
+
+      function wait(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+
+      async function run() {
+        var doc, win, results = [], errors = [];
+        try {
+          doc = frame.contentDocument;
+          win = frame.contentWindow;
+        } catch (err) {
+          finish([{name: "读取 iframe（需要同源，请用本地服务器）", ok: false, error: err.message}]);
+          return;
+        }
+        win.addEventListener("error", function (e) { errors.push(e.message || String(e)); });
+
+        async function t(name, fn) {
+          try { await fn(); results.push({name: name, ok: true}); }
+          catch (err) { results.push({name: name, ok: false, error: err && err.message ? err.message : String(err)}); }
+        }
+        function assert(cond, msg) { if (!cond) throw new Error(msg || "断言失败"); }
+        function $(id) { return doc.getElementById(id); }
+        function click(el) { assert(el, "元素不存在"); el.click(); }
+        function change(el) { el.dispatchEvent(new win.Event("change", {bubbles: true})); }
+        function input(el) { el.dispatchEvent(new win.Event("input", {bubbles: true})); }
+        function visible(el) { return el && !el.hidden; }
+        function cssRulesText() {
+          var out = "";
+          for (var i = 0; i < doc.styleSheets.length; i++) {
+            var rules;
+            try { rules = doc.styleSheets[i].cssRules; } catch (err) { continue; }
+            if (!rules) continue;
+            for (var j = 0; j < rules.length; j++) out += rules[j].cssText + "\n";
+          }
+          return out;
+        }
+        async function loadAppCss() {
+          try {
+            var link = doc.querySelector('link[rel="stylesheet"]');
+            if (link && typeof win.fetch === "function") {
+              var res = await win.fetch(link.href);
+              if (res && res.ok) return await res.text();
+            }
+          } catch (err) { /* fall back to CSSOM below */ }
+          return cssRulesText();
+        }
+        function assertFits(el, label) {
+          assert(el, label + " 不存在");
+          assert(
+            el.scrollHeight <= el.clientHeight + 2,
+            label + " 需要滚动（内容 " + el.scrollHeight + "px > 可视 " + el.clientHeight + "px）"
+          );
+        }
+        async function setViewport(w, h) {
+          frame.style.width = w + "px";
+          frame.style.height = h + "px";
+          await wait(140);
+        }
+        /* Resolve on the next animation frame, but never hang if the frame
+         * loop is throttled; followed by a short pause so tab/field driven
+         * layout and canvas repaints can settle before measuring. */
+        function nextFrame() {
+          return new Promise(function (resolve) {
+            var settled = false;
+            function done() { if (!settled) { settled = true; resolve(); } }
+            if (typeof win.requestAnimationFrame === "function") win.requestAnimationFrame(done);
+            setTimeout(done, 80);
+          });
+        }
+        async function settle() { await nextFrame(); await wait(60); }
+        function rendered(el) {
+          return !!el && !el.hidden && el.getClientRects().length > 0;
+        }
+        function assertInside(el, container, label) {
+          var r = el.getBoundingClientRect();
+          var c = container.getBoundingClientRect();
+          assert(
+            r.top >= c.top - 1 && r.bottom <= c.bottom + 1,
+            label + " 控件被裁切（" + Math.round(r.top) + "–" + Math.round(r.bottom) +
+              " 超出 " + Math.round(c.top) + "–" + Math.round(c.bottom) + "）"
+          );
+        }
+        /* Rect-level guard: an overflow:hidden panel could report a fitting
+         * scrollHeight while still clipping real controls, so verify the
+         * interactive controls themselves sit inside the visible box. */
+        function assertControlsReachable(container, label, ids) {
+          ids.forEach(function (id) {
+            var el = $(id);
+            if (!rendered(el)) return;
+            assertInside(el, container, label + " #" + id);
+          });
+        }
+        /* Hash every pixel of the backing store. A single scanline can fall
+         * between dot rows, so a full-image signature is the reliable way to
+         * prove the canvas was repainted with different geometry. */
+        function canvasSignature() {
+          var canvas = $("canvas");
+          var ctx = canvas.getContext("2d");
+          var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          var hash = 2166136261;
+          for (var i = 0; i < data.length; i++) {
+            hash ^= data[i];
+            hash = Math.imul(hash, 16777619);
+          }
+          return hash >>> 0;
+        }
+
+        await t("脚本全部加载且应用已初始化", function () {
+          assert(win.PatternEngine, "PatternEngine 缺失");
+          assert(win.CurveEngine, "CurveEngine 缺失");
+          assert(win.SvgImport, "SvgImport 缺失");
+          assert(win.CA && win.CA.fit, "curve-fit 缺失");
+          assert($("canvas").width !== 300 || $("canvas").height !== 150, "画布未初始化");
+        });
+
+        await t("默认停留在快速纹理且原有控件可见", function () {
+          assert($("tab-quick").getAttribute("aria-selected") === "true", "快速纹理应为默认标签");
+          assert(visible($("quick-seam")), "快速纹理绗缝控件应可见");
+          assert(!visible($("curve-controls")), "曲线控件应隐藏");
+          assert(visible($("presets")), "预设应可见");
+          assert(!visible($("curve-onboarding")), "曲线引导应隐藏");
+        });
+
+        await t("切换到曲线纹理：语义状态与显隐正确", function () {
+          click($("tab-curve"));
+          assert($("tab-curve").getAttribute("aria-selected") === "true");
+          assert($("tab-quick").getAttribute("aria-selected") === "false");
+          assert($("tab-quick").tabIndex === -1 && $("tab-curve").tabIndex === 0, "tabindex 应跟随选中");
+          assert(!visible($("quick-seam")), "内置绗缝应隐藏");
+          assert(visible($("curve-controls")), "曲线控件应显示");
+          assert(!visible($("presets")), "预设应隐藏");
+          assert(visible($("curve-onboarding")), "空文档应显示引导");
+          assert($("export-png").disabled && $("export-svg").disabled, "空文档应禁用导出");
+        });
+
+        await t("键盘方向键可切换标签", function () {
+          $("tab-list").dispatchEvent(new win.KeyboardEvent("keydown", {key: "ArrowLeft", bubbles: true}));
+          assert($("tab-quick").getAttribute("aria-selected") === "true", "左方向键应回到快速纹理");
+          $("tab-curve").focus();
+          $("tab-list").dispatchEvent(new win.KeyboardEvent("keydown", {key: "ArrowRight", bubbles: true}));
+          assert($("tab-curve").getAttribute("aria-selected") === "true", "右方向键应回到曲线纹理");
+        });
+
+        await t("载入示例：出现路径、隐藏引导、启用导出", function () {
+          click($("tab-curve"));
+          click($("curve-demo"));
+          assert(Number($("path-count").textContent) >= 1, "示例应产生路径");
+          assert(!visible($("curve-onboarding")), "有路径后引导应隐藏");
+          assert(!$("export-png").disabled && !$("export-svg").disabled, "有路径后应启用导出");
+        });
+
+        await t("路径列表可选中并删除", function () {
+          if (Number($("path-count").textContent) === 0) click($("curve-demo"));
+          var before = Number($("path-count").textContent);
+          assert($("path-list").querySelectorAll(".path-item").length === before, "列表项应与路径数一致");
+          click($("path-list").querySelectorAll(".path-item")[0]);
+          var first = $("path-list").querySelectorAll(".path-item")[0];
+          assert(first.classList.contains("active") && first.getAttribute("aria-pressed") === "true", "选中项应高亮");
+          click($("curve-delete"));
+          assert(Number($("path-count").textContent) === before - 1, "删除后路径数应减一");
+        });
+
+        await t("撤销 / 重做恢复曲线文档", function () {
+          if (Number($("path-count").textContent) === 0) click($("curve-demo"));
+          var before = Number($("path-count").textContent);
+          click($("path-list").querySelectorAll(".path-item")[0]);
+          click($("curve-delete"));
+          assert(Number($("path-count").textContent) === before - 1, "删除应生效");
+          click($("curve-undo"));
+          assert(Number($("path-count").textContent) === before, "撤销应恢复被删路径");
+          click($("curve-redo"));
+          assert(Number($("path-count").textContent) === before - 1, "重做应再次删除");
+        });
+
+        await t("简化程度滑杆只重拟合手绘路径", function () {
+          if (Number($("path-count").textContent) === 0) click($("curve-demo"));
+          var before = Number($("path-count").textContent);
+          var slider = $("simplicity");
+          slider.value = "0.1";
+          input(slider);
+          change(slider);
+          assert(Number($("path-count").textContent) === before, "重拟合不应增减路径");
+          assert($("simplicity-out").textContent.indexOf("%") !== -1);
+        });
+
+        await t("清空路径后回到引导并禁用导出", function () {
+          click($("curve-clear"));
+          assert(Number($("path-count").textContent) === 0, "清空后无路径");
+          assert(visible($("curve-onboarding")), "空文档应显示引导");
+          assert($("export-png").disabled && $("export-svg").disabled, "空文档应禁用导出");
+        });
+
+        await t("在画布上绘制笔画会拟合出一条路径", function () {
+          click($("tab-curve"));
+          var canvas = $("canvas");
+          var rect = canvas.getBoundingClientRect();
+          var opts = {bubbles: true, pointerId: 7, pointerType: "mouse", button: 0};
+          function fire(type, fx, fy) {
+            canvas.dispatchEvent(new win.PointerEvent(type, Object.assign({}, opts, {
+              clientX: rect.left + rect.width * fx,
+              clientY: rect.top + rect.height * fy
+            })));
+          }
+          fire("pointerdown", 0.2, 0.4);
+          fire("pointermove", 0.28, 0.34);
+          fire("pointermove", 0.36, 0.3);
+          fire("pointermove", 0.44, 0.33);
+          fire("pointermove", 0.52, 0.42);
+          fire("pointermove", 0.6, 0.52);
+          fire("pointermove", 0.66, 0.58);
+          fire("pointerup", 0.66, 0.58);
+          assert(Number($("path-count").textContent) >= 1, "绘制后应新增一条路径");
+        });
+
+        await t("导入本地 SVG 几何（多子路径 + 变换 + viewBox）", async function () {
+          click($("curve-clear"));
+          var fixture = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">' +
+            '<g transform="translate(20,10)"><rect x="0" y="0" width="60" height="40"/></g>' +
+            '<path d="M50 50 L200 50 M50 100 C50 150 150 150 150 100"/>' +
+            '<circle cx="300" cy="300" r="30"/></svg>';
+          var file = new win.File([fixture], "fixture.svg", {type: "image/svg+xml"});
+          var dt = new win.DataTransfer();
+          dt.items.add(file);
+          var inputEl = $("svg-input");
+          inputEl.files = dt.files;
+          inputEl.dispatchEvent(new win.Event("change", {bubbles: true}));
+          await wait(400);
+          assert(Number($("path-count").textContent) === 3, "应导入三条路径，实际 " + $("path-count").textContent);
+          assert($("svg-name").textContent.indexOf("已导入") !== -1, "应显示导入结果");
+          var items = $("path-list").querySelectorAll(".path-item");
+          var meta = items[items.length - 1].textContent;
+          assert(meta.indexOf("SVG 导入") !== -1, "列表应标注 SVG 导入");
+        });
+
+        await t("导入含脚本的 SVG 会被拒绝且不执行", async function () {
+          var before = Number($("path-count").textContent);
+          var bad = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>window.__pwned=1<\/script><rect width="5" height="5"/></svg>';
+          var file = new win.File([bad], "bad.svg", {type: "image/svg+xml"});
+          var dt = new win.DataTransfer();
+          dt.items.add(file);
+          var inputEl = $("svg-input");
+          inputEl.files = dt.files;
+          inputEl.dispatchEvent(new win.Event("change", {bubbles: true}));
+          await wait(300);
+          assert(Number($("path-count").textContent) === before, "被拒绝的 SVG 不应新增路径");
+          assert(!win.__pwned, "脚本绝不能执行");
+        });
+
+        await t("参数按标签各自保存，切换不互相覆盖", function () {
+          click($("tab-quick"));
+          $("width").value = "700";
+          change($("width"));
+          click($("tab-curve"));
+          assert($("width").value === "1200", "曲线标签应保留自己的宽度（1200）");
+          click($("tab-quick"));
+          assert($("width").value === "700", "快速纹理应保留修改后的宽度（700）");
+        });
+
+        /* ------------------------------------------- 滑动条与布局回归（新增） */
+
+        await t("范围控件：24px 命中高度 + WebKit/Firefox 原生轨道与滑块", async function () {
+          click($("tab-quick"));
+          var range = $("spacing");
+          assert(range, "缺少间距滑杆");
+          var box = range.getBoundingClientRect();
+          assert(box.height >= 24, "范围控件命中高度应 >= 24px，实际 " + box.height.toFixed(1) + "px");
+          assert(box.width >= 60, "范围控件应保留可点击宽度，实际 " + box.width.toFixed(1) + "px");
+          var css = await loadAppCss();
+          var hasWebkit = css.indexOf("::-webkit-slider-runnable-track") !== -1 &&
+            css.indexOf("::-webkit-slider-thumb") !== -1;
+          var hasMoz = css.indexOf("::-moz-range-track") !== -1 &&
+            css.indexOf("::-moz-range-thumb") !== -1;
+          assert(hasWebkit || hasMoz, "未找到任何原生范围轨道/滑块样式");
+          if (hasWebkit) {
+            assert(/::-webkit-slider-runnable-track[^{]*\{[^}]*height:\s*4px/.test(css), "WebKit 轨道应为 4px");
+            assert(/::-webkit-slider-thumb[^{]*\{[^}]*width:\s*13px/.test(css), "WebKit 滑块应为 13px");
+          }
+          if (hasMoz) {
+            assert(/::-moz-range-track[^{]*\{[^}]*height:\s*4px/.test(css), "Firefox 轨道应为 4px");
+            assert(/::-moz-range-thumb[^{]*\{[^}]*width:\s*13px/.test(css), "Firefox 滑块应为 13px");
+          }
+        });
+
+        await t("滑杆事件：读数同步且重新生成图案", async function () {
+          click($("tab-quick"));
+          $("field").value = "radial";
+          change($("field"));
+          var spread = $("spread");
+          assert(!spread.disabled, "径向模式应启用渐变范围");
+          spread.value = "20";
+          input(spread);
+          assert($("spread-out").textContent === "20%", "读数应与滑杆一致，实际 " + $("spread-out").textContent);
+          await settle();
+          var small = Number($("dot-count").textContent);
+          var sigSmall = canvasSignature();
+          spread.value = "140";
+          input(spread);
+          assert($("spread-out").textContent === "140%", "读数应随滑杆更新");
+          await settle();
+          var large = Number($("dot-count").textContent);
+          assert(large > small, "增大渐变范围应保留更多单元（" + small + " → " + large + "）");
+          assert(sigSmall !== canvasSignature(), "画布像素应随渐变范围重绘");
+        });
+
+        await t("禁用语义：均匀/无绗缝状态下无效滑杆被禁用并说明原因", function () {
+          click($("tab-quick"));
+          $("field").value = "uniform";
+          change($("field"));
+          ["spread", "angle", "contrast"].forEach(function (id) {
+            var el = $(id);
+            assert(el.disabled, id + " 在均匀模式下应禁用");
+            assert(el.getAttribute("title"), id + " 应有 title 说明");
+            var label = doc.querySelector('label.slider-label[for="' + id + '"]');
+            assert(label && label.classList.contains("is-disabled"), id + " 标签应显示为禁用");
+          });
+          assert($("spread-out").textContent === "仅渐变", "渐变范围读数应提示原因");
+          assert($("contrast-out").textContent === "均匀恒定", "渐变曲线读数应提示原因");
+
+          $("field").value = "linear";
+          change($("field"));
+          ["spread", "angle", "contrast"].forEach(function (id) {
+            assert(!$(id).disabled, id + " 在线性模式下应启用");
+            assert(!$(id).getAttribute("title"), id + " 启用后不应保留 title");
+          });
+          assert($("angle-out").textContent.indexOf("°") !== -1, "线性模式应有角度读数");
+
+          $("seam").value = "none";
+          change($("seam"));
+          ["seamScale", "keepout", "fade"].forEach(function (id) {
+            assert($(id).disabled, id + " 在无绗缝时应禁用");
+            assert($(id).getAttribute("title"), id + " 在无绗缝时应有原因说明");
+          });
+          $("seam").value = "wave";
+          change($("seam"));
+          ["seamScale", "keepout", "fade"].forEach(function (id) {
+            assert(!$(id).disabled, id + " 恢复绗缝后应启用");
+          });
+
+          $("field").value = "uniform";
+          change($("field"));
+        });
+
+        await t("间距限制直径：DOM 滑杆值与读数立即一致", async function () {
+          click($("tab-quick"));
+          click($("shape-options").querySelector('[data-shape="circle"]'));
+          $("grid").value = "hex";
+          change($("grid"));
+          var spacing = $("spacing");
+          spacing.value = "12";
+          input(spacing);
+          var diameter = $("diameter");
+          diameter.value = "24";
+          input(diameter);
+          await wait(70);
+          assert(diameter.value === "10", "圆点六角 12px 间距应将直径限制为 10，实际 " + diameter.value);
+          assert($("diameter-out").textContent === "10 px", "读数应为 10 px，实际 " + $("diameter-out").textContent);
+
+          click($("shape-options").querySelector('[data-shape="square"]'));
+          await wait(70);
+          assert(diameter.value === "8", "方块六角 12px 间距应将直径限制为 8，实际 " + diameter.value);
+          assert($("diameter-out").textContent === "8 px", "方块读数应为 8 px，实际 " + $("diameter-out").textContent);
+
+          click($("shape-options").querySelector('[data-shape="circle"]'));
+          $("grid").value = "square";
+          change($("grid"));
+          spacing.value = "48";
+          input(spacing);
+          diameter.value = "24";
+          input(diameter);
+          await wait(70);
+          assert(diameter.value === "24", "间距充足时直径应可回到 24，实际 " + diameter.value);
+          assert($("diameter-out").textContent === "24 px", "充足间距读数应为 24 px");
+        });
+
+        await t("桌面布局：两标签 × 三种渐变场在四档分辨率无需滚动", async function () {
+          var sizes = [[1100, 720], [1280, 720], [1440, 900], [1920, 1080]];
+          var fields = ["uniform", "image", "linear"];
+          var leftControlIds = ["width", "height", "grid", "spacing", "diameter", "seam", "seamScale",
+            "keepout", "fade", "guides", "field", "spread", "angle", "contrast", "levels", "invert",
+            "ink", "paper", "transparent", "exportGuides", "scale", "export-svg", "export-png"];
+          var curveControlIds = ["mode-options", "simplicity", "curve-undo", "curve-redo",
+            "curve-delete", "curve-clear", "curve-demo", "svg-import-btn", "svg-name"];
+          for (var s = 0; s < sizes.length; s++) {
+            await setViewport(sizes[s][0], sizes[s][1]);
+            for (var tabI = 0; tabI < 2; tabI++) {
+              var tab = tabI === 0 ? "quick" : "curve";
+              click(tab === "quick" ? $("tab-quick") : $("tab-curve"));
+              await settle();
+              for (var f = 0; f < fields.length; f++) {
+                $("field").value = fields[f];
+                change($("field"));
+                await settle();
+                var tag = sizes[s][0] + "x" + sizes[s][1] + " " + tab + "/" + fields[f];
+                var controls = doc.querySelector(".controls");
+                var workspace = doc.querySelector(".workspace");
+                assert(doc.documentElement.scrollWidth <= win.innerWidth + 2, tag + " 页面横向溢出");
+                assert(doc.documentElement.scrollHeight <= win.innerHeight + 2, tag + " 页面纵向溢出");
+                assertFits(controls, tag + " 左栏");
+                assertControlsReachable(controls, tag + " 左栏", leftControlIds);
+                assertFits(workspace, tag + " 中间面板");
+                if (tab === "curve") {
+                  var panel = $("curve-controls");
+                  assertFits(panel, tag + " 右侧路径面板");
+                  assertControlsReachable(panel, tag + " 右侧路径面板", curveControlIds);
+                }
+              }
+            }
+          }
+          await setViewport(1280, 820);
+        });
+
+        await t("小视口：390/768/1024 无横向溢出且滑杆可达", async function () {
+          var widths = [390, 768, 1024];
+          for (var i = 0; i < widths.length; i++) {
+            var w = widths[i];
+            await setViewport(w, 720);
+            click($("tab-quick"));
+            assert(
+              doc.documentElement.scrollWidth <= win.innerWidth + 2,
+              w + "px 出现横向滚动（" + doc.documentElement.scrollWidth + " > " + win.innerWidth + "）"
+            );
+            var range = $("spacing");
+            var box = range.getBoundingClientRect();
+            assert(box.width > 40 && box.height >= 24, w + "px 下滑杆不可达或过小");
+            assert(
+              box.left >= -1 && box.right <= win.innerWidth + 2,
+              w + "px 下滑杆横向超出视口（left " + box.left.toFixed(1) + ", right " + box.right.toFixed(1) + "）"
+            );
+            var controls = doc.querySelector(".controls");
+            assert(controls.getBoundingClientRect().width <= win.innerWidth + 2, w + "px 左栏超出视口");
+          }
+          await setViewport(1280, 820);
+        });
+
+        await t("长路径列表：仅列表内部滚动，右栏不溢出", async function () {
+          await setViewport(1280, 720);
+          click($("tab-curve"));
+          click($("curve-clear"));
+          for (var i = 0; i < 8; i++) click($("curve-demo"));
+          await wait(220);
+          var list = $("path-list");
+          var panel = $("curve-controls");
+          var rows = list.querySelectorAll(".path-item").length;
+          assert(rows >= 18, "应生成至少 18 行路径，实际 " + rows);
+          assert(list.scrollHeight > list.clientHeight, "长列表应在内部滚动");
+          assert(
+            panel.scrollHeight <= panel.clientHeight + 2,
+            "右侧面板不应整体滚动（" + panel.scrollHeight + " > " + panel.clientHeight + "）"
+          );
+          var first = list.querySelector(".path-item strong");
+          var cs = win.getComputedStyle(first);
+          assert(cs.overflow === "hidden" && cs.textOverflow === "ellipsis", "路径名称应截断显示");
+          assert(
+            first.getAttribute("title") || list.querySelector(".path-item").getAttribute("title"),
+            "应提供完整名称 title"
+          );
+          click($("curve-clear"));
+        });
+
+        await t("超长 SVG 状态：右栏不溢出且完整内容可获取", async function () {
+          await setViewport(1280, 720);
+          click($("tab-curve"));
+          for (var i = 0; i < 8; i++) click($("curve-demo"));
+          var longName = new Array(241).join("a") + "-reference-export.svg";
+          var statusText = "正在安全解析 " + longName + "…";
+          var svgName = $("svg-name");
+          svgName.textContent = statusText;
+          svgName.setAttribute("title", statusText);
+          await settle();
+          var panel = $("curve-controls");
+          var cs = win.getComputedStyle(svgName);
+          var lineHeight = parseFloat(cs.lineHeight);
+          if (!lineHeight) lineHeight = parseFloat(cs.fontSize) * 1.8;
+          var statusHeight = svgName.getBoundingClientRect().height;
+          assert(
+            statusHeight <= lineHeight * 3 + 1,
+            "状态块应限制为 3 行（" + statusHeight.toFixed(1) + "px > " + (lineHeight * 3).toFixed(1) + "px）"
+          );
+          assert(
+            svgName.scrollWidth <= svgName.clientWidth + 1,
+            "状态文本应在面板内换行（" + svgName.scrollWidth + " > " + svgName.clientWidth + "）"
+          );
+          assert(
+            panel.scrollWidth <= panel.clientWidth + 1,
+            "右栏不应被长文件名撑宽（" + panel.scrollWidth + " > " + panel.clientWidth + "）"
+          );
+          assert(
+            panel.scrollHeight <= panel.clientHeight + 2,
+            "右栏不应整体滚动（" + panel.scrollHeight + " > " + panel.clientHeight + "）"
+          );
+          assert(svgName.getAttribute("title") === statusText, "完整文本应保留在 title 中");
+          assert(svgName.textContent === statusText, "完整文本应保留在 DOM 中");
+          assert(svgName.getAttribute("tabindex") === "0", "状态文本应可键盘聚焦查看");
+          var list = $("path-list");
+          assert(list.querySelectorAll(".path-item").length >= 18, "应保留已填充的路径列表");
+          assert(list.scrollHeight > list.clientHeight, "长列表仍应内部滚动");
+          assertControlsReachable(panel, "超长状态右栏", ["mode-options", "simplicity", "curve-clear", "curve-demo", "svg-import-btn", "svg-name"]);
+          click($("curve-clear"));
+        });
+
+        await t("导出集成：SVG 与 PNG 仍由同一引擎产出", async function () {
+          await setViewport(1280, 720);
+          click($("tab-quick"));
+          $("width").value = "400";
+          change($("width"));
+          $("height").value = "300";
+          change($("height"));
+          var captured = [];
+          var origCreate = win.URL.createObjectURL;
+          var origRevoke = win.URL.revokeObjectURL;
+          var origClick = win.HTMLAnchorElement.prototype.click;
+          win.URL.createObjectURL = function (blob) { captured.push(blob); return "blob:stub-" + captured.length; };
+          win.URL.revokeObjectURL = function () {};
+          win.HTMLAnchorElement.prototype.click = function () {};
+          try {
+            click($("export-svg"));
+            await wait(60);
+            assert(captured.length === 1, "SVG 导出应生成一个 blob，实际 " + captured.length);
+            assert(captured[0].type.indexOf("image/svg+xml") !== -1, "SVG blob 类型不正确：" + captured[0].type);
+            var svgText = await captured[0].text();
+            assert(svgText.indexOf("<svg") === 0, "SVG 应以 <svg 开头");
+            assert(svgText.indexOf('id="pattern"') !== -1, "SVG 应包含 pattern 组");
+            assert($("toast").textContent.indexOf("已导出") !== -1, "应提示 SVG 已导出");
+
+            click($("export-png"));
+            var pngBlob = null;
+            for (var i = 0; i < 40 && !pngBlob; i++) {
+              await wait(100);
+              for (var c = 0; c < captured.length; c++) {
+                if (captured[c].type.indexOf("image/png") !== -1) pngBlob = captured[c];
+              }
+            }
+            assert(pngBlob, "PNG 导出应生成 image/png blob");
+          } finally {
+            win.URL.createObjectURL = origCreate;
+            win.URL.revokeObjectURL = origRevoke;
+            win.HTMLAnchorElement.prototype.click = origClick;
+          }
+        });
+
+        await t("页面运行期间没有脚本错误", function () {
+          assert(errors.length === 0, "捕获到错误：" + errors.join(" | "));
+        });
+
+        finish(results);
+      }
+
+      if (frame.contentDocument && frame.contentDocument.readyState === "complete") setTimeout(run, 250);
+      else frame.addEventListener("load", function () { setTimeout(run, 250); });
+    })();
+  </script>
+</body>
+</html>

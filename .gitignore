@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+.analysis/
+artifacts/
+dist/
+.vite/
+*.log
+.tmp/
+
+# 安全副本：只在本机作为只读参考，不进入公开仓库
+_source_snapshot/
+*.tsbuildinfo

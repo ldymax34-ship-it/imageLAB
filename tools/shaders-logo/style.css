@@ -1,0 +1,395 @@
+/*
+ * imageLAB · 着色器工具共用样式（三个工具各一份副本）
+ * 视觉：微暖白底 / 近黑文字 / 1px 实线分割线 / border-radius ≤ 2px。
+ * 预览区里的颜色来自 shader 渲染结果，属于效果本身，不是界面装饰。
+ */
+
+:root {
+  --paper: #f6f4f1;
+  --ink: #14120f;
+  --rule: #ddd8d1;
+  --muted: #6f675c;
+  --panel: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ------------------------------------------------------------------ 页头 */
+
+.il-head {
+  border-bottom: 1px solid var(--rule);
+  padding: 16px 18px 14px;
+}
+
+.il-head h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.il-head h1 span {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.il-head p {
+  margin: 5px 0 0;
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------------ 布局 */
+
+.il-main {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .il-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------------------------------------- 左侧参数栏 */
+
+.il-panel {
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--panel);
+}
+
+.il-group {
+  padding: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.il-group:last-child {
+  border-bottom: 0;
+}
+
+.il-group > h2 {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+details.il-group > summary {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.il-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.il-group > summary::before {
+  content: "＋ ";
+  font-weight: 400;
+}
+
+details.il-group[open] > summary::before {
+  content: "－ ";
+}
+
+details.il-group > summary:hover {
+  color: var(--ink);
+}
+
+.il-note {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.il-note:last-child {
+  margin-bottom: 0;
+}
+
+/* 效果 / 预设按钮排 */
+
+.il-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.il-chips button {
+  flex: 0 1 auto;
+}
+
+/* ---------------------------------------------------------------- 控件 */
+
+label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+input[type="number"],
+input[type="text"],
+select {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+select {
+  padding: 4px 4px;
+}
+
+button {
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+input[type="color"] {
+  width: 100%;
+  height: 26px;
+  padding: 1px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+}
+
+.il-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.il-row:last-child {
+  margin-bottom: 0;
+}
+
+.il-row > label {
+  align-self: center;
+}
+
+/* label · slider · numeric readout */
+.il-range {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.il-range:last-child {
+  margin-bottom: 0;
+}
+
+.il-range input[type="number"] {
+  padding: 3px 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* color swatch · alpha slider */
+.il-color {
+  display: grid;
+  grid-template-columns: 92px 62px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.il-colors {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.il-color-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 26px;
+  gap: 6px;
+  align-items: center;
+}
+
+.il-color-item button {
+  padding: 3px 0;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.il-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.il-toggle:last-child {
+  margin-bottom: 0;
+}
+
+.il-toggle input {
+  accent-color: var(--ink);
+  margin: 0;
+}
+
+.il-toggle label {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------- 预览区 */
+
+.il-stage {
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.il-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: #ffffff;
+}
+
+.il-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  background: rgba(246, 244, 241, 0.9);
+  text-align: center;
+}
+
+.il-empty[hidden] {
+  display: none;
+}
+
+.il-empty b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.il-empty span {
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.il-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.il-legend b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* 折叠分组里的参数容器：与 summary 之间留一点呼吸 */
+.il-params {
+  padding-top: 9px;
+}
+
+/* 上传区：缩略图 / 清除 / 额外按钮 纵向排列 */
+.il-image-slot {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.il-image-slot > [hidden],
+.il-thumb[hidden],
+#image-thumb[hidden],
+#image-clear[hidden] {
+  display: none;
+}
+
+.il-thumb {
+  width: 100%;
+  max-height: 96px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  object-fit: contain;
+  background:
+    repeating-conic-gradient(#eeeae4 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+}
+
+.il-file {
+  font-size: 11px;
+}

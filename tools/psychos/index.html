@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>节点式版式 · 图像实验室 imageLAB</title>
+    <!-- [imageLAB patch] a data: favicon, so the browser never fires an
+         implicit /favicon.ico request that would 404. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314120f'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23f6f4f1'/%3E%3C/svg%3E"
+    />
+    <!--
+      [imageLAB patch] Upstream linked a remote web-font stylesheet (two
+      preconnects plus the "Kulim Park" CSS from Google Fonts). That is a
+      runtime remote request, so all three tags were removed. app.css already
+      falls back to 'Helvetica Neue', Helvetica, Arial, sans-serif.
+    -->
+    <style>
+      /* Return-home link: 1px border, no big radius, no colour decoration.
+         These declarations are copied from the repo's assets/backlink.css so
+         the built page never depends on an external stylesheet. */
+      .il-back {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        z-index: 2147483000;
+        display: inline-block;
+        padding: 7px 11px;
+        border: 1px solid rgba(20, 18, 15, 0.22);
+        border-radius: 2px;
+        background: rgba(246, 244, 241, 0.94);
+        color: #14120f;
+        font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
+          "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+        font-size: 12px;
+        font-weight: 550;
+        line-height: 1;
+        letter-spacing: 0.02em;
+        text-decoration: none;
+        -webkit-font-smoothing: antialiased;
+      }
+      .il-back:hover,
+      .il-back:focus-visible {
+        background: #14120f;
+        border-color: #14120f;
+        color: #f6f4f1;
+        outline: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <a class="il-back" href="../../index.html">← imageLAB</a>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
