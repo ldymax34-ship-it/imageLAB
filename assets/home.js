@@ -1,4 +1,4 @@
-/* imageLAB 首页：渲染工具卡片 + 分类筛选 + 关键词搜索。纯静态，无外部依赖。 */
+/* ImageLAB 首页：渲染工具卡片 + 分类筛选 + 关键词搜索。纯静态，无外部依赖。 */
 (function () {
   "use strict";
 
@@ -79,28 +79,19 @@
       return;
     }
 
-    var cats = CAT_ORDER.filter(function (c) {
-      return list.some(function (t) { return t.cat === c; });
-    });
-    list.forEach(function (t) {
-      if (cats.indexOf(t.cat) === -1) cats.push(t.cat);
-    });
-
-    cats.forEach(function (cat) {
-      var items = list.filter(function (t) { return t.cat === cat; });
-      if (!items.length) return;
-      var section = el("section", "section");
-      var wrap = el("div", "wrap");
-      var header = document.createElement("header");
-      header.appendChild(el("h2", null, cat.toUpperCase()));
-      header.appendChild(el("p", null, items.length + " 个工具"));
-      wrap.appendChild(header);
-      var grid = el("div", "cards");
-      items.forEach(function (t) { grid.appendChild(card(t)); });
-      wrap.appendChild(grid);
-      section.appendChild(wrap);
-      host.appendChild(section);
-    });
+    // 全部视图与筛选结果都放进同一条连续 12 栏网格：桌面 3 列，
+    // 不会因为某个类别只有 1–2 个工具而空出一整块。
+    var section = el("section", "section");
+    var wrap = el("div", "wrap");
+    var header = document.createElement("header");
+    header.appendChild(el("h2", null, state.cat === "全部" ? "全部工具" : state.cat));
+    header.appendChild(el("p", null, list.length + " 个工具"));
+    wrap.appendChild(header);
+    var grid = el("div", "cards");
+    list.forEach(function (t) { grid.appendChild(card(t)); });
+    wrap.appendChild(grid);
+    section.appendChild(wrap);
+    host.appendChild(section);
   }
 
   function haystack(t) {

@@ -6,16 +6,23 @@
  * 尚未生成时首页显示中性文字占位，此项会如实报出「待生成」清单而不是伪造通过。
  */
 export const id = "home";
-export const title = "首页 imageLAB";
+export const title = "首页 ImageLAB";
 export const gpu = null;
 
 export async function run({ page, base, browser, check, sleep }) {
   const res = await page.goto(`${base}/index.html`, { waitUntil: "networkidle2", timeout: 60000 });
   check.ok("首页可进入（HTTP 200）", res && res.status() === 200, `status=${res && res.status()}`);
-  check.ok("标题正确", (await page.title()).includes("图像实验室"), await page.title());
+  check.ok("标题正确", (await page.title()).includes("ImageLAB"), await page.title());
 
-  const h1 = await page.$eval("h1", (n) => n.textContent.replace(/\s+/g, "")).catch(() => "");
-  check.ok("大标题已渲染", h1.includes("设计工具箱"), h1);
+  // hero 直接使用已批准的 ImageLAB 字标（h1 内图片，alt 提供可访问名）
+  const hero = await page
+    .$eval("h1 img", (n) => ({ alt: n.alt, natural: [n.naturalWidth, n.naturalHeight] }))
+    .catch(() => null);
+  check.ok(
+    "hero 使用 ImageLAB 字标（h1 + alt 可访问）",
+    !!hero && hero.alt === "ImageLAB" && hero.natural[0] > 0,
+    hero ? `alt=${hero.alt} ${hero.natural.join("×")}` : "未找到 h1 img"
+  );
 
   await page.waitForSelector(".card", { timeout: 15000 });
   const cardCount = await page.$$eval(".card", (n) => n.length);

@@ -1,4 +1,4 @@
-/* imageLAB 首页数据源：登记已经实现完成、可独立打开的入口。
+/* ImageLAB 首页数据源：登记已经实现完成、可独立打开的入口。
  * 封面一律来自工具真实导出结果，放在 public/assets/covers/<id>.png；
  * 文件缺失时首页显示中性占位（不会破图，也不会伪造效果图）。
  * 各入口的浏览器验收状态见 README.md 的工具清单表。 */
@@ -32,7 +32,7 @@ window.IMAGELAB_TOOLS = [
     name: "像素化与抖动",
     en: "Dither Studio",
     cat: "像素与点阵",
-    desc: "像素化 + 7 种抖动算法，调色板用数组定义，输出宽度可调，导出 PNG。",
+    desc: "把照片做成颗粒分明的像素画或抖动网点，颗粒大小、抖动方式与颜色可调，导出 PNG。",
     href: "tools/image-to-pixel/index.html",
     cover: "assets/covers/image-to-pixel.png",
     span: 6,

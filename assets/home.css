@@ -1,15 +1,13 @@
-/* imageLAB · 首页样式 —— 微暖白 + 近黑、无彩色装饰、无圆角胶囊、无玻璃拟态 */
+/* ImageLAB · 首页样式 —— 纯白 #fff + 纯黑 #000，次要信息只用中性灰；
+   12 栏网格、大留白、细线；无渐变 / 玻璃 / 圆角 / 装饰动画。 */
 
 :root {
-  --paper: #f6f4f1;
-  --paper-2: #efedea;
-  --ink: #14120f;
-  --ink-2: #4a453e;
-  --ink-3: #857e74;
-  --rule: #ddd8d1;
-  --rule-strong: #c6c0b7;
-  --accent: #14120f;
-  --col: 12;
+  --paper: #fff;
+  --ink: #000;
+  --ink-2: #333;      /* 中性灰：正文次要 */
+  --ink-3: #6e6e6e;   /* 中性灰：辅助信息 */
+  --rule: #e4e4e4;    /* 中性灰：细线 */
+  --rule-strong: #b0b0b0;
   --gap: 24px;
   --maxw: 1360px;
   --pad: clamp(20px, 4vw, 56px);
@@ -43,56 +41,40 @@ a { color: inherit; text-decoration: none; }
 
 .masthead {
   border-bottom: 1px solid var(--rule);
-  padding: 22px 0 20px;
+  padding: 20px 0 18px;
 }
 
 .masthead .wrap {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 24px;
+  gap: 20px;
   flex-wrap: wrap;
 }
 
-.wordmark {
+.masthead .toc {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  letter-spacing: -0.01em;
-}
-
-.wordmark b {
-  font-size: 19px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-
-.wordmark span {
+  gap: 10px;
   font-size: 12px;
-  color: var(--ink-3);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0.18em;
 }
 
-.masthead .env {
-  font-size: 12px;
-  color: var(--ink-3);
-  letter-spacing: 0.06em;
-}
+.masthead .toc a { color: var(--ink); }
+.masthead .toc a:hover { border-bottom: 1px solid var(--ink); }
+.masthead .toc span { color: var(--ink-3); }
 
-.masthead .env i {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  background: var(--ink);
-  margin-right: 7px;
-  transform: translateY(-1px);
+.masthead .tagline {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  letter-spacing: 0.02em;
 }
 
 /* ---------- hero ---------- */
 
 .hero {
-  padding: clamp(56px, 9vw, 116px) 0 clamp(34px, 5vw, 64px);
+  padding: clamp(64px, 10vw, 140px) 0 clamp(40px, 6vw, 84px);
   border-bottom: 1px solid var(--rule);
 }
 
@@ -102,24 +84,26 @@ a { color: inherit; text-decoration: none; }
   gap: var(--gap);
 }
 
-.hero h1 {
+/* hero 直接使用已批准的 ImageLAB 字标；CSS 按字形外框裁掉四周大面积空白，
+   不改动图片本身、也不重绘字形（图片 1774×887，字墨范围 229,316–1543,582）。 */
+.hero-mark {
   grid-column: 1 / span 9;
+  align-self: start;
   margin: 0;
-  font-size: clamp(44px, 8.6vw, 118px);
-  line-height: 0.94;
-  letter-spacing: -0.045em;
-  font-weight: 620;
+  aspect-ratio: 1315 / 267;
+  overflow: hidden;
 }
 
-.hero h1 em {
-  font-style: normal;
+.hero-mark img {
   display: block;
-  color: var(--ink-3);
+  width: 134.905%;
+  height: auto;
+  transform: translate(-12.9087%, -35.6257%);
 }
 
 .hero .lede {
   grid-column: 1 / span 6;
-  margin: 34px 0 0;
+  margin: 36px 0 0;
   font-size: clamp(15px, 1.35vw, 18px);
   line-height: 1.75;
   color: var(--ink-2);
@@ -128,7 +112,7 @@ a { color: inherit; text-decoration: none; }
 
 .hero .meta {
   grid-column: 8 / span 5;
-  margin: 34px 0 0;
+  margin: 36px 0 0;
   align-self: end;
   font-size: 13px;
   color: var(--ink-3);
@@ -141,7 +125,7 @@ a { color: inherit; text-decoration: none; }
 
 .hero .meta b {
   color: var(--ink);
-  font-weight: 560;
+  font-weight: 600;
 }
 
 /* ---------- toolbar ---------- */
@@ -223,7 +207,7 @@ a { color: inherit; text-decoration: none; }
 
 main { padding-bottom: 40px; }
 
-.section { padding: clamp(40px, 5vw, 68px) 0 0; }
+.section { padding: clamp(44px, 6vw, 80px) 0 0; }
 
 .section > .wrap > header {
   display: flex;
@@ -232,14 +216,14 @@ main { padding-bottom: 40px; }
   gap: 20px;
   border-top: 1px solid var(--ink);
   padding-top: 13px;
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .section h2 {
   margin: 0;
   font-size: 15px;
-  font-weight: 620;
-  letter-spacing: 0.1em;
+  font-weight: 650;
+  letter-spacing: 0.12em;
 }
 
 .section header p {
@@ -249,10 +233,11 @@ main { padding-bottom: 40px; }
   letter-spacing: 0.04em;
 }
 
+/* 一条连续 12 栏网格：桌面 3 列，窄屏 2 / 1 列，消除「某类别只剩 4 栏」的空档。 */
 .cards {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: clamp(30px, 3.4vw, 52px) var(--gap);
+  gap: clamp(32px, 3.6vw, 56px) var(--gap);
 }
 
 /* ---------- card ---------- */
@@ -264,61 +249,44 @@ main { padding-bottom: 40px; }
   min-width: 0;
 }
 
-.card[data-span="6"] { grid-column: span 6; }
-.card[data-span="8"] { grid-column: span 8; }
-
 .card .shot {
   position: relative;
   display: block;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  background: var(--paper-2);
+  background: var(--paper);
   border: 1px solid var(--rule);
   margin-bottom: 18px;
 }
-
-.card[data-span="8"] .shot,
-.card[data-span="6"] .shot { aspect-ratio: 16 / 9; }
 
 .card .shot img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  filter: saturate(0.94);
-  transition: opacity 180ms linear;
 }
 
-.card .shot::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 0 solid transparent;
-}
+.card a.shot:hover { border-color: var(--ink); }
 
-/* 封面缺失时的中性占位：只有文字，不伪造任何效果图 */
+/* 封面缺失时的中性占位：白底 + 细线 + 灰字，不伪造任何效果图 */
 .card .shot.is-cover-missing {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--paper-2);
-  background-image: linear-gradient(135deg, transparent 49.7%, var(--rule) 49.7%, var(--rule) 50.3%, transparent 50.3%);
+  background: var(--paper);
 }
 
 .card .shot-fallback {
   font-size: 13px;
   letter-spacing: 0.22em;
   color: var(--ink-3);
-  background: var(--paper-2);
   padding: 6px 12px;
 }
-
-.card a.shot:hover img { opacity: 0.86; }
 
 .card h3 {
   margin: 0 0 7px;
   font-size: clamp(19px, 1.7vw, 23px);
-  font-weight: 620;
+  font-weight: 650;
   letter-spacing: -0.02em;
   line-height: 1.25;
 }
@@ -345,7 +313,7 @@ main { padding-bottom: 40px; }
   align-items: center;
   gap: 8px;
   font-size: 13.5px;
-  font-weight: 560;
+  font-weight: 600;
   border-bottom: 1px solid var(--rule-strong);
   padding-bottom: 3px;
   align-self: flex-start;
@@ -389,13 +357,13 @@ footer a { border-bottom: 1px solid var(--rule-strong); }
 footer a:hover { border-bottom-color: var(--ink); color: var(--ink); }
 
 @media (max-width: 1000px) {
-  .card, .card[data-span="6"], .card[data-span="8"] { grid-column: span 6; }
-  .hero h1 { grid-column: 1 / -1; }
+  .card { grid-column: span 6; }
+  .hero-mark { grid-column: 1 / -1; }
   .hero .lede { grid-column: 1 / -1; }
   .hero .meta { grid-column: 1 / -1; margin-top: 26px; }
 }
 
 @media (max-width: 660px) {
-  .card, .card[data-span="6"], .card[data-span="8"] { grid-column: 1 / -1; }
+  .card { grid-column: 1 / -1; }
   .toolbar { position: static; }
 }

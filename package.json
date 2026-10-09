@@ -2,7 +2,7 @@
   "name": "imagelab",
   "version": "0.1.0",
   "private": true,
-  "description": "imageLAB · 本地图像设计工具箱（开源方案整合）",
+  "description": "ImageLAB · 本地图像设计工具箱（开源方案整合）",
   "scripts": {
     "dev": "vite",
     "build": "vite build && node scripts/copy-static.mjs && node scripts/build-psychos.mjs",
