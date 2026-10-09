@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <title>样例：六边形套环</title>
+  <desc>程序生成的几何路径：正六边形外轮廓 + 内六边形孔洞，中间一枚三角形。</desc>
+  <path fill="#111111" fill-rule="evenodd"
+    d="M100 5 L17.73 52.5 L17.73 147.5 L100 195 L182.27 147.5 L182.27 52.5 Z M100 48 L54.97 74 L54.97 126 L100 152 L145.03 126 L145.03 74 Z"/>
+  <path fill="#111111"
+    d="M100 62 L120 98 L80 98 Z"/>
+</svg>

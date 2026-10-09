@@ -1,0 +1,171 @@
+# a-psychos-gd-tool
+
+**Hosted version:** [a-psychos-gd-tool.vercel.app](https://a-psychos-gd-tool.vercel.app/) — needs a WebGPU browser (Chrome/Edge 113+ or Safari 18+).
+
+A node-based graphic design tool that runs in the browser, on the GPU. You build a poster by wiring nodes on a canvas: text is shaped into vector outlines, vectors are warped and combined, rasters are blurred and dithered — every conversion is an explicit node on a typed wire, never a hidden coercion. The engine only re-computes what a change actually touches, so dragging a parameter stays interactive even in deep graphs.
+
+**Status:** experimental, under active development. 35 node types; undo/redo is built in (⌘/Ctrl Z, ⇧⌘/Ctrl Z); persistence is not built yet (see [Roadmap](#roadmap)).
+
+## Requirements
+
+- **Node.js 20.19+ or 22+** (for Vite 7)
+- **A WebGPU browser** to run the app: Chrome/Edge 113+ or Safari 18+. The headless engine tests don't need a GPU.
+
+## Quick start
+
+```sh
+./scripts/setup.sh   # checks Node, installs deps, fetches a free font into public/fonts/
+npm run dev          # open the printed URL in a WebGPU browser
+```
+
+You'll get a default graph cooking to the artboard. Add nodes from the palette, drag wires between sockets — handle colors encode socket types, and illegal wires are rejected on drag. Canvas navigation is Figma-style: two-finger trackpad scroll pans and pinch zooms (space+drag or the middle/right button also pan); left-drag draws a box that selects every node it touches, and ⌘/shift-click adds single nodes to the selection. The selection moves or deletes (⌫) as a group — a group move is a single undo step. ⌘/Ctrl C then ⌘/Ctrl V copies the selected nodes, keeping the wires that ran between them; repeat pastes cascade, and pasting into a different layer moves work between graphs.
+
+The **presets** panel in the canvas' lower right holds the starting documents — *multi-layer*, the four-layer poster that is also the first-run document, and *image grid collage*, the one-layer `Slice → Shuffle → Place` mosaic. Loading one replaces the whole document (frame, layers and all) as a single undo step, so ⌘/Ctrl Z puts your work back.
+
+Other commands:
+
+```sh
+npm test              # headless engine tests (vitest) — cache, pool, layout; no GPU needed
+npm run typecheck     # tsc -b
+npm run build         # production build to dist/
+```
+
+## Core ideas
+
+### Typed wires and the conversion ladder
+
+Values on wires are typed: `text`, `vector`, `raster`, `alpha`, `layout`, `elements`. Content conversions follow one ladder — `text => vector => raster` — and each step down is an explicit node (Outline Text, Rasterize, or back up via Trace). Nothing converts silently; the graph you see is the computation you get.
+
+### Elements: singular or plural, one type
+
+`elements` is a list of placed things — but it's **one type, singular or plural**. A lone vector, raster, or text value lifts into a single-element list at any elements socket (containment, not coercion: the value is untouched). Element content can be vector, raster, or live text. Union input sockets (white handles) accept several types — e.g. `Output.in: raster | elements`.
+
+**Output is the artboard.** It composites elements natively in z-order — vector and text content batches through the 2D tessellator, raster content quad-draws its texture with the element's transform, all GPU-side. Placing things on the artboard never needed the conversion ladder. A minimal scatter graph is four nodes: `Shape → Place ← Grid`, `Place → Output`.
+
+### Slicing an image, seamlessly
+
+**Slice** cuts a raster along a layout's cells — one tile per cell, all of them windows onto the same texture, so a 12×12 slice allocates nothing. It has no params on purpose: the layout decides every cut, which is what keeps the tiles congruent to the slots they later land on. Feed one Grid to both sides and the mosaic cannot come apart.
+
+```
+Grid ─┬─→ Slice ← Image
+      └─→ Shuffle → Place (by-index) → Output
+```
+
+**Shuffle** is the scramble that survives non-uniform cells. A flat permutation of slots does not: under a fibonacci or geometric distribution no two cells are congruent, so swapping any two leaves an overlap and a hole. So `tracks` mode permutes whole columns and rows instead — each track keeps its size and takes another's position, which always tiles exactly, because the same widths are being summed in a different order. `cells` mode permutes cells only among the cells congruent to them: a full scatter on a uniform grid, the identity on a strictly-increasing one. Both leave slot identity alone, so Place's by-index join puts tile *k* on slot *k*'s new home.
+
+Wire `Slice → Output` with nothing between and the image reassembles pixel for pixel — `scripts/slice-check.mjs` checks exactly that on a real GPU.
+
+### The frame
+
+The document has one **frame** (artboard size), edited in the sidebar and stored in the document. Frame-aware nodes — Rasterize, Noise, Output — cook at frame resolution via `ctx.frame` and declare `usesFrame`, so the evaluator folds the frame into their content hash. Changing the frame re-cooks exactly those nodes and their descendants; text shaping and vector geometry stay cached. There are no per-node resolution params.
+
+### Layers
+
+The document is an ordered stack of **layers**, and each layer is its own complete node graph with its own Output. The layers panel (over the viewport) reorders the stack, toggles visibility, duplicates a layer (graph, blend mode and opacity included, inserted directly above the original), and switches which graph the node editor shows; the stack composites bottom-to-top on the GPU with a per-layer **opacity** and **blend mode** — the full Photoshop set (multiply, screen, overlay, color dodge/burn, vivid/linear/pin light, hard mix, difference, divide, hue, saturation, color, luminosity, …). A new layer's Output starts transparent so the layers below show through; layers keep independent cook caches, so editing one never re-cooks the others.
+
+### Caching
+
+Evaluation is pull-based from Output with hash-keyed memoization: a node's key is `hash(type, params, upstream hashes)`. Editing a parameter re-cooks only that node and its descendants; everything upstream is a cache hit. GPU render targets come from a ref-counted texture pool, so param drags recycle textures instead of allocating.
+
+## Nodes
+
+| Node | Wires | Description |
+| --- | --- | --- |
+| **Assets** | | Sources — no inputs; where content enters the graph. |
+| Text | `→ text` | Live type: shapes a string into kerned, positioned glyphs, with fill/stroke and a synthetic weight axis. |
+| Shape | `→ vector` | Parametric vector source: rect, ellipse, or n-sided polygon, with fill and stroke. |
+| Image | `→ raster` | An uploaded bitmap, stored in the document as a data URI; fit / scale / offset / rotate / opacity onto the frame. |
+| Noise | `→ raster` | Generated value-noise or grain texture at frame resolution — deterministic by (seed, scale), so the cache stays honest. |
+| **Text ops** | | Operations on live type, while it's still text and not yet geometry. |
+| Split | `text → elements` | Peels live type into per-character or per-word elements that keep their kerned positions and indices. |
+| **Vector ops** | | Bend and combine path geometry — resolution-independent, upstream of any pixels. |
+| Displace | `vector → vector` | Jitters path points with two decorrelated noise fields (amount / scale / seed). |
+| Warp | `vector → vector` | Sine-wave displacement along the x or y axis (amplitude / wavelength / phase). |
+| Boolean | `vector, vector → vector` | Union, subtract, or intersect two vectors (Paper.js on flattened polygons). |
+| **Raster ops** | | Pixel effects — each is one GPU shader pass: sample the upstream texture, write a new one. |
+| Blur | `raster → raster` | Separable gaussian blur, two GPU passes. |
+| Dither | `raster → raster` | Ordered dithering: quantizes to N levels at a chosen pixel scale. |
+| ASCII | `raster → raster` | Rebuilds the image from monospace glyph cells picked by brightness. |
+| Recolor | `raster → raster` | Duotone: remaps luminance onto a dark→light two-color ramp. |
+| Chroma Key | `raster → raster` | Keys a color out to transparency, with tolerance and softness. |
+| **Layout** | | The slot lane: decide what placement slots exist and what signals ride on them — Place decides how elements meet them. |
+| Grid | `(raster/alpha mask?) → layout` | Weighted rows × columns over the frame's padded content box — per-axis track distributions (uniform / fibonacci / golden / geometric / custom / expression), gaps, stagger, fill flow. A mask decides which cells exist. |
+| Radial | `(raster/alpha mask?) → layout` | Grid in polar coordinates: concentric rings of cells over an annulus, centered anywhere on the artboard, with the same weighted track distributions on the radius and the sector angle, a gutter between rings, stagger and fill flow. A cell is an annular sector, so the spoke count only cuts the rings up — it never changes them. A mask decides which cells exist. |
+| Sample Path | `vector (+ raster/alpha mask?) → layout` | Even arc-length samples along a path, with optional tangent rotation; progress = position along the path. A mask trims samples to its coverage. |
+| Math Function | `(raster/alpha mask?) → layout` | Even arc-length slots along a circle, spiral, or wave — the gap decides how many fit the curve. A mask trims slots to its coverage. |
+| Random | `(raster/alpha mask?) → layout` | Random placements in an area — uniform, poisson-disk, or gaussian, with spacing as the density knob (poisson: the min distance); a mask trims them to its coverage. |
+| Weight | `layout (+ raster?) → layout` | Writes a signal channel onto each slot — noise, image luma/alpha/saturation, progress, cell area, distance from center, or an expression — for Place and Filter to read. |
+| Filter | `layout → layout` | Prunes slots: every nth, channel threshold, or random keep. Survivors keep their identity for by-index Place. |
+| Jitter | `layout (+ raster/alpha mask?) → layout` | Seeded slop on an existing layout — offset / rotation / scale, with a mask constraining movement rather than existence. |
+| Shuffle | `layout → layout` | Rearranges slots without breaking the tiling: `tracks` permutes whole columns and rows (seamless under any distribution), `cells` permutes each cell among the cells congruent to it, rotation travelling with the position (so a Radial ring's cells swap without going crooked). |
+| **Placement** | | The element lane: decide how many things exist and marry them to layout slots. |
+| Duplicator | `any → elements` | Makes N copies of its input as elements — content shared, transforms independent until Place. |
+| Slice | `raster, layout → elements` | Cuts an image along a layout's cells, one tile per cell. No params: the layout decides every cut, so tiles stay congruent to the slots they're placed onto. Tiles share the source texture (a window each), so slicing costs nothing. |
+| Place | `elements, layout → elements` | Assigns elements to layout slots — in order, keyed by index, or spread evenly along the layout — and binds slot signals to scale / rotation / blur. |
+| **Conversion** | | The explicit type-changing steps — every rung of the `text => vector => raster` ladder, up and down. |
+| Outline Text | `text → vector` | Glyphs become paths — the explicit step down the ladder from live type to geometry. |
+| Rasterize | `vector → raster` | Draws paths at frame resolution — the CPU→GPU boundary; ink on a transparent ground. |
+| Trace | `raster → vector` | Pixels become paths, by region fill or Sobel edge detection, traced in a Web Worker. |
+| ~~Remove Background~~ | `raster → raster` | **Removed in the imageLAB vendored build.** Upstream segmented the foreground subject with RMBG-1.4 via Transformers.js, which downloaded model weights from the HuggingFace hub at cook time. This deployment must make no runtime remote request, so the node, its worker op and the `@huggingface/transformers` dependency were deleted (see PATCHES.md). |
+| Outline Image | `raster → vector` | Traces a hollow outline around the image's alpha silhouette — pairs with `To Alpha` after the Remove Background node was removed. |
+| To Alpha | `raster → alpha` | Extracts a mask from luminance or alpha, optionally inverted, cut at an explicit threshold (softness feathers the edge; note luminance reads transparency as white paper). |
+| Draw Layout | `layout → vector` | Renders slots as debug geometry — cell rects for grids, annular sectors for radial cells, dot-and-tick markers elsewhere. |
+| Flatten | `elements → vector` | Collapses placed elements into one vector, baking each element's transform into its paths. |
+| **Composition** | | Merge separate lanes into one image before (or instead of) the artboard. |
+| Composite | `raster/elements ×2 (+ alpha?) → raster` | Blends overlay onto base (normal / multiply / screen / overlay) with opacity and an optional mask. |
+| **Output** | | The cook root — requesting it is what makes the graph compute. |
+| Output | `raster/elements → raster` | The layer's artboard: composites its input over the background paper (or a transparent ground) at frame resolution, in z-order. |
+
+`?` marks an optional input; `any` on Duplicator is `vector | raster | text | elements`. `src/nodes/index.ts` is the single source of truth for the palette.
+
+## Architecture
+
+- `src/engine/` — the core: document graph (pure JSON), node registry (typed sockets + `cook()`), pull-based evaluator with hash-keyed memoization.
+- `src/gpu/` — WebGPU wrapper: ref-counted texture pool, fullscreen-pass runner, WGSL shaders. Every raster op is one pass: sample previous target, write next.
+- `src/nodes/` — node definitions. `Rasterize` is the CPU→GPU boundary; resolution is introduced there and inherited downstream.
+- `src/store.ts` — zustand store; the document — an ordered stack of layers, each one a full node graph — is the single source of truth, the editor and evaluator both read it. `wireIsValid` = socket-type equality + acyclicity.
+- `src/editor/` — xyflow canvas + custom node component; handles and wires colored by socket type.
+- `src/util/` — font parsing (sfnt), expression evaluation, color, noise.
+
+### Dev scripts
+
+Three Puppeteer smoke-test scripts drive a real (headed) Chrome against a running dev server, since WebGPU needs a GPU:
+
+```sh
+node scripts/verify.mjs [url]       # cold cook, cache-hit check on edit, wire type-checking
+node scripts/blur-check.mjs [url]   # renders a heavy blur and screenshots the halo
+node scripts/slice-check.mjs [url]  # Slice reassembles the source pixel for pixel; renders a shuffled mosaic
+```
+
+Both default to `http://localhost:5199/` (pass your dev server's URL) and locate Chrome at the standard macOS path — set the `CHROME` env var to point elsewhere on Linux/Windows.
+
+## Roadmap
+
+### Done
+
+1. ~~Engine spine + Text→Output slice~~
+2. ~~Node editor wired to the engine; type-checking on drag~~
+3. ~~Raster breadth: Noise, Dither, Recolor, Chroma Key, ASCII, To Alpha, Composite~~
+4. ~~Vector ops (Shape, Displace, Warp, Boolean) + Trace~~ (vector Slice deferred)
+5. ~~Elements & layout: Split, Duplicator, Place, Flatten, Grid, Random, SamplePath, Function, Filter, Weight, DrawLayout~~ (~~Alpha Map~~ landed as the generators' mask input)
+6. ~~Export & undo/redo~~
+7. ~~Slice & Shuffle: image mosaics that stay seamless on non-uniform grids~~
+
+### Planned
+
+- **Async model nodes** — Extract Subject/Objects/Edges via ONNX Runtime Web.
+- **Persistence** — save/load documents.
+- **Export to Adobe Illustrator** — `.ai`/SVG export that round-trips vectors as editable paths.
+- **Cropping** — crop node for raster and frame content.
+- **More ops nodes** — additional vector, raster, and text operations.
+- **Elements ops** — nodes that manipulate one or more placed elements.
+
+## Contributing
+
+Issues and PRs are welcome. CI runs `npm run typecheck`, `npm test`, and `npm run build` — please make sure all three pass locally.
+
+## License
+
+[MIT](LICENSE).
+
+[JetBrains Mono](https://github.com/JetBrains/JetBrainsMono) (`public/fonts/`) is included under the [SIL Open Font License 1.1](public/fonts/OFL.txt).

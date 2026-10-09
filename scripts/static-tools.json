@@ -1,0 +1,13 @@
+{
+  "staticDirs": [
+    "tools/texture",
+    "tools/pixelit",
+    "tools/image-to-ascii"
+  ],
+  "extraDirs": [],
+  "extraFiles": [
+    "README.md",
+    "THIRD_PARTY.md",
+    "CHANGELOG.md"
+  ]
+}

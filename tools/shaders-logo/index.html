@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- imagelab:entry -->
+<title>标志材质 · 图像实验室 imageLAB</title>
+<meta name="description" content="把透明底 Logo（PNG / SVG）变成边缘遮罩，再套上液态金属或宝石烟雾材质。本地运行，图片不上传。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/backlink.css">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./main.js"></script>
+</head>
+<body>
+
+<header class="il-head">
+  <h1>标志材质</h1>
+  <p>
+    上传透明底的 Logo（PNG / SVG），套上液态金属或宝石烟雾材质；不上传也行，直接用内置形状。图片只在本地浏览器里处理，不会离开你的机器。
+  </p>
+</header>
+
+<main class="il-main">
+  <!--
+    左侧面板的「固定外壳」直接写在这里（效果按钮 / 速度 / 定格 / 导出），
+    每个效果的参数控件由 ui.js 按效果目录动态填进 #param-* 容器。
+    这样常用控件不会随效果切换被反复重建。
+  -->
+  <aside class="il-panel" id="panel">
+
+    <section class="il-group">
+      <h2>效果</h2>
+      <p class="il-note" id="effect-note"></p>
+      <div class="il-chips" id="effect-chips">
+        <button type="button" id="effect-liquid-metal" data-effect="liquid-metal" aria-pressed="true">液态金属</button>
+        <button type="button" id="effect-gem-smoke" data-effect="gem-smoke" aria-pressed="false">宝石烟雾</button>
+      </div>
+    </section>
+
+    <section class="il-group" id="group-image">
+      <h2 id="image-title">图片</h2>
+      <p class="il-note" id="image-hint">上传透明底 PNG / SVG。效果只认图片的透明区域和边缘：背景必须透明，不透明的照片会得到「整块都是形状」的结果。不上传时用内置形状。</p>
+      <input type="file" id="image-file" accept="image/png,image/svg+xml,image/webp">
+      <div class="il-image-slot" id="image-slot">
+        <img class="il-thumb" id="image-thumb" alt="已上传图片预览" hidden>
+        <button type="button" id="image-clear" hidden>清除图片</button>
+        <button type="button" id="btn-sample-logo">载入内置示例 Logo</button>
+      </div>
+    </section>
+
+    <section class="il-group" id="group-presets" hidden>
+      <h2 id="presets-title">预设</h2>
+      <div class="il-chips" id="preset-chips"></div>
+    </section>
+
+    <section class="il-group" id="group-main">
+      <h2>主要参数</h2>
+      <div id="param-main"></div>
+    </section>
+
+    <details class="il-group" id="group-advanced" hidden>
+      <summary id="advanced-title">进阶参数</summary>
+      <div class="il-params" id="param-advanced"></div>
+    </details>
+
+    <details class="il-group" id="group-sizing">
+      <summary>构图</summary>
+      <div class="il-params" id="param-sizing"></div>
+    </details>
+
+    <section class="il-group">
+      <h2>速度与单帧</h2>
+      <div class="il-range">
+        <label for="p-speed">速度</label>
+        <input type="range" id="p-speed" min="0" max="4" step="0.05" value="1">
+        <input type="number" id="n-speed" min="0" max="20" step="0.05" value="1">
+      </div>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-pause" title="停在当前画面">暂停</button>
+        <button type="button" id="btn-play" title="继续播放动画">播放</button>
+      </div>
+      <div class="il-range">
+        <label for="p-frame">帧（毫秒）</label>
+        <input type="range" id="p-frame" min="0" max="20000" step="50" value="0">
+        <input type="number" id="n-frame" min="0" max="600000" step="50" value="0">
+      </div>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-freeze" title="停到指定时间点，得到确定的单帧">定格取帧</button>
+      </div>
+      <p class="il-note" id="anim-note"></p>
+    </section>
+
+    <section class="il-group">
+      <h2>导出</h2>
+      <button type="button" id="btn-export">导出当前帧 PNG</button>
+      <p class="il-note" id="export-info">导出的是预览区当前这一帧。</p>
+    </section>
+
+  </aside>
+
+  <section>
+    <div class="il-stage">
+      <div class="il-canvas" id="stage">
+      </div>
+    </div>
+    <div class="il-legend">
+      <span id="status">初始化中…</span>
+      <span>本地渲染 · 图片不上传 · 可导出 PNG</span>
+    </div>
+  </section>
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+</body>
+</html>

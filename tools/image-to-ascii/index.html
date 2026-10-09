@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Convert any Image or Video into Ascii art"
+    />
+    <title>Image-to-Ascii</title>
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="../../assets/backlink.css" />
+  </head>
+  <body>
+    <h1>Image-to-Ascii</h1>
+    <div class="container-lg">
+      <canvas id="canvas"></canvas>
+      <canvas id="ascii-canvas"></canvas>
+    </div>
+    <label for="file">Upload a Image or video</label>
+    <input type="file" name="add image" id="file"  />
+    <p>or</p>
+    <input
+      type="url"
+      name="image-url"
+      id="imgurl"
+      placeholder="Add image url"
+    />
+    <button id="change-img-button">Change image</button>
+    <p class="sample-note">
+      默认载入的是本地示例图 <code>assets/sample.png</code>（程序生成的公开测试图，随本站离线分发），
+      也可以上传自己的图片或视频。
+    </p>
+    <button id="export-png">导出 PNG</button>
+    <script src="index.js"></script>
+    <script defer src="export-png.js"></script>
+    <a class="il-back" href="../../index.html">← 图像实验室</a>
+  </body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- imagelab:entry -->
+<title>图片抖动 · 图像实验室 imageLAB</title>
+<meta name="description" content="像素化与多种抖动（Atkinson / Floyd-Steinberg / Bayer 有序 / Clustered）与调色板量化，全部在浏览器本地完成，不上传图片，无远程请求。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="../../assets/backlink.css">
+</head>
+<body>
+
+<header class="il-head">
+  <div class="il-head-in">
+    <h1>图片抖动</h1>
+    <p class="il-sub">
+      缩小到指定像素宽度，再用调色板量化；抖动可选 Atkinson / Floyd-Steinberg / 2x2 / 4x4 / Ordered 8x8 Bayer / Clustered 4x4。
+      全部在浏览器本地计算，图片不会离开这台机器。
+    </p>
+    <p class="il-src">
+      像素化与抖动算法：<code>image-to-pixel.js</code>（Tezumie / Image-to-Pixel，MIT，逐字节原样引用）·
+      界面外壳与调色板数组由 imageLAB 自建 · 无任何远程请求（调色板一律使用本地数组）
+    </p>
+  </div>
+</header>
+
+<main class="il-layout">
+
+  <aside class="il-panel" aria-label="参数">
+    <div class="il-field">
+      <label for="file">① 选择本地图片</label>
+      <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif">
+      <div class="il-row">
+        <button type="button" id="use-sample" class="il-btn">使用本地示例图</button>
+      </div>
+      <p class="il-note">
+        默认示例为仓库内置的<strong>本地测试图</strong> <code>tests/fixtures/test-photo.png</code>（640×480），仅用于本页预览。
+        图片用 <code>FileReader / createObjectURL</code> 在内存中读取，<strong>不上传</strong>。
+      </p>
+    </div>
+
+    <div class="il-field">
+      <label for="width">② 输出像素宽度 <span class="il-val" id="width-out">160</span> px</label>
+      <input type="range" id="width" min="8" max="512" step="1" value="160">
+      <div class="il-row">
+        <input type="number" id="width-num" min="8" max="512" step="1" value="160" aria-label="输出像素宽度（数值）">
+        <span class="il-unit">px（8–512）</span>
+      </div>
+    </div>
+
+    <div class="il-field">
+      <label for="dither">③ 抖动方式</label>
+      <select id="dither"></select>
+    </div>
+
+    <div class="il-field">
+      <label for="strength">④ 抖动强度 <span class="il-val" id="strength-out">100</span></label>
+      <input type="range" id="strength" min="0" max="100" step="1" value="100">
+      <p class="il-note">
+        库内取值为 <strong>0–100</strong>（源码 <code>strength / 100</code> 归一化；上游滑块同样是 0–100）。
+        0 表示只做调色板量化、不扩散也不扰动误差。
+      </p>
+    </div>
+
+    <div class="il-field">
+      <label for="palette">⑤ 调色板（全部为本地数组）</label>
+      <select id="palette"></select>
+      <p class="il-note">
+        本工具只传<strong>颜色数组</strong>，从不传 Lospec slug / URL，因此库里的远程取色分支不会被触达。
+      </p>
+    </div>
+
+    <div class="il-field">
+      <label for="resolution">⑥ 输出尺寸</label>
+      <select id="resolution">
+        <option value="pixel" selected>像素尺寸（width × 等比高度，放大预览）</option>
+        <option value="original">原图尺寸（把像素块放大回原图宽高）</option>
+      </select>
+    </div>
+
+    <div class="il-field">
+      <label>⑦ 导出</label>
+      <div class="il-row">
+        <button type="button" id="export-png" class="il-btn il-btn-primary">导出 PNG</button>
+      </div>
+      <p class="il-note">文件名按实际输出像素宽命名，例如 <code>image-to-pixel-160px.png</code>。</p>
+    </div>
+
+    <p class="il-hint" id="hint" role="status" aria-live="polite"></p>
+  </aside>
+
+  <section class="il-stage" aria-label="预览">
+    <div class="il-stage-head">
+      <span class="il-tag">预览</span>
+      <span class="il-stats" id="stats">等待载入…</span>
+    </div>
+    <div class="il-preview" id="preview">
+      <p class="il-placeholder">正在载入本地示例图…</p>
+    </div>
+    <p class="il-stage-foot" id="foot">
+      上游算法只做像素化 + 调色板量化 + 误差扩散/有序抖动；本页不自研任何渲染或着色器代码。
+    </p>
+  </section>
+
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>纹理间 · CMF Pattern Studio</title>
+  <link rel="stylesheet" href="style.css?v=5">
+  <script defer src="engine.js"></script>
+  <script defer src="curve-fit.js"></script>
+  <script defer src="curve-engine.js"></script>
+  <script defer src="svg-path-data.js"></script>
+  <script defer src="svg-import.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <a class="brand" href="./" aria-label="纹理间首页"><span class="brand-mark">⠿</span><span>纹理间 <small>PATTERN STUDIO</small></span><span class="beta">本地原型</span></a>
+      <div class="tab-list" id="tab-list" role="tablist" aria-label="纹理模式">
+        <button id="tab-quick" class="tab" type="button" role="tab" aria-selected="true" aria-controls="quick-seam" tabindex="0">快速纹理</button>
+        <button id="tab-curve" class="tab" type="button" role="tab" aria-selected="false" aria-controls="curve-controls" tabindex="-1">曲线纹理</button>
+      </div>
+    <div class="header-actions"><span class="local"><i></i> 本地处理 · 素材不上传</span><button id="save-config">保存参数</button><button id="load-config">载入参数</button><button class="primary" id="export-top">导出图案 <span>↗</span></button></div>
+  </header>
+  <main>
+    <aside class="controls" aria-label="图案参数与颜色">
+
+      <div class="panel-title"><span>图案控制</span><button class="text-button" id="reset">重置</button></div>
+      <div class="control-grid">
+        <div class="control-column">
+      <section class="control-section">
+        <h2><b>01</b> 画布与点阵</h2>
+        <div class="two-fields"><label>宽度 <span>px</span><input id="width" type="number" min="200" max="2000" step="10"></label><label>高度 <span>px</span><input id="height" type="number" min="200" max="2000" step="10"></label></div>
+        <label class="field">排列方式<select id="grid"><option value="hex">错位排列 · 六角网格</option><option value="square">规则排列 · 方形网格</option></select></label>
+        <div class="field">单元形状<div class="segmented" id="shape-options"><button data-shape="circle" title="圆点" aria-label="圆点">●</button><button data-shape="ellipse" title="椭圆" aria-label="椭圆">▬</button><button data-shape="square" title="方块" aria-label="方块">■</button><button data-shape="diamond" title="菱形" aria-label="菱形">◆</button></div></div>
+        <label class="slider-label" for="spacing">点阵间距 <output id="spacing-out"></output></label><input id="spacing" type="range" min="12" max="48" step="1">
+        <label class="slider-label" for="diameter">最大单元尺寸 <output id="diameter-out"></output></label><input id="diameter" type="range" min="1" max="24" step=".5">
+        <p class="help">单元自动留出至少 2 px 间隙；方块同时检查行距。</p>
+      </section>
+      <section class="control-section">
+        <h2><b>03</b> <span id="seam-section-title">绗缝避让</span></h2>
+        <div id="quick-seam">
+          <label class="field">绗缝路径<select id="seam"><option value="diamond">交叉菱格</option><option value="wave">交织曲线</option><option value="none">不使用绗缝</option></select></label>
+          <label class="slider-label" for="seamScale">绗缝疏密 <output id="seamScale-out"></output></label><input id="seamScale" type="range" min="120" max="600" step="10">
+        </div>
+        <label class="slider-label" for="keepout">完整避让宽度 <output id="keepout-out"></output></label><input id="keepout" type="range" min="0" max="80" step="2">
+        <label class="slider-label" for="fade">线外渐消距离 <output id="fade-out"></output></label><input id="fade" type="range" min="0" max="160" step="2">
+        <label class="check"><input id="guides" type="checkbox"><span id="guides-label">显示绗缝辅助线</span></label>
+
+      </section>
+        </div>
+        <div class="control-column">
+      <section class="control-section">
+        <h2><b>02</b> 渐消与层次</h2>
+        <label class="field">渐变方式<select id="field"><option value="radial">径向渐消</option><option value="linear">线性渐消</option><option value="wave">波纹渐消</option><option value="uniform">均匀点阵</option><option value="image">图片明暗映射</option></select></label>
+
+        <label class="slider-label" for="spread">渐变范围 <output id="spread-out"></output></label><input id="spread" type="range" min="15" max="140" step="1">
+        <label class="slider-label" for="angle">渐变角度 <output id="angle-out"></output></label><input id="angle" type="range" min="0" max="360" step="5">
+        <label class="slider-label" for="contrast">渐变曲线 <output id="contrast-out"></output></label><input id="contrast" type="range" min=".3" max="3" step=".1">
+        <label class="field">孔径分档<select id="levels"><option value="0">连续变化 · 视觉出图</option><option value="3">3 档尺寸</option><option value="5">5 档尺寸</option><option value="8">8 档尺寸</option></select></label>
+        <label class="check"><input id="invert" type="checkbox">反转渐变</label>
+      </section>
+      <section class="control-section">
+        <h2><b>04</b> 色彩与导出</h2>
+        <div class="two-fields color-fields"><label>图案颜色<input id="ink" type="color"></label><label>底色<input id="paper" type="color"></label></div>
+        <label class="check"><input id="transparent" type="checkbox">透明背景</label>
+        <label class="check"><input id="exportGuides" type="checkbox"><span id="export-guides-label">导出时包含绗缝辅助线</span></label>
+        <label class="field">PNG 尺寸倍率<select id="scale"><option value="1">1× · 原始尺寸</option><option value="2">2× · 高清</option><option value="4">4× · 超清</option></select></label>
+        <div class="two-fields"><button id="export-svg">导出 SVG</button><button class="primary" id="export-png">导出 PNG</button></div>
+        <p class="help">单位 px · 设计出图使用，非生产打孔文件。</p>
+      </section>
+        </div>
+      </div>
+    </aside>
+    <section class="workspace">
+      <div class="workspace-toolbar"><div><span class="eyebrow">LIVE CANVAS</span><h1 id="design-title">绗缝 · 交织渐消</h1></div><div class="view-actions"><button id="toggle-guides" title="切换辅助线">辅助线</button><button id="center" title="还原渐变中心">中心复位</button><span class="fit-badge">适应画布</span></div></div>
+        <div class="image-source" id="image-controls" hidden><label class="upload" for="image-input">＋ 选择本地图片<input id="image-input" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="help" id="image-name">图片仅在浏览器中读取；居中裁切铺满画布。</p></div>
+      <div class="stage" id="stage"><div class="canvas-wrap" id="canvas-wrap"><canvas id="canvas" aria-label="实时纹理预览；快速纹理可拖动渐变中心，曲线纹理可绘制路径"></canvas><div class="center-marker" id="center-marker"><span></span></div></div><div class="canvas-hint" id="canvas-hint">拖动画布，调整渐变中心</div><div class="curve-onboarding" id="curve-onboarding" hidden><strong>曲线纹理</strong><p>在画布上按住拖动，画几条粗略笔画。松手后会用曲线拟合把它们简化成少量直线与圆弧。</p><p>也可以导入本地 SVG 几何，或点「载入示例」。</p></div></div>
+      <div class="canvas-status"><span><i></i> 实时预览 <span id="render-time"></span></span><span id="canvas-size"></span><span><strong id="dot-count">—</strong> 个单元 · <span id="coverage">—</span> 覆盖率</span></div>
+      <div class="presets-header" id="presets-header"><h2>从一个灵感开始</h2><span>点击预设，再调成你的图案</span></div>
+      <div class="presets" id="presets"></div>
+      <footer class="workspace-footer"><span>阵列 → 渐变场 → 路径避让 → 矢量图案</span><button class="text-button" id="principle-button">这是怎么生成的？ ↗</button></footer>
+    </section>
+        <aside class="curve-panel" id="curve-controls" aria-label="画笔与路径" hidden>
+          <div class="panel-title"><span>画笔与路径</span><span class="eyebrow">PATHS</span></div>
+          <div class="field">画笔工具<div class="segmented" id="mode-options"><button type="button" data-mode="draw" aria-pressed="true">绘制路径</button><button type="button" data-mode="move" aria-pressed="false">移动渐变</button></div></div>
+          <label class="slider-label" for="simplicity">简化程度（仅手绘） <output id="simplicity-out">60%</output></label><input id="simplicity" type="range" min="0" max="1" step=".05" value=".6">
+          <div class="curve-toolbar">
+            <button type="button" id="curve-undo" title="撤销">↶ 撤销</button>
+            <button type="button" id="curve-redo" title="重做">↷ 重做</button>
+            <button type="button" id="curve-delete">删除选中</button>
+            <button type="button" id="curve-clear">清空路径</button>
+            <button type="button" id="curve-demo">载入示例</button>
+            <button type="button" id="svg-import-btn">导入 SVG</button>
+          </div>
+          <input id="svg-input" type="file" accept=".svg,image/svg+xml" hidden>
+          <p class="help" id="svg-name" tabindex="0">本地 SVG 只读取几何：脚本、外部引用、滤镜、裁剪与 &lt;use&gt;/&lt;image&gt; 会被拒绝；导入后不重新拟合。</p>
+          <div class="curve-paths-head"><span>路径列表</span><span><b id="path-count">0</b> 条</span></div>
+          <div class="path-list" id="path-list" aria-label="曲线路径列表"></div>
+          <p class="help" id="path-empty">暂无路径。在画布上拖动画一条笔画，或载入示例 / 导入 SVG。</p>
+        </aside>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <input type="file" id="config-input" accept=".json,application/json" hidden>
+  <div id="svg-sanitize" hidden aria-hidden="true"></div>
+  <dialog id="principle-dialog"><button id="close-dialog" aria-label="关闭">×</button><span class="eyebrow">BEHIND THE PATTERN</span><h2>不是生成图片，而是生成规则。</h2><p>① 在画布上铺设规则或六角点阵，确定每个单元的位置。</p><p>② 计算渐变场的强度，用它控制单元尺寸。图片模式用亮度代替渐变场。</p><p>③ 计算点到路径的最短距离。安全区内不放单元，安全区外平滑放大。</p><p>④ 可将连续尺寸归并到几档，再以相同几何数据绘制预览、输出 PNG 和 SVG。</p><div class="formula">单元尺寸 = 最大尺寸 × 渐变强度 × 距离衰减</div><p class="help">曲线纹理把手绘粗略笔画拟合为少量直线与圆弧，并可安全导入本地 SVG 几何。这是独立原型，不含 DXF、生产工艺校验或任意远程资源。路径辅助线只做轮廓避让，闭合路径不当作填充遮罩。</p></dialog>
+</body>
+</html>

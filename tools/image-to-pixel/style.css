@@ -1,0 +1,192 @@
+/* imageLAB · 工具③「像素化与抖动」样式
+   视觉约定：中性白底 #f5f5f5 / 近黑文字 #141414 / 中性灰分割线 #dddddd；
+   原生控件、1px 实线边框、border-radius ≤ 2px；无彩色装饰、无玻璃拟态。 */
+
+:root {
+  --paper: #f5f5f5;
+  --ink: #141414;
+  --rule: #dddddd;
+  --muted: #666666;
+  --field: #ffffff;
+  --focus: #141414;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 56px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: #efefef;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0 3px;
+}
+
+/* ── 页头 ───────────────────────────────────────────── */
+.il-head { border-bottom: 1px solid var(--rule); background: var(--paper); }
+.il-head-in { max-width: 1220px; margin: 0 auto; padding: 22px 24px 18px; }
+.il-head h1 { margin: 0 0 6px; font-size: 21px; font-weight: 650; letter-spacing: 0.01em; }
+.il-sub { margin: 0 0 8px; max-width: 78ch; color: #333333; }
+.il-src { margin: 0; max-width: 92ch; color: var(--muted); font-size: 12px; }
+
+/* ── 两栏布局 ───────────────────────────────────────── */
+.il-layout {
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  align-items: start;
+}
+
+.il-panel {
+  border-right: 1px solid var(--rule);
+  padding: 18px 20px 26px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.il-stage { padding: 18px 0 26px 20px; min-width: 0; }
+
+/* ── 控件 ───────────────────────────────────────────── */
+.il-field { display: flex; flex-direction: column; gap: 6px; }
+
+.il-field > label {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.il-val { font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+input[type="file"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 5px 6px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+input[type="file"] { padding: 4px; font-size: 12px; }
+
+input[type="number"] { max-width: 92px; }
+
+input[type="range"] {
+  width: 100%;
+  margin: 2px 0;
+  accent-color: var(--ink);
+}
+
+select:focus-visible,
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.il-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.il-unit { font-size: 12px; color: var(--muted); }
+
+.il-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 10px;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.il-btn:hover { background: #f0f0f0; }
+.il-btn:disabled { color: #a0a0a0; cursor: default; background: #f0f0f0; }
+
+.il-btn-primary { font-weight: 600; padding: 6px 14px; }
+.il-btn-primary:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.il-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+.il-hint {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: 12px;
+  color: #333333;
+  border-top: 1px solid var(--rule);
+  padding-top: 10px;
+}
+
+.il-hint[data-kind="warn"] { color: #6b6b6b; }
+.il-hint[data-kind="error"] { color: #141414; }
+
+/* ── 预览区 ─────────────────────────────────────────── */
+.il-stage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.il-tag { font-size: 12.5px; font-weight: 600; }
+.il-stats { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.il-preview {
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  min-height: 220px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+/* 画布按预览区宽度等比放大 + pixelated：像素块看得清，也为封面抓取提供足够分辨率。 */
+.il-preview canvas {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  border: 1px solid var(--rule);
+}
+
+.il-placeholder { margin: 0; color: var(--muted); font-size: 12.5px; }
+
+.il-stage-foot { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
+
+/* ── 窄屏堆叠 ───────────────────────────────────────── */
+@media (max-width: 900px) {
+  .il-layout { grid-template-columns: minmax(0, 1fr); padding: 0 16px; }
+  .il-panel { border-right: 0; border-bottom: 1px solid var(--rule); padding: 16px 0 18px; }
+  .il-stage { padding: 16px 0 22px; }
+  .il-head-in { padding: 18px 16px 14px; }
+}

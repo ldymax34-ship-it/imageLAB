@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240">
+  <title>样例：字母 A + 星形</title>
+  <path fill="#111111" fill-rule="evenodd"
+    d="M20 220 L86 20 L154 220 L126 220 L108 160 L72 160 L54 220 Z M80 132 L100 132 L90 96 Z"/>
+  <path fill="#111111"
+    d="M180 40 L192 78 L232 78 L200 102 L212 140 L180 116 L148 140 L160 102 L128 78 L168 78 Z"/>
+</svg>
