@@ -120,6 +120,9 @@ const els = {
   roughnessOverride: document.getElementById("roughness-override"),
   roughness: document.getElementById("roughness"),
   roughnessOut: document.getElementById("roughness-out"),
+  textureFile: document.getElementById("texture-file"),
+  textureRemove: document.getElementById("texture-remove"),
+  textureName: document.getElementById("texture-name"),
 
   envIntensity: document.getElementById("env-intensity"),
   envIntensityOut: document.getElementById("env-intensity-out"),
@@ -152,6 +155,9 @@ const state = {
   color: FALLBACK_COLOR,
   roughnessOverride: false,
   roughness: 0.3,
+  textureName: "",
+  textureWidth: 0,
+  textureHeight: 0,
   envIntensity: 1,
   exposure: 1,
   bg: "#efede8",
@@ -306,11 +312,17 @@ function applyMaterial() {
   if (state.roughnessOverride) overrides.roughness = state.roughness;
 
   const resolved = resolveMaterial(state.preset, overrides);
-  const colorHex = state.colorOverride ? state.color : presetColor(state.preset);
+  // 贴图激活且未自定义颜色时基色用纯白，让贴图按原色显示；勾选自定义颜色则给贴图染色。
+  const colorHex = state.colorOverride
+    ? state.color
+    : surfaceTexture
+      ? "#ffffff"
+      : presetColor(state.preset);
   const simple = getSimpleMaterialProps(state.preset, colorHex);
 
   const props = {
     color: new THREE.Color(simple.color),
+    map: surfaceTexture, // 上游三平面 UV；材质切换 / 几何重建都不影响这张贴图
     metalness: resolved.metalness,
     roughness: resolved.roughness,
     opacity: resolved.opacity,
@@ -341,15 +353,162 @@ function applyMaterial() {
   els.color.value = state.colorOverride ? state.color : presetColor(state.preset);
 }
 
+/* ------------------------------------------------------------- 表面贴图 */
+
+/**
+ * 基础色表面贴图：用户本地图片 → three `TextureLoader`（blob URL）→ `MeshPhysicalMaterial.map`。
+ * 只用上游已生成的三平面 UV，不写自定义着色器 / UV 算法，不打包任何贴图素材，
+ * 也不提供法线 / 粗糙度 / 置换贴图编辑器。素材仅在本地读取，不发起网络请求。
+ */
+const TEXTURE_LIMITS = {
+  maxBytes: 10 * 1024 * 1024,
+  maxSide: 4096,
+  mimeTypes: ["image/png", "image/jpeg", "image/webp"]
+};
+
+let surfaceTexture = null;
+let textureSeq = 0;
+
+/** 供既有调试钩子读取的最小贴图元信息（无贴图时为 null）。 */
+function textureInfo() {
+  if (!surfaceTexture) return null;
+  const image = surfaceTexture.image || {};
+  return {
+    name: state.textureName,
+    width: image.width || state.textureWidth || 0,
+    height: image.height || state.textureHeight || 0
+  };
+}
+
+/** 贴图被拒绝 / 解码失败：给出中文原因，保留当前有效贴图与模型。 */
+function rejectTexture(reason) {
+  setError(reason, "贴图未更换");
+  setStatus("贴图未更换 · 保留当前贴图与模型");
+  els.textureFile.value = "";
+}
+
+/** 贴图读取成功：校验实际解码尺寸后才换上，被替换的旧贴图立即释放。 */
+function acceptTexture(texture, file) {
+  const image = texture.image || {};
+  const width = image.width || 0;
+  const height = image.height || 0;
+
+  if (!width || !height) {
+    texture.dispose();
+    rejectTexture("贴图读取失败：无法取得图像尺寸，可能不是有效的图片。");
+    return;
+  }
+  if (width > TEXTURE_LIMITS.maxSide || height > TEXTURE_LIMITS.maxSide) {
+    texture.dispose();
+    rejectTexture(
+      `贴图尺寸过大：${width}×${height} 像素，单边上限 ${TEXTURE_LIMITS.maxSide} 像素。请先缩小图片再上传。`
+    );
+    return;
+  }
+
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+  texture.needsUpdate = true;
+
+  const previous = surfaceTexture;
+  surfaceTexture = texture;
+  state.textureName = file.name;
+  state.textureWidth = width;
+  state.textureHeight = height;
+  if (previous && previous !== texture) previous.dispose(); // 释放被替换的贴图
+
+  applyMaterial();
+  els.textureName.textContent = file.name;
+  els.textureName.title = `${file.name} · ${width}×${height}`;
+  setError(null);
+  setStatus(`已应用表面贴图 · ${file.name} · ${width}×${height}`);
+  els.textureFile.value = "";
+}
+
+/**
+ * 读取并校验本地图片：MIME 白名单 → 体积上限 → blob URL → three TextureLoader →
+ * 实际解码尺寸。序列号用于丢弃过期回调（含加载中点「移除贴图」）；任何失败都不覆盖当前贴图。
+ */
+function loadTextureFile(file) {
+  if (!file) return;
+
+  if (!TEXTURE_LIMITS.mimeTypes.includes(file.type)) {
+    rejectTexture(
+      `已拒绝贴图：仅支持 PNG / JPEG / WebP，当前文件类型「${file.type || "未知"}」。`
+    );
+    return;
+  }
+  if (file.size > TEXTURE_LIMITS.maxBytes) {
+    rejectTexture(
+      `已拒绝贴图：文件过大（${(file.size / 1024 / 1024).toFixed(1)} MiB，上限 10 MiB）。请先压缩图片。`
+    );
+    return;
+  }
+
+  const seq = ++textureSeq;
+  const url = URL.createObjectURL(file);
+  setStatus(`正在读取贴图 · ${file.name}…`);
+
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    url,
+    (texture) => {
+      try {
+        if (seq !== textureSeq) {
+          texture.dispose(); // 过期回调：不覆盖更新一次的选择
+          return;
+        }
+        acceptTexture(texture, file);
+      } catch (error) {
+        if (surfaceTexture !== texture) texture.dispose();
+        if (seq === textureSeq) {
+          rejectTexture(`贴图读取失败：${error && error.message ? error.message : String(error)}`);
+        }
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    },
+    undefined,
+    () => {
+      URL.revokeObjectURL(url);
+      if (seq === textureSeq) {
+        rejectTexture("贴图解码失败：文件不是有效的 PNG / JPEG / WebP 图像。");
+      }
+    }
+  );
+}
+
+/** 移除贴图：释放当前贴图、作废进行中的加载回调，并恢复材质预设颜色。 */
+function removeTexture() {
+  textureSeq += 1; // 让进行中的加载回调过期
+  els.textureFile.value = "";
+  if (!surfaceTexture) {
+    els.textureName.textContent = "未使用贴图";
+    els.textureName.title = "当前没有使用表面贴图";
+    setStatus("当前没有表面贴图");
+    return;
+  }
+  surfaceTexture.dispose();
+  surfaceTexture = null;
+  state.textureName = "";
+  state.textureWidth = 0;
+  state.textureHeight = 0;
+  applyMaterial();
+  els.textureName.textContent = "未使用贴图";
+  els.textureName.title = "当前没有使用表面贴图";
+  setError(null);
+  setStatus("已移除表面贴图 · 恢复材质预设颜色");
+}
+
 /* ------------------------------------------------------------------ 几何 */
 
-function setError(reason) {
+function setError(reason, title = "导入被拒绝") {
   state.lastError = reason || null;
   if (reason) {
     els.error.hidden = false;
     els.error.innerHTML = "";
     const strong = document.createElement("b");
-    strong.textContent = "导入被拒绝";
+    strong.textContent = title;
     els.error.appendChild(strong);
     els.error.appendChild(document.createTextNode(reason));
   } else {
@@ -602,6 +761,12 @@ function init() {
     if (state.roughnessOverride) applyMaterial();
   });
 
+  els.textureFile.addEventListener("change", () => {
+    const file = els.textureFile.files && els.textureFile.files[0];
+    if (file) loadTextureFile(file);
+  });
+  els.textureRemove.addEventListener("click", () => removeTexture());
+
   els.envIntensity.addEventListener("input", () => {
     state.envIntensity = Number(els.envIntensity.value);
     els.envIntensityOut.textContent = DECIMALS.envIntensity(state.envIntensity);
@@ -697,6 +862,7 @@ window.__extrude3d = {
       cameraDistance: +camera.position.distanceTo(controls.target).toFixed(3),
       lastError: state.lastError,
       transparent: state.transparent,
+      texture: textureInfo(),
       canvas: [els.canvas.width, els.canvas.height]
     };
   },

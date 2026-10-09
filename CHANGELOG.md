@@ -4,6 +4,31 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 第五轮：SVG立体新增基础色表面贴图（用户专项授权）
+- `tools/extrude3d` 材质区新增可访问中文 UI「上传表面贴图」（`#texture-file`，accept PNG / JPEG / WebP）
+  与「移除贴图」（`#texture-remove`），文件名与状态显示在 `#texture-name`（`aria-live="polite"`）。
+- 接线只用现成件：three 0.186.1 自带 `TextureLoader` + blob URL（本地读取，零网络请求）载入图片，
+  设 `SRGBColorSpace`，挂到 `MeshPhysicalMaterial.map`；UV 直接用上游 `@visant/extrude3d` 0.1.0
+  `buildExtrudedGeometry` 已生成的三平面 UV，不写自定义着色器 / UV 算法，不打包贴图素材，
+  不做法线 / 粗糙度 / 置换编辑器。
+- 校验：MIME 白名单（`image/png`、`image/jpeg`、`image/webp`）→ 体积 ≤10 MiB → 实际解码成功 →
+  单边 ≤4096 像素；不通过时给出中文原因（「贴图未更换」）并保留当前贴图与模型。
+- 颜色语义：未勾选「自定义颜色」且贴图激活时基色用 `#ffffff`（贴图按原色显示）；勾选后可用颜色给贴图染色；
+  「移除贴图」释放贴图并恢复材质预设颜色。切换材质预设、重建几何、导出 PNG 都保留贴图。
+- 资源生命周期：成功 / 失败 / 过期均 `URL.revokeObjectURL`；替换 / 移除 / 过期回调都 `texture.dispose()`；
+  加载序列号丢弃过期回调（含「加载中点移除贴图」与「连续换图」）；file input 每次处理完即重置，可重复选同一文件。
+- 调试钩子只在既有 `window.__extrude3d.getInfo()` 增加最小只读字段 `texture`（`{name,width,height}` 或 `null`），
+  不新增测试专用 API。
+- 测试：`tests/specs/extrude3d.mjs` 新增表面贴图断言——真实 PNG 改变画布像素、材质绑定 sRGB map 且基色为白、
+  自定义颜色可染色、切换材质 / 切换 SVG 后贴图保留、伪 PNG（解码失败）与非白名单类型被拒且保留好贴图、
+  移除后 `map` 为 `null` 且基色恢复预设颜色（黄金 `#ffd891`）且像素变化、重选同一文件可再次上传、
+  贴图激活时导出 PNG 非空。浏览器验收仍由 Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），
+  实现侧不启动 Chrome。
+- 文案：材质帮助改为「预设提供基础光泽，上传图片提供表面图案」；README 同步；不改纹理间原 8 份源码，
+  不新增依赖 / 后端 / CDN / 规划文档。
+- 验证：`npm run check`（41 项全过）、`npm test`（5 套 Node 测试共 35 项 + 静态自检全过）、`npm run build` 通过；
+  浏览器断言待 Codex 复验。
+
 ### 第四轮：名称定稿与轻量提示文案（不新增渲染 / 业务功能）
 - 首页 12 个入口名称定稿：`texture` 纹理间（保护原 8 份源码）、`pixelit` 像素画、`image-to-pixel` 图片抖动、
   `image-to-ascii` 字符画、`shaders-logo` 标志材质、`shaders-bg` 动态背景、`shaders-halftone` 半调网点、

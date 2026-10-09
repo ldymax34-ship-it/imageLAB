@@ -2,7 +2,9 @@
  * SVG立体（tools/extrude3d）外部 smoke 规格。
  *
  * 覆盖：页面可进入 / WebGL2 可用 / 真实渲染出 3D 内容 / 参数与材质变化真的改变像素 /
- * 上传样例成功建模 / 危险 SVG 被明确拒绝且不崩 / 导出 PNG 非空且尺寸正确 / 透明导出带 alpha。
+ * 上传样例成功建模 / 危险 SVG 被明确拒绝且不崩 / 导出 PNG 非空且尺寸正确 / 透明导出带 alpha /
+ * 上传本地 PNG 作为基础色表面贴图（真实改变像素、随材质与几何保留、移除恢复预设颜色、
+ * 无效文件不丢当前贴图）。
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -13,9 +15,12 @@ export const title = "SVG立体";
 export const gpu = "webgl2";
 
 const SAMPLE = resolve(ROOT, "tools/extrude3d/samples/square-ring.svg");
+const TEXTURE_PHOTO = resolve(ROOT, "tests/fixtures/test-photo.png");
 const TMP_DIR = resolve(ROOT, ".tmp");
 const TEXT_SVG = resolve(TMP_DIR, "extrude3d-reject-text.svg");
 const MANY_CURVES_SVG = resolve(TMP_DIR, "extrude3d-reject-many-curves.svg");
+const FAKE_PNG = resolve(TMP_DIR, "extrude3d-fake-texture.png");
+const TEXT_PLAIN = resolve(TMP_DIR, "extrude3d-texture.txt");
 
 /**
  * 生成「单条 path 含大量曲线」的 SVG：图形元素只有 1 条、字符串远小于 64 KB，
@@ -273,6 +278,205 @@ export async function run({ page, base, downloads, check, sleep }) {
   const afterUpload = await canvasLooksDrawn(page);
   check.ok("上传后画布仍有内容", afterUpload.drawn === true, `opaqueRatio=${afterUpload.opaqueRatio}`);
 
+  /* ---------- 表面贴图：本地 PNG → 上游 UV → MeshPhysicalMaterial.map ---------- */
+  // 贴图在非透射材质上最直观：先切到塑料（当前是透明玻璃）
+  await setControl(page, "material", "plastic", "change");
+  await sleep(500);
+  const beforeTexture = await sampleCanvas(page);
+  const textureInput = await page.$("#texture-file");
+  check.ok("存在「上传表面贴图」控件", !!textureInput);
+  await textureInput.uploadFile(TEXTURE_PHOTO);
+  await page.waitForFunction(
+    () => {
+      const el = document.getElementById("texture-name");
+      return el && el.textContent.includes("test-photo");
+    },
+    { timeout: 20000, polling: 100 }
+  );
+  await sleep(800);
+  const textured = await page.evaluate(() => {
+    const material = window.__extrude3d.mesh.material;
+    const map = material.map;
+    return {
+      hasMap: !!map,
+      colorSpace: map ? map.colorSpace : null,
+      baseColor: material.color.getHexString(),
+      mapSize: map && map.image ? [map.image.width, map.image.height] : null,
+      name: document.getElementById("texture-name").textContent.trim(),
+      info: window.__extrude3d.getInfo()
+    };
+  });
+  check.ok(
+    "上传 PNG 后材质绑定基础色贴图",
+    textured.hasMap &&
+      textured.info.texture !== null &&
+      textured.info.texture.name.includes("test-photo") &&
+      !!textured.mapSize &&
+      textured.mapSize[0] === 640 &&
+      textured.mapSize[1] === 480,
+    `map=${textured.hasMap} size=${textured.mapSize} name=${textured.name}`
+  );
+  check.ok("贴图使用 sRGB 色彩空间", textured.colorSpace === "srgb", String(textured.colorSpace));
+  check.ok("未自定义颜色时基色为纯白", textured.baseColor === "ffffff", `color=#${textured.baseColor}`);
+  const afterTexture = await sampleCanvas(page);
+  const textureDiff = pixelDiff(beforeTexture, afterTexture);
+  check.ok(
+    "上传真实贴图后画布像素变化",
+    textureDiff.ratio > 0.12,
+    `模型区域内变化像素 ${textureDiff.changed}/${textureDiff.model}（${(textureDiff.ratio * 100).toFixed(1)}%）`
+  );
+
+  // 自定义颜色可以给贴图染色
+  await setControl(page, "color-override", true, "change");
+  await setControl(page, "color", "#c81e1e", "input");
+  await sleep(400);
+  const tintedColor = await page.evaluate(() => window.__extrude3d.mesh.material.color.getHexString());
+  check.ok("自定义颜色可给贴图染色", tintedColor === "c81e1e", `当前基色=#${tintedColor}`);
+  await setControl(page, "color-override", false, "change");
+  await sleep(300);
+
+  // 切换材质预设后贴图仍在（map 不因材质重建而丢失）
+  await setControl(page, "material", "gold", "change");
+  await sleep(500);
+  const afterPreset = await page.evaluate(() => ({
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture
+  }));
+  check.ok(
+    "切换材质预设后贴图保留",
+    afterPreset.hasMap && !!afterPreset.texture && afterPreset.texture.name.includes("test-photo"),
+    `map=${afterPreset.hasMap} texture=${afterPreset.texture ? afterPreset.texture.name : "null"}`
+  );
+
+  // 切换 SVG 重建几何后贴图仍在（继续使用上游三平面 UV）
+  await setControl(page, "sample", "hex-nest", "change");
+  await waitModelled(page);
+  await sleep(700);
+  const afterSvgSwap = await page.evaluate(() => ({
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture
+  }));
+  check.ok(
+    "切换 SVG 重建几何后贴图保留",
+    afterSvgSwap.hasMap && !!afterSvgSwap.texture && afterSvgSwap.texture.name.includes("test-photo"),
+    `map=${afterSvgSwap.hasMap} texture=${afterSvgSwap.texture ? afterSvgSwap.texture.name : "null"}`
+  );
+
+  // 无效贴图：伪 PNG（解码失败）与非白名单类型都不得丢掉当前有效贴图
+  await mkdir(TMP_DIR, { recursive: true });
+  await writeFile(FAKE_PNG, "这不是一张真正的 PNG 图片\n", "utf8");
+  await writeFile(TEXT_PLAIN, "not an image at all\n", "utf8");
+  const beforeFake = await page.evaluate(() => document.getElementById("error").textContent.trim());
+  const fakeInput = await page.$("#texture-file");
+  await fakeInput.uploadFile(FAKE_PNG);
+  await page.waitForFunction(
+    (prev) => {
+      const el = document.getElementById("error");
+      return el && !el.hidden && el.textContent.trim() !== prev && /贴图/.test(el.textContent);
+    },
+    { timeout: 15000, polling: 100 },
+    beforeFake
+  );
+  const fakeReject = await page.evaluate(() => ({
+    text: document.getElementById("error").textContent.trim(),
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture
+  }));
+  check.ok(
+    "伪 PNG 被拒并给出中文原因",
+    fakeReject.text.includes("贴图") && /PNG|JPEG|WebP|解码/.test(fakeReject.text),
+    fakeReject.text.slice(0, 120)
+  );
+  check.ok(
+    "无效贴图后保留当前有效贴图",
+    fakeReject.hasMap && !!fakeReject.texture && fakeReject.texture.name.includes("test-photo"),
+    `map=${fakeReject.hasMap} texture=${fakeReject.texture ? fakeReject.texture.name : "null"}`
+  );
+
+  const beforeMime = await page.evaluate(() => document.getElementById("error").textContent.trim());
+  const mimeInput = await page.$("#texture-file");
+  await mimeInput.uploadFile(TEXT_PLAIN);
+  await page.waitForFunction(
+    (prev) => {
+      const el = document.getElementById("error");
+      return el && !el.hidden && el.textContent.trim() !== prev && /仅支持|文件类型/.test(el.textContent);
+    },
+    { timeout: 15000, polling: 100 },
+    beforeMime
+  );
+  const mimeReject = await page.evaluate(() => ({
+    text: document.getElementById("error").textContent.trim(),
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture
+  }));
+  check.ok(
+    "非白名单类型被拒并保留贴图",
+    /PNG|JPEG|WebP/.test(mimeReject.text) &&
+      mimeReject.hasMap &&
+      !!mimeReject.texture &&
+      mimeReject.texture.name.includes("test-photo"),
+    mimeReject.text.slice(0, 120)
+  );
+
+  // 移除贴图：材质不再绑定 map，基色恢复材质预设颜色
+  const beforeClear = await sampleCanvas(page);
+  await page.click("#texture-remove");
+  await page.waitForFunction(
+    () => {
+      const el = document.getElementById("texture-name");
+      return el && el.textContent.includes("未使用贴图");
+    },
+    { timeout: 10000, polling: 100 }
+  );
+  await sleep(500);
+  const cleared = await page.evaluate(() => {
+    const material = window.__extrude3d.mesh.material;
+    return {
+      hasMap: !!material.map,
+      baseColor: material.color.getHexString(),
+      texture: window.__extrude3d.getInfo().texture,
+      name: document.getElementById("texture-name").textContent.trim()
+    };
+  });
+  check.ok(
+    "移除贴图后材质不再绑定 map 且调试信息为 null",
+    !cleared.hasMap && cleared.texture === null && cleared.name.includes("未使用"),
+    `map=${cleared.hasMap} texture=${cleared.texture} name=${cleared.name}`
+  );
+  check.ok(
+    "移除贴图后基色恢复预设颜色（黄金 #ffd891）",
+    cleared.baseColor === "ffd891",
+    `当前基色=#${cleared.baseColor}`
+  );
+  const afterClear = await sampleCanvas(page);
+  const clearDiff = pixelDiff(beforeClear, afterClear);
+  check.ok(
+    "移除贴图后画面像素变化",
+    clearDiff.ratio > 0.1,
+    `模型区域内变化像素 ${clearDiff.changed}/${clearDiff.model}（${(clearDiff.ratio * 100).toFixed(1)}%）`
+  );
+
+  // 再次选择同一文件（验证 file input 已重置，可重复上传）
+  const reselectInput = await page.$("#texture-file");
+  await reselectInput.uploadFile(TEXTURE_PHOTO);
+  await page.waitForFunction(
+    () => {
+      const el = document.getElementById("texture-name");
+      return el && el.textContent.includes("test-photo");
+    },
+    { timeout: 20000, polling: 100 }
+  );
+  await sleep(600);
+  const reselected = await page.evaluate(() => ({
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture
+  }));
+  check.ok(
+    "重选同一文件可再次上传贴图",
+    reselected.hasMap && !!reselected.texture && reselected.texture.name.includes("test-photo"),
+    `map=${reselected.hasMap} texture=${reselected.texture ? reselected.texture.name : "null"}`
+  );
+
   // 透明背景：画布alpha生效（导出 PNG 走 alpha:true 的渲染器）
   await setControl(page, "transparent-bg", true, "change");
   await sleep(500);
@@ -296,8 +500,12 @@ export async function run({ page, base, downloads, check, sleep }) {
     `corner=${alphaProbe.corner} corner2=${alphaProbe.corner2} maxAlpha=${alphaProbe.maxAlpha}`
   );
 
-  // 导出 PNG
+  // 导出 PNG（贴图仍激活：导出画面应包含贴图）
   const viewWidth = await page.$eval("#view", (n) => Math.round(n.clientWidth));
+  const exportMap = await page.evaluate(() => ({
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture
+  }));
   await setControl(page, "export-scale", "2", "change");
   await page.click("#export-png");
   const file = await downloads.waitForFile({ ext: ".png", timeoutMs: 30000 });
@@ -314,6 +522,11 @@ export async function run({ page, base, downloads, check, sleep }) {
     `png=${info.width}px 视图=${viewWidth}px`
   );
   check.ok("透明模式导出的 PNG 带 alpha 通道", file.bytes[25] === 6, `IHDR colorType=${file.bytes[25]}`);
+  check.ok(
+    "贴图激活时导出 PNG 非空",
+    exportMap.hasMap && !!exportMap.texture && file.size > 1000,
+    `map=${exportMap.hasMap} texture=${exportMap.texture ? exportMap.texture.name : "null"} ${file.size}B`
+  );
   check.ok("页面无未捕获异常", page.errors.length === 0, page.errors.slice(0, 3).join(" | "));
 
   // 危险 SVG：含 <text> 必须被明确拒绝

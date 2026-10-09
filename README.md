@@ -35,22 +35,24 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/texture/` | 纹理间 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 环境与背景 | PNG（可选透明背景） | 已通过浏览器验收（29 项） |
+| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 基础色表面贴图 / 环境与背景 | PNG（可选透明背景） | 已通过浏览器验收（29 项）；表面贴图新增断言待 Codex 复验 |
 | `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
 | `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
 | `tools/shaders-halftone/` | 半调网点 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
 | `tools/psychos/` | 图片拼贴 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
 
-首页按上表登记全部 9 个内置入口（含 `tools/psychos`）；**浏览器验收已全部完成**（真实上传、调参、
-下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、
+首页按上表登记全部 9 个内置入口（含 `tools/psychos`）；浏览器验收此前已全部完成（真实上传、调参、
+下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）；第五轮新增的 SVG立体表面贴图断言待 Codex 复验
+（见下方 `tools/extrude3d` 说明）。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、
 bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部通过。
 
-> 本轮为**轻量名称 / 提示文案调整**：不新增渲染或业务功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
+> 上一轮为**轻量名称 / 提示文案调整**：不新增渲染或业务功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
 > 不建高级入口、不接 vgpu / 路径追踪，不新增依赖、后端、材质算法或纹理库。首页卡片类别行只显示现有中文分类
 > （`en` 英文副标题仅保留在数据字段里，供来源记录与搜索）。`tools/extrude3d` 的 38 个材质预设统一显示中文名
-> （如镜面金属 / 透明玻璃 / 水晶效果 / 亮面 / 糖果塑料）；石材、木材等为基础光泽效果，**暂不含纹理贴图**，
-> 页面已如实提示，不冒充真实纹理；未翻译第三方 psychos 节点编辑器与 pixelit / ascii 原 UI，未改动纹理原 8 份源码。
+> （如镜面金属 / 透明玻璃 / 水晶效果 / 亮面 / 糖果塑料）；石材、木材等预设只提供**基础光泽**，
+> 如需表面图案可在材质区**上传本地图片**作为基础色贴图（素材只在本地读取，不上传）；
+> 未翻译第三方 psychos 节点编辑器与 pixelit / ascii 原 UI，未改动纹理原 8 份源码。
 
 ### 外部网站入口（仅跳转，不接入）
 
@@ -72,6 +74,14 @@ bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部�
 `tools/extrude3d` 的本地 SVG 导入上限为 64 KB；单个 `<path>` 曲线过多时，会在挤出前按上游曲线细分
 采样轮廓点估算顶点数，超过顶点预算即拒绝并保留上一次成功模型（已由浏览器验收断言：复杂单 path
 400 曲线被拒绝且原模型保留）。
+
+`tools/extrude3d` 新增**基础色表面贴图**（用户专项授权）：在材质区上传本地 PNG / JPEG / WebP，
+经白名单 + 实际解码 + 体积 / 尺寸校验（≤10 MiB、单边 ≤4096 像素）后，用 three 自带的 `TextureLoader`
+（blob URL）与上游已生成的三平面 UV 接到 `MeshPhysicalMaterial.map`；未自定义颜色时基色用纯白让贴图原色显示，
+勾选自定义颜色可用颜色给贴图染色，移除后恢复材质预设颜色。不打包任何贴图素材，不加法线 / 粗糙度 / 置换编辑器，
+不新增着色器 / UV 算法 / 依赖 / 后端 / CDN；无效文件给出中文原因并保留当前贴图与模型。
+对应的浏览器断言（`tests/specs/extrude3d.mjs`：真实贴图改变像素与导出 PNG、随材质 / 几何保留、
+移除恢复无贴图、无效文件保留好贴图）**待 Codex 复验**，本仓库不自行启动浏览器。
 
 `public/assets/covers/*.png` 是 9 张真实工具 PNG 导出（互不相同，实际内容已核验），由
 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
@@ -124,8 +134,8 @@ CHANGELOG.md               变更记录
 
 ## 测试与验收
 
-本批次的**浏览器验收已完成**（用真实 Chrome 驱动交互：上传图片、调参、点导出并校验下载到的
-PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）。需要复跑时：
+本批次的**浏览器验收此前已完成**（用真实 Chrome 驱动交互：上传图片、调参、点导出并校验下载到的
+PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；第五轮新增的表面贴图断言待 Codex 复验。需要复跑时：
 
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke                      # 顺序跑全部工具，只启动一个 Chrome

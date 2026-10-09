@@ -55,5 +55,12 @@ CHROME_PATH=/path/to/chrome
 不变且无重复、常用材质（塑料 / 镜面金属 / 透明玻璃 / 黄金）可从下拉选中并生效。浏览器断言仍由
 Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实现侧不启动 Chrome。
 
+`extrude3d` 表面贴图（第五轮，用户专项授权）新增断言：上传真实 PNG 后画布像素变化、材质绑定 sRGB map
+且未自定义颜色时基色为白、自定义颜色可给贴图染色、切换材质预设 / 切换 SVG 重建几何后贴图保留、
+伪 PNG（解码失败）与非白名单类型被拒且保留当前好贴图、移除后 `map` 为 `null` 且基色恢复预设颜色
+（黄金 `#ffd891`）并且像素变化、重选同一文件可再次上传、贴图激活时导出 PNG 非空。
+**待 Codex 复验**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；实现侧只跑
+`npm run check` / `npm test` / `npm run build`。
+
 首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
 `target="_blank" rel="noopener noreferrer"`、准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。

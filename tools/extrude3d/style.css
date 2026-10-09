@@ -193,6 +193,8 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
 
 .il-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
 
+.il-wide { display: block; width: 100%; margin-top: 9px; }
+
 .il-help {
   margin: 10px 0 0;
   font-size: 10px;
