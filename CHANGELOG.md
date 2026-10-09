@@ -4,10 +4,10 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
-### 修复：SVG立体导出预览清屏 + 表面贴图选择竞态（Codex 浏览器回归后修复）
-- 导出 PNG 的 `toBlob` 回调恢复预览渲染尺寸后立即 `renderer.render(scene, camera)` 重绘一次：
-  `renderer.setSize` 会清空画布，此前要等下一帧 RAF 才恢复，导致 Codex 复验时「曲线超限拒绝后
-  `canvasLooksDrawn`」偶发 `opaqueRatio=0`。导出语义（倍率 / 透明背景 / 文件名）不变。
+### 修复：SVG立体 setSize 清屏 + 表面贴图选择竞态（Codex 浏览器回归后修复）
+- `renderer.setSize` 会清空画布，此前要等下一帧 RAF 才恢复：导出 PNG 的 `toBlob` 回调恢复预览尺寸后，
+  以及 `resize()`（错误提示等布局变化触发 ResizeObserver）在相机 / 取景更新后，都立即
+  `renderer.render(scene, camera)` 补绘一帧。导出语义（倍率 / 透明背景 / 文件名）不变，非空断言 / 阈值不放宽。
 - 表面贴图加载序列号 `++textureSeq` 移到 `loadTextureFile` 开头（非空文件之后、MIME / 体积校验之前）：
   最新一次选择即使是会被拒的非白名单 / 超大文件，也会先作废更早的「进行中」加载，不再让过期回调
   `acceptTexture` 顶替 baseline 贴图并清掉 `setError` 的拒绝原因；原有回调 seq 守卫与
@@ -18,8 +18,9 @@
 - 新增紧凑浏览器回归：页内用 `canvas.toBlob` 生成 PNG `File` + `DataTransfer`，同一 tick 内
   pending.png → invalid.txt，断言 baseline（test-photo.png）保留且拒绝原因不被清掉；再加
   「加载中点移除贴图」断言贴图保持 `null`。全部使用浏览器内建能力，不写自定义图像算法。
-- Codex 已在 a5fc0c0 独立跑过主要操作（SVG立体既有规格 59/60 PASS，唯一失败即上述偶发清屏）；
-  本轮新增 / 加强的浏览器断言待 Codex 复跑（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）。
+- Codex 在 258ad31 独立复跑 64/65 PASS，唯一失败为「拒绝含 `<text>` SVG 后 `canvasLooksDrawn`」
+  `opaqueRatio=0`（即上述 setSize 清屏）；本轮 resize 补绘后待 Codex 再复跑
+  （`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），尚未标记浏览器最终通过。
   实现侧只跑纯 Node：`npm run check`（41 项）、`npm test`（5 套 Node 测试共 35 项）、`npm run build` 全过。
 - 未改纹理间原 8 份源码，未新增依赖 / 后端 / CDN，未启动浏览器 / Chrome。
 

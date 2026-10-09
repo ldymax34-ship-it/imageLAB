@@ -838,6 +838,7 @@ function resize() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   if (hasGeometry) refitView(); // 视口比例变了，重新取景（保留用户缩放）
+  renderer.render(scene, camera); // setSize 会清空画布：同步补一帧，避免错误提示等布局变化后短暂空白
 }
 
 function animate() {
