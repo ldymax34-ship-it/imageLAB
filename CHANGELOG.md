@@ -13,6 +13,21 @@
 - 卡片文案去掉实现术语（`image-to-pixel` 的「调色板用数组定义」改为设计师可读的用途）。
 - 验证：`npm test`（纹理间 Node 测试 + `scripts/check.mjs` 静态自检）与 `npm run build` 通过；浏览器验收与封面生成仍由 Codex 执行，本记录不代表浏览器已验收。
 
+### 第三轮：首页新增 3 个外部网站跳转入口（仅跳转，不接入）
+- 首页登记 3 个已核实公开官网的外链卡片：`space-type-generator`（动态文字 / 字符与文字）、
+  `shader-lab`（效果堆叠 / 着色器效果）、`tooooools`（图像网点 / 像素与点阵）；**入口总数为 12（9 内置 + 3 外部）**。
+- 数据只用最小字段 `external: true` 区分：外部卡片封面区域渲染为明确文字入口「外部网站 · 跳转官网」+ 域名，
+  按钮为「打开官网 ↗」；封面区与按钮均 `target="_blank" rel="noopener noreferrer"`。
+- 只做跳转：不部署、不复制源码 / 字体 / 媒体、不下载封面、不 iframe、不引入运行时外部请求或依赖；
+  第三方站点的 `free` 声明不当作代码授权。
+- 首页标题 / description / tagline / lede 措辞收紧：只声明 **9 个内置工具**本地处理素材、不上传；
+  外部网站入口只做跳转，页面与数据处理由对方负责，不作「已验证不上传 / PNG 通用保证」。
+- 保持首页纯白黑、ImageLAB 字标与 9 个内置工具封面 / UI 源码不动；不新增 tab / filter 开关，搜索分类沿用现有系统。
+- `scripts/check.mjs`：内置入口继续校验本地文件 / 封面 / spec / dist；外部入口只校验为合法 HTTPS 地址且不声明封面。
+- `tests/specs/home.mjs`：新增少量外部卡片回归（标注 / 按钮文案 / 两处链接 target-rel / 准确网址 / 关键词搜索），
+  不向外部 fetch（避免 CORS 假失败）；原 9 个内置封面与入口可达断言不降低（封面数量固定 9 且全为真实封面）。
+- 验证：`npm run check` 与 `npm run build` 通过（纯 Node，未启动浏览器）。
+
 ### 新增：仓库骨架
 - 建立单仓库多页结构：首页 `index.html` + `tools/<id>/` 独立工具网页。
 - `vite.config.mjs`：多页入口自动发现（只认带 `<!-- imagelab:entry -->` 标记的 `tools/<id>/index.html`），

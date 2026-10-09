@@ -20,9 +20,50 @@
     return n;
   }
 
+  function hostOf(href) {
+    try {
+      return new URL(href).host;
+    } catch (e) {
+      return href;
+    }
+  }
+
   function card(t) {
     var article = el("article", "card");
     article.dataset.span = String(t.span || 4);
+    article.dataset.tool = t.id;
+
+    if (t.external) {
+      // 外部网站入口：封面区域是明确的文字入口，不伪造效果图、也不是缺失封面。
+      // 两处链接都在新窗口打开，且不向外部发起任何运行时请求（不 iframe、不预取）。
+      article.classList.add("is-external");
+      article.dataset.external = "true";
+
+      var extShot = el("a", "shot is-external-shot");
+      extShot.href = t.href;
+      extShot.target = "_blank";
+      extShot.rel = "noopener noreferrer";
+      extShot.setAttribute("aria-label", t.name + " 外部网站，打开官网");
+      extShot.appendChild(el("span", "shot-external", "外部网站 · 跳转官网"));
+      extShot.appendChild(el("span", "shot-host", hostOf(t.href)));
+      article.appendChild(extShot);
+
+      article.appendChild(el("h3", null, t.name));
+      article.appendChild(el("div", "cat", t.cat + (t.en ? " · " + t.en : "")));
+      article.appendChild(el("p", null, t.desc));
+
+      var extEnter = el("a", "enter");
+      extEnter.href = t.href;
+      extEnter.target = "_blank";
+      extEnter.rel = "noopener noreferrer";
+      extEnter.appendChild(document.createTextNode("打开官网"));
+      var extArrow = document.createElement("s");
+      extArrow.textContent = "↗";
+      extEnter.appendChild(extArrow);
+      article.appendChild(extEnter);
+      article.appendChild(el("div", "note", "外部网站 · 跳转官网"));
+      return article;
+    }
 
     var shot = el("a", "shot");
     shot.href = t.href;
@@ -64,9 +105,13 @@
     countEl.textContent = list.length + " / " + tools.length + " 个入口";
 
     var catTotal = new Set(tools.map(function (t) { return t.cat; })).size;
-    var toolsEl = document.getElementById("meta-tools");
+    var builtinTotal = tools.filter(function (t) { return !t.external; }).length;
+    var externalTotal = tools.filter(function (t) { return !!t.external; }).length;
+    var builtinEl = document.getElementById("meta-builtin");
+    var externalEl = document.getElementById("meta-external");
     var catsEl = document.getElementById("meta-cats");
-    if (toolsEl) toolsEl.textContent = String(tools.length);
+    if (builtinEl) builtinEl.textContent = String(builtinTotal);
+    if (externalEl) externalEl.textContent = String(externalTotal);
     if (catsEl) catsEl.textContent = String(catTotal);
 
     if (!list.length) {
@@ -85,7 +130,7 @@
     var wrap = el("div", "wrap");
     var header = document.createElement("header");
     header.appendChild(el("h2", null, state.cat === "全部" ? "全部工具" : state.cat));
-    header.appendChild(el("p", null, list.length + " 个工具"));
+    header.appendChild(el("p", null, list.length + " 个入口"));
     wrap.appendChild(header);
     var grid = el("div", "cards");
     list.forEach(function (t) { grid.appendChild(card(t)); });

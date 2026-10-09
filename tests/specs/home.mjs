@@ -1,6 +1,9 @@
 /**
- * 首页 smoke：大标题 / 分类 / 搜索可用；每张卡片都有封面位（真实封面或明确占位，不许破图），
- * 且每个进入链接真的可达（HTTP 200）。这条测试保证「只列已可用入口」这条规则被真正执行。
+ * 首页 smoke：大标题 / 分类 / 搜索可用；9 张内置卡片都有封面位（真实封面或明确占位，不许破图），
+ * 且每个内置进入链接真的可达（HTTP 200）。这条测试保证「只列已可用入口」这条规则被真正执行。
+ *
+ * 3 个外部网站入口只做跳转：校验标注 / 按钮文案 / 两处链接 target-rel / 准确网址 / 关键词搜索，
+ * 不向外部 URL 发请求（会 CORS 失败），也不纳入本地封面与可达断言。
  *
  * 封面说明：真实封面由验收阶段用工具的真实导出画面生成（`node scripts/capture-covers.mjs`）。
  * 尚未生成时首页显示中性文字占位，此项会如实报出「待生成」清单而不是伪造通过。
@@ -27,6 +30,9 @@ export async function run({ page, base, browser, check, sleep }) {
   await page.waitForSelector(".card", { timeout: 15000 });
   const cardCount = await page.$$eval(".card", (n) => n.length);
   check.ok("工具卡片数量 ≥ 1", cardCount >= 1, `${cardCount} 张`);
+  check.ok("首页共 12 个入口（9 内置 + 3 外部）", cardCount === 12, `${cardCount} 张`);
+  const extCardCount = await page.$$eval(".card.is-external", (n) => n.length);
+  check.ok("其中外部网站入口 3 个", extCardCount === 3, `${extCardCount} 张`);
 
   // 分类筛选：选中某分类后，页面上只应出现该分类的卡片
   const filterCount = await page.$$eval("#filters button", (n) => n.length);
@@ -88,10 +94,81 @@ export async function run({ page, base, browser, check, sleep }) {
   const restored = await page.$$eval(".card", (n) => n.length);
   check.ok("清空搜索后卡片恢复", restored === cardCount, `${restored} 张`);
 
-  // 每张卡片都必须有「封面位」：要么是加载成功的真实封面，要么是明确的中性占位，
+  // 外部网站入口：只做跳转。校验标注、按钮文案、两处链接 target/rel 与准确网址；
+  // 不向外部 URL 发请求（会 CORS 失败），也不把外部入口纳入本地封面 / 可达断言。
+  const EXPECT_EXTERNAL = [
+    { id: "space-type-generator", name: "动态文字", href: "https://spacetypegenerator.com/" },
+    { id: "shader-lab", name: "效果堆叠", href: "https://eng.basement.studio/tools/shader-lab" },
+    { id: "tooooools", name: "图像网点", href: "https://www.tooooools.app/" }
+  ];
+  const externalCards = await page.$$eval(".card.is-external", (cards) =>
+    cards.map((c) => {
+      const shot = c.querySelector("a.shot");
+      const enter = c.querySelector("a.enter");
+      return {
+        id: c.dataset.tool || "",
+        shotLabel: (c.querySelector(".shot-external") || {}).textContent || "",
+        note: (c.querySelector(".note") || {}).textContent || "",
+        hasImg: !!c.querySelector("img"),
+        shotHref: shot ? shot.getAttribute("href") : null,
+        shotTarget: shot ? shot.getAttribute("target") : null,
+        shotRel: shot ? shot.getAttribute("rel") : null,
+        enterHref: enter ? enter.getAttribute("href") : null,
+        enterTarget: enter ? enter.getAttribute("target") : null,
+        enterRel: enter ? enter.getAttribute("rel") : null,
+        enterText: enter ? enter.textContent.replace(/\s+/g, " ").trim() : ""
+      };
+    })
+  );
+  const relOk = (rel) =>
+    (rel || "").split(/\s+/).includes("noopener") && (rel || "").split(/\s+/).includes("noreferrer");
+  for (const e of EXPECT_EXTERNAL) {
+    const c = externalCards.find((x) => x.id === e.id);
+    check.ok(`外部入口「${e.name}」存在`, !!c, c ? "已渲染" : "未找到");
+    if (!c) continue;
+    check.ok(
+      `外部入口「${e.name}」标注为 外部网站 · 跳转官网`,
+      c.shotLabel.includes("外部网站") && c.shotLabel.includes("跳转官网") &&
+        c.note.includes("外部网站") && c.note.includes("跳转官网"),
+      `封面区=${c.shotLabel} / note=${c.note}`
+    );
+    check.ok(
+      `外部入口「${e.name}」按钮为 打开官网 ↗`,
+      c.enterText.includes("打开官网") && c.enterText.includes("↗"),
+      c.enterText
+    );
+    check.ok(
+      `外部入口「${e.name}」两处链接网址准确`,
+      c.shotHref === e.href && c.enterHref === e.href,
+      `封面区=${c.shotHref} / 按钮=${c.enterHref}`
+    );
+    check.ok(
+      `外部入口「${e.name}」两处链接 target=_blank + rel=noopener noreferrer`,
+      c.shotTarget === "_blank" && c.enterTarget === "_blank" && relOk(c.shotRel) && relOk(c.enterRel),
+      `shot target=${c.shotTarget} rel=${c.shotRel}; enter target=${c.enterTarget} rel=${c.enterRel}`
+    );
+    check.ok(`外部入口「${e.name}」封面区是文字入口而非图片`, !c.hasImg && !!c.shotLabel, c.hasImg ? "出现 img" : "纯文字");
+  }
+
+  // 外部入口关键词沿用现有搜索系统即可命中，不新增 tab / filter 开关。
+  const searchHits = async (q) => {
+    await setSearch(q);
+    return page.$$eval(".card h3", (ns) => ns.map((n) => n.textContent.trim()));
+  };
+  const stgHits = await searchHits("spacetypegenerator");
+  check.ok("搜索 spacetypegenerator 命中动态文字", stgHits.length === 1 && stgHits[0] === "动态文字", `命中 ${stgHits.length}：${stgHits.join("、") || "无"}`);
+  const slHits = await searchHits("basement");
+  check.ok("搜索 basement 命中效果堆叠", slHits.length === 1 && slHits[0] === "效果堆叠", `命中 ${slHits.length}：${slHits.join("、") || "无"}`);
+  const tooHits = await searchHits("tooooools");
+  check.ok("搜索 tooooools 命中图像网点", tooHits.length === 1 && tooHits[0] === "图像网点", `命中 ${tooHits.length}：${tooHits.join("、") || "无"}`);
+  await setSearch("");
+  const restored2 = await page.$$eval(".card", (n) => n.length);
+  check.ok("清空外部关键词搜索后恢复全部卡片", restored2 === cardCount, `${restored2} 张`);
+
+  // 每张内置卡片都必须有「封面位」：要么是加载成功的真实封面，要么是明确的中性占位，
   // 不允许出现破图或 0 尺寸的 img（占位是首页对「封面尚未生成」的显式表达，不是伪装的效果图）。
   await sleep(400);
-  const covers = await page.$$eval(".card", (cards) =>
+  const covers = await page.$$eval(".card:not(.is-external)", (cards) =>
     cards.map((c) => {
       const img = c.querySelector("img");
       const link = c.querySelector("a.enter");
@@ -110,13 +187,19 @@ export async function run({ page, base, browser, check, sleep }) {
   const pendingCovers = covers.filter((c) => !c.natural[0] && c.fallback);
   const noSlot = covers.filter((c) => !c.natural[0] && !c.fallback);
   check.ok(
-    "每张卡片都有封面位（无破图、无 0 尺寸）",
+    "每张内置卡片都有封面位（无破图、无 0 尺寸）",
     noSlot.length === 0 && covers.every((c) => !c.broken),
     `真实封面 ${realCovers.length}/${covers.length}` +
       (pendingCovers.length ? `；待生成：${pendingCovers.map((c) => c.name).join("、")}` : "")
   );
+  // 原有 9 个内置入口的封面断言不降低：数量固定为 9，且都必须是真实封面而非占位。
+  check.ok(
+    "9 个内置入口都有真实封面（不降级为占位）",
+    covers.length === 9 && realCovers.length === 9,
+    `内置卡片 ${covers.length}，真实封面 ${realCovers.length}`
+  );
 
-  // 每个入口链接都要真的可达
+  // 每个内置入口链接都要真的可达（外部入口不 fetch，避免 CORS 假失败）
   for (const c of covers) {
     if (!c.href) {
       check.ok(`「${c.name}」有进入链接`, false, "缺少 a.enter");

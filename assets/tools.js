@@ -110,5 +110,40 @@ window.IMAGELAB_TOOLS = [
     span: 6,
     keywords: "版式 拼贴 切片 shuffle slice 生成式 海报",
     note: "需构建后访问 · 实时渲染"
+  },
+  {
+    /* 外部网站入口：只做跳转，不本地部署、不复制源码、不下载封面、不 iframe、不引入运行时请求。
+     * external:true 时首页渲染为纯文字入口（不伪造效果图），两处链接均 target=_blank rel=noopener noreferrer。 */
+    id: "space-type-generator",
+    name: "动态文字",
+    en: "Space Type Generator",
+    cat: "字符与文字",
+    desc: "在线生成动态排版文字动画，点击跳转官网使用；外部网站内容由对方提供。",
+    href: "https://spacetypegenerator.com/",
+    span: 4,
+    external: true,
+    keywords: "动态文字 文字动画 排版 字体 kinetic typography space type generator spacetypegenerator"
+  },
+  {
+    id: "shader-lab",
+    name: "效果堆叠",
+    en: "Shader Lab",
+    cat: "着色器效果",
+    desc: "在线堆叠组合着色器效果并实时预览，点击跳转官网使用；外部网站内容由对方提供。",
+    href: "https://eng.basement.studio/tools/shader-lab",
+    span: 4,
+    external: true,
+    keywords: "着色器 shader 效果堆叠 组合 实时预览 basement studio shader lab"
+  },
+  {
+    id: "tooooools",
+    name: "图像网点",
+    en: "Tooooools",
+    cat: "像素与点阵",
+    desc: "在线把图片转成网点 / 半调等点阵效果，点击跳转官网使用；外部网站内容由对方提供。",
+    href: "https://www.tooooools.app/",
+    span: 4,
+    external: true,
+    keywords: "网点 半调 点阵 图像 halftone dots tooooools"
   }
 ];

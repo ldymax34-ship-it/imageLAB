@@ -2,10 +2,12 @@
 
 名称拼写固定为 **ImageLAB**（首字母 `I` 大写、`mage` 小写、`LAB` 大写）。
 
-生成纹理、处理图片、探索材质。调好参数，直接出图。素材本地处理，不上传。
+生成纹理、处理图片、探索材质。调好参数，直接出图。9 个内置工具在本地处理素材、不上传。
 
 一个**纯静态、纯前端**的图像设计工具箱：首页 `index.html` + `tools/<id>/` 下的独立工具网页。
-素材只在本地浏览器里处理，不上传；没有数据库、没有账号、没有服务端渲染、也没有运行时远程模型或 API。
+内置工具只在本地浏览器里处理素材，不上传；没有数据库、没有账号、没有服务端渲染、也没有运行时远程模型或 API。
+首页另登记 **3 个外部网站入口，只做跳转**（外部网站内容由对方提供，本项目不部署、不复制源码、不下载封面、不 iframe、
+不引入运行时外部请求），因此「素材不上传」只适用于 9 个内置工具，不构成对第三方网站的保证。
 
 ## 快速开始
 
@@ -23,8 +25,8 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 `127.0.0.1` 上启动本地服务器后打开浏览器。
 
 > 首页视觉：纯白 + 纯黑 + 中性灰，hero 复用 `public/brand/ImageLAB-logo-preview.png` 字标（CSS 裁空白），
-> 全部视图为连续 12 栏网格。首页回归已全部通过：9/9 真实封面、9 个入口 HTTP 200、bayer 搜索、
-> 分类、1440 与 390 宽无横向溢出、body 纯白。
+> 全部视图为连续 12 栏网格。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、bayer 搜索、
+> 分类、1440 与 390 宽无横向溢出、body 纯白；外部入口只断言标注 / target-rel / 网址 / 关键词，不向外部发请求。
 
 ## 工具清单与状态
 
@@ -40,9 +42,26 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/shaders-halftone/` | 半调与抖动 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
 | `tools/psychos/` | 节点式版式 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
 
-首页按上表登记全部 9 个入口（含 `tools/psychos`）。**浏览器验收已全部完成**（真实上传、调参、
-下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。首页回归：9/9 真实封面、9 个入口 HTTP 200、
+首页按上表登记全部 9 个内置入口（含 `tools/psychos`）；**浏览器验收已全部完成**（真实上传、调参、
+下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、
 bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部通过。
+
+### 外部网站入口（仅跳转，不接入）
+
+首页另有 3 个已核实公开官网的外链卡片（`external: true`）：封面区域是明确的文字入口「外部网站 · 跳转官网」，
+按钮为「打开官网 ↗」，封面区与按钮均 `target="_blank" rel="noopener noreferrer"`。它们不是内置开源接入：
+不部署、不复制源码 / 字体 / 媒体、不下载封面、不 iframe、不引入运行时外部请求或依赖；第三方站点的 `free`
+声明不当作代码授权。
+
+| 入口 id | 名称 | 类别 | 官网地址 |
+| --- | --- | --- | --- |
+| `space-type-generator` | 动态文字（Space Type Generator） | 字符与文字 | https://spacetypegenerator.com/ |
+| `shader-lab` | 效果堆叠（Shader Lab） | 着色器效果 | https://eng.basement.studio/tools/shader-lab |
+| `tooooools` | 图像网点（Tooooools） | 像素与点阵 | https://www.tooooools.app/ |
+
+搜索分类沿用现有系统（不新增 tab / filter 开关）。`scripts/check.mjs` 对内置入口校验本地文件 / spec / dist，
+外部入口只校验是合法的 HTTPS 地址且不声明封面；`tests/specs/home.mjs` 只对外部卡片断言标注 / target-rel /
+准确网址 / 关键词搜索，不向外部 fetch（避免 CORS 假失败）。
 
 `tools/extrude3d` 的本地 SVG 导入上限为 64 KB；单个 `<path>` 曲线过多时，会在挤出前按上游曲线细分
 采样轮廓点估算顶点数，超过顶点预算即拒绝并保留上一次成功模型（已由浏览器验收断言：复杂单 path

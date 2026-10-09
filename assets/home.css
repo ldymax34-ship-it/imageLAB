@@ -283,6 +283,31 @@ main { padding-bottom: 40px; }
   padding: 6px 12px;
 }
 
+/* 外部网站入口：封面区域是明确的文字入口（不伪造效果图、也不是缺失封面）。
+   卡片不加载任何外部图片 / iframe，只在点击后跳转官网。 */
+.card .shot.is-external-shot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+}
+
+.card .shot-external {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+
+.card .shot-host {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  word-break: break-all;
+}
+
 .card h3 {
   margin: 0 0 7px;
   font-size: clamp(19px, 1.7vw, 23px);

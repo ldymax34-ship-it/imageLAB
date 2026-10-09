@@ -50,3 +50,6 @@ CHROME_PATH=/path/to/chrome
 Logo 材质（独立 19 项）、半调与网点（28 项）、节点式版式（20 项，WebGPU）已通过；
 动态背景的渲染/参数/导出断言全部通过，此前的失败是开发服务器 HTTP 304 假失败，
 已在 `harness.mjs` 关闭浏览器缓存修复。首页新增 bayer 搜索回归，待 Codex 验证。
+
+首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
+`target="_blank" rel="noopener noreferrer"`、准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。

@@ -262,12 +262,63 @@ ok("@paper-design/shaders 精确锁定 0.0.81", pkg.dependencies["@paper-design/
 ok("@visant/extrude3d 精确锁定 0.1.0", pkg.dependencies["@visant/extrude3d"] === "0.1.0", String(pkg.dependencies["@visant/extrude3d"]));
 
 /* ---------- 6. 首页清单与测试规格 ---------- */
-console.log("\n[6] 首页清单与测试规格对齐");
+console.log("\n[6] 首页清单与测试规格对齐（内置入口 / 外部网站分开校验）");
 const toolsJs = await readFile(resolve(ROOT, "assets/tools.js"), "utf8");
-const manifest = [...toolsJs.matchAll(/href:\s*"([^"]+)"/g)].map((m) => m[1]);
-ok("首页清单非空", manifest.length > 0, `${manifest.length} 个入口`);
-const brokenHref = manifest.filter((h) => !existsSync(resolve(ROOT, h)));
-ok("清单里的入口文件都存在", brokenHref.length === 0, brokenHref.join(", "));
+// tools.js 是带注释的对象数组；逐块提取，避免把 external:true 里的外部 URL
+// 误当成站点内需要存在本地文件的相对路径。
+const entries = [...toolsJs.matchAll(/\{[^{}]*\}/g)]
+  .map((m) => {
+    const block = m[0];
+    return {
+      id: (block.match(/id:\s*"([^"]+)"/) || [])[1] || "",
+      href: (block.match(/href:\s*"([^"]+)"/) || [])[1] || "",
+      cover: (block.match(/cover:\s*"([^"]+)"/) || [])[1] || "",
+      external: /external:\s*true/.test(block)
+    };
+  })
+  .filter((e) => e.href);
+const builtinEntries = entries.filter((e) => !e.external);
+const externalEntries = entries.filter((e) => e.external);
+
+ok("首页清单非空", entries.length > 0, `${entries.length} 个入口`);
+ok(
+  "入口总数为 12（9 内置 + 3 外部）",
+  entries.length === 12 && builtinEntries.length === 9 && externalEntries.length === 3,
+  `总 ${entries.length}：内置 ${builtinEntries.length}，外部 ${externalEntries.length}`
+);
+ok(
+  "入口 id 唯一",
+  new Set(entries.map((e) => e.id)).size === entries.length,
+  entries.map((e) => e.id).join(", ")
+);
+
+// 内置入口：只校验仓库里的本地文件（入口页与封面）真实存在（封面经 public/ 复制进 dist 根）。
+const brokenHref = builtinEntries.filter((e) => !existsSync(resolve(ROOT, e.href)));
+ok("内置入口文件都存在", brokenHref.length === 0, brokenHref.map((e) => e.href).join(", "));
+const missingCover = builtinEntries.filter((e) => !e.cover || !existsSync(resolve(ROOT, "public", e.cover)));
+ok(
+  "内置入口封面文件都存在",
+  missingCover.length === 0,
+  missingCover.length ? missingCover.map((e) => e.id).join(", ") : `${builtinEntries.length} 张`
+);
+
+// 外部网站：不做本地文件 / spec / dist 校验，只确认是明确合法的 HTTPS 地址，
+// 且不声明封面（首页对它们只渲染文字入口，不下载远程图片、不 iframe）。
+const badExternal = externalEntries.filter((e) => {
+  if (!/^https:\/\//.test(e.href)) return true;
+  try {
+    const u = new URL(e.href);
+    return u.protocol !== "https:" || !u.hostname;
+  } catch {
+    return true;
+  }
+});
+ok("外部入口都是合法的 HTTPS 地址", badExternal.length === 0, badExternal.map((e) => `${e.id}:${e.href}`).join(", "));
+ok(
+  "外部入口不声明本地封面",
+  externalEntries.every((e) => !e.cover),
+  externalEntries.filter((e) => e.cover).map((e) => e.id).join(", ") || "无封面字段"
+);
 
 const specFiles = (await readdir(resolve(ROOT, "tests/specs")).catch(() => [])).filter((f) => f.endsWith(".mjs"));
 const specIds = [];
@@ -276,7 +327,8 @@ for (const f of specFiles) {
   const m = t.match(/export\s+const\s+id\s*=\s*["']([^"']+)["']/);
   if (m) specIds.push(m[1]);
 }
-ok("首页每个工具都有对应测试规格", manifest.every((h) => specIds.includes(h.split("/")[1])), `规格：${specIds.join(", ")}`);
+ok("首页每个内置工具都有对应测试规格", builtinEntries.every((e) => specIds.includes(e.id)), `规格：${specIds.join(", ")}`);
+ok("外部入口不占用内置规格", externalEntries.every((e) => !specIds.includes(e.id)), externalEntries.map((e) => e.id).join(", "));
 
 /* ---------- 7. 构建产物（若已构建） ---------- */
 console.log("\n[7] 构建产物");
@@ -302,9 +354,9 @@ if (!existsSync(resolve(ROOT, "dist/index.html"))) {
     missingDocs.length ? `缺少 dist/${missingDocs.join(", dist/")}` : `已就位：${footerHrefs.join(", ")}`
   );
 
-  // 首页清单里的每个入口都要在 dist 里真实产出
-  const missingEntries = manifest.filter((h) => !existsSync(resolve(ROOT, "dist", h)));
-  ok("首页每个入口在 dist 中都存在", missingEntries.length === 0, missingEntries.join(", "));
+  // 首页清单里的每个内置入口都要在 dist 里真实产出（外部入口只做跳转，不在 dist 内）
+  const missingEntries = builtinEntries.filter((e) => !existsSync(resolve(ROOT, "dist", e.href)));
+  ok("首页每个内置入口在 dist 中都存在", missingEntries.length === 0, missingEntries.map((e) => e.href).join(", "));
 }
 await stat(resolve(ROOT, "package.json"));
 
