@@ -49,33 +49,51 @@ const MIME = {
   ".bin": "application/octet-stream"
 };
 
+/**
+ * 解析请求路径并拼到 root 下。
+ * 返回 { path } / { forbidden } / { malformed }：
+ *   - 非法百分号转义（decodeURIComponent 抛错）→ malformed，交给调用方回 400；
+ *   - 越出 root → forbidden；
+ *   - 其余 → path。
+ * 这样任何畸形 URL 都不会把本地服务器整个打崩。
+ */
 function safeJoin(base, urlPath) {
-  const decoded = decodeURIComponent(urlPath.split("?")[0].split("#")[0]);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(urlPath.split("?")[0].split("#")[0]);
+  } catch {
+    return { malformed: true };
+  }
   const p = normalize(join(base, decoded));
-  if (p !== base && !p.startsWith(base + sep)) return null;
-  return p;
+  if (p !== base && !p.startsWith(base + sep)) return { forbidden: true };
+  return { path: p };
 }
 
 const server = createServer((req, res) => {
-  let target = safeJoin(root, req.url || "/");
-  if (!target) {
-    res.writeHead(403).end("Forbidden");
+  const target = safeJoin(root, req.url || "/");
+  if (target.malformed) {
+    res.writeHead(400, { "content-type": "text/plain; charset=utf-8" }).end("400 Bad Request");
     return;
   }
-  if (existsSync(target) && statSync(target).isDirectory()) target = join(target, "index.html");
+  if (target.forbidden) {
+    res.writeHead(403, { "content-type": "text/plain; charset=utf-8" }).end("Forbidden");
+    return;
+  }
+  let filePath = target.path;
+  if (existsSync(filePath) && statSync(filePath).isDirectory()) filePath = join(filePath, "index.html");
 
-  if (!existsSync(target) || !statSync(target).isFile()) {
+  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
     // 目录形式（/tools/texture/）已在上一步处理；其余真的找不到
     res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("404 Not Found");
     return;
   }
-  const type = MIME[extname(target).toLowerCase()] || "application/octet-stream";
+  const type = MIME[extname(filePath).toLowerCase()] || "application/octet-stream";
   res.writeHead(200, {
     "content-type": type,
     "cache-control": "no-cache",
     "x-content-type-options": "nosniff"
   });
-  createReadStream(target).pipe(res);
+  createReadStream(filePath).pipe(res);
 });
 
 server.listen(port, host, () => {

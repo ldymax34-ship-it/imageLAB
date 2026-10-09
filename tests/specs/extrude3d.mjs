@@ -15,6 +15,25 @@ export const gpu = "webgl2";
 const SAMPLE = resolve(ROOT, "tools/extrude3d/samples/square-ring.svg");
 const TMP_DIR = resolve(ROOT, ".tmp");
 const TEXT_SVG = resolve(TMP_DIR, "extrude3d-reject-text.svg");
+const MANY_CURVES_SVG = resolve(TMP_DIR, "extrude3d-reject-many-curves.svg");
+
+/**
+ * 生成「单条 path 含大量曲线」的 SVG：图形元素只有 1 条、字符串远小于 64 KB，
+ * 但采样轮廓点估算出的挤出顶点会超预算——只数图形元素是拦不住的。
+ */
+function manyCurveSvg(count = 400) {
+  const d = ["M 10 100"];
+  for (let i = 0; i < count; i++) {
+    const x = 20 + ((i * 7) % 160);
+    const y = 20 + ((i * 13) % 160);
+    d.push(`C ${x} ${y} ${x + 3} ${y + 4} ${x + 6} ${y + 2}`);
+  }
+  d.push("Z");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <path d="${d.join(" ")}" fill="#000000"/>
+</svg>
+`;
+}
 
 /** 采样画布像素（40×40 网格，RGBA 平铺数组）。 */
 function sampleCanvas(page) {
@@ -285,4 +304,39 @@ export async function run({ page, base, downloads, check, sleep }) {
   );
   const afterReject = await canvasLooksDrawn(page);
   check.ok("拒绝后画布仍可渲染", afterReject.drawn === true, `opaqueRatio=${afterReject.opaqueRatio}`);
+
+  // 单条 path 内塞入大量曲线：图形元素只有 1 条，字符串很小，
+  // 但采样轮廓点估算的挤出顶点超预算，必须在挤出前被拒绝，并保留上一次成功模型。
+  const beforeMany = await page.evaluate(() => document.getElementById("error").textContent.trim());
+  await writeFile(MANY_CURVES_SVG, manyCurveSvg(400), "utf8");
+  const manyInput = await page.$("input[type=file]");
+  await manyInput.uploadFile(MANY_CURVES_SVG);
+  await page.waitForFunction(
+    (prev) => {
+      const el = document.getElementById("error");
+      return el && !el.hidden && el.textContent.trim() !== prev && /曲线|顶点/.test(el.textContent);
+    },
+    { timeout: 20000, polling: 100 },
+    beforeMany
+  );
+  const manyReject = await page.evaluate(() => ({
+    text: document.getElementById("error").textContent.trim(),
+    info: window.__extrude3d.getInfo(),
+    canvasCount: document.querySelectorAll("canvas").length
+  }));
+  check.ok(
+    "单条 path 含大量曲线被拒绝并给出中文原因",
+    manyReject.text.includes("拒绝") && /曲线|顶点/.test(manyReject.text),
+    manyReject.text.slice(0, 140)
+  );
+  check.ok(
+    "曲线超限后保留上一次成功模型",
+    manyReject.canvasCount === 1 &&
+      manyReject.info.shapeCount > 0 &&
+      manyReject.info.lastError !== null,
+    `shapeCount=${manyReject.info.shapeCount} lastError=${String(manyReject.info.lastError).slice(0, 60)}`
+  );
+  const afterManyReject = await canvasLooksDrawn(page);
+  check.ok("曲线超限后画布仍可渲染", afterManyReject.drawn === true, `opaqueRatio=${afterManyReject.opaqueRatio}`);
+  check.ok("曲线超限后页面无未捕获异常", page.errors.length === 0, page.errors.slice(0, 3).join(" | "));
 }

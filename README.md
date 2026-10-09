@@ -14,7 +14,7 @@ npm install          # 安装依赖（three / @visant/extrude3d / @paper-design/
 npm run dev          # 开发服务器 http://127.0.0.1:5177
 npm run build        # 构建完整静态产物到 dist/
 npm run serve        # 本地静态服务器打开 dist（http://127.0.0.1:4890）
-npm test             # 纯 Node：纹理间自带测试套件（25 项）+ 静态自检
+npm test             # 纯 Node：纹理间 4 套测试（34 项）+ 本地服务器自检 + 静态自检
 npm run check        # 纯 Node 静态自检（入口、远程资源、字节一致性、许可、清单对齐）
 npm run fixtures     # 重新生成测试素材
 ```
@@ -48,6 +48,10 @@ Logo 材质（独立 19 项）、半调与网点（28 项）、节点式版式�
 HTTP 304 造成的假失败，已在共享浏览器 harness 中关闭缓存修复。
 首页新增「搜索 bayer 命中抖动工具」等搜索回归（`tests/specs/home.mjs`），**待 Codex 验证**——
 本轮实现侧不启动浏览器，也不对首页下最终验收结论。
+
+`tools/extrude3d` 的本地 SVG 导入上限为 64 KB；单个 `<path>` 曲线过多时，
+会在挤出前按上游曲线细分采样轮廓点估算顶点数，超过顶点预算即拒绝并保留上一次成功模型
+（不再只按图形元素个数粗判）。该负向回归已加到 `tests/specs/extrude3d.mjs`，由 Codex 跑浏览器验证。
 
 封面由验收阶段用工具的真实导出画面生成：`IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs`
 （先服务构建产物 `dist/`；优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；
@@ -113,7 +117,7 @@ CHROME_PATH=/path/to/chrome npm run smoke
 ```
 
 浏览器验收开关默认关闭，实现侧误跑会直接提示并以退出码 `2` 结束。
-Node 侧不受影响：`npm run build`、`npm test`（纹理间自带 25 项 Node 测试 + 静态自检）照常可跑。
+Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测试共 34 项 + 本地服务器自检 + 静态自检）照常可跑。
 详见 [tests/README.md](tests/README.md)。
 
 > 说明：仓库根 `package.json` **不设** `"type": "module"`——`tools/texture` 的那份 Node 测试套件是

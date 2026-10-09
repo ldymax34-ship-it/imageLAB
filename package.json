@@ -9,7 +9,7 @@
     "serve": "node scripts/serve.mjs --root dist --port 4890 --open",
     "preview": "vite preview --host 127.0.0.1 --port 4890",
     "fixtures": "node scripts/make-fixtures.mjs",
-    "test": "node --test tools/texture/tests.test.cjs tools/texture/curve.test.cjs && node scripts/check.mjs",
+    "test": "node --test tools/texture/tests.test.cjs tools/texture/curve.test.cjs tools/texture/svg-path-data.test.cjs tools/texture/safety.test.cjs tests/serve.test.cjs && node scripts/check.mjs",
     "smoke": "node tests/smoke.mjs",
     "check": "node scripts/check.mjs",
     "licenses": "node scripts/collect-licenses.mjs"

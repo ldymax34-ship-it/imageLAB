@@ -16,9 +16,10 @@ import {
   buildExtrudedGeometry,
   getSimpleMaterialProps,
   materialPresets,
+  parseShapesFromSVG,
   resolveMaterial
 } from "@visant/extrude3d";
-import { LIMITS, inspectSvg } from "./svg-guard.js";
+import { LIMITS, inspectShapes, inspectSvg } from "./svg-guard.js";
 
 /* 样例以内联文本方式打包（?raw），首次加载即可显示，且不产生任何网络请求。 */
 import hexNestSvg from "./samples/hex-nest.svg?raw";
@@ -378,15 +379,36 @@ function rebuild() {
     return;
   }
 
+  // 只解析一次：解析结果先过几何级采样闸门，再原样交给上游挤出，
+  // 不再让 buildExtrudedGeometry 重新解析一遍字符串。
+  let shapes;
+  try {
+    shapes = parseShapesFromSVG(state.svgText);
+  } catch (error) {
+    setError(`SVG 解析失败：${error && error.message ? error.message : String(error)}`);
+    setStatus("解析失败 · 画布保留上一次成功模型");
+    return;
+  }
+
+  const shapeGuard = inspectShapes(shapes, {
+    smoothness: state.smoothness,
+    vertexBudget: LIMITS.vertexBudget
+  });
+  if (!shapeGuard.ok) {
+    setError(shapeGuard.reason);
+    setStatus(`已拒绝当前 SVG（${shapeGuard.code}）· 画布保留上一次成功模型`);
+    return;
+  }
+
   let result = null;
   try {
-    result = buildExtrudedGeometry(state.svgText, {
+    result = buildExtrudedGeometry(shapes, {
       depth: state.depth,
       smoothness: state.smoothness,
       bevelEnabled: state.bevelEnabled,
       bevelThickness: state.bevelThickness,
       bevelSize: state.bevelSize,
-      vertexBudget: LIMITS.vertexBudget, // 与粗估同一预算，交给上游做真正的细分裁剪
+      vertexBudget: LIMITS.vertexBudget, // 与采样估算同一预算，交给上游做真正的细分裁剪
       creaseAngle: Math.PI / 6
     });
   } catch (error) {
@@ -402,6 +424,19 @@ function rebuild() {
   }
 
   const geometry = result.geometry;
+
+  // 采样估算是保守近似；万一实际几何仍超硬上限，直接丢弃，绝不把坏模型换上去。
+  const actualVerts = geometry.attributes.position ? geometry.attributes.position.count : 0;
+  if (actualVerts > LIMITS.vertexBudget) {
+    geometry.dispose();
+    setError(
+      `已拒绝导入：实际生成 ${actualVerts.toLocaleString("en-US")} 个顶点，超过上限 ` +
+        `${LIMITS.vertexBudget.toLocaleString("en-US")}。请减少曲线或降低圆滑度。`
+    );
+    setStatus("已拒绝 · 画布保留上一次成功模型");
+    return;
+  }
+
   geometry.translate(-result.center.x, -result.center.y, -result.center.z);
   geometry.computeBoundingBox();
 
@@ -597,7 +632,8 @@ function init() {
     // 文件大小先拦一层，避免把超大文件整个读进内存
     if (file.size > LIMITS.maxBytes) {
       setError(
-        `已拒绝导入：文件过大（${(file.size / 1024 / 1024).toFixed(2)} MB，上限 ${(LIMITS.maxBytes / 1024 / 1024).toFixed(0)} MB）。`
+        `已拒绝导入：文件过大（${(file.size / 1024).toFixed(1)} KB，上限 ${(LIMITS.maxBytes / 1024).toFixed(0)} KB）。` +
+          "请先在设计软件里合并图层、简化节点后再导出。"
       );
       setStatus("已拒绝 · 画布保留上一次成功模型");
       els.file.value = "";
