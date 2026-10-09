@@ -5,24 +5,14 @@
 ## [未发布] integration/first-batch · 第一轮批量整合
 
 ### 第六轮：SVG立体背景图片、全站中性化与 3D 冻结（本批）
-- SVG立体（`tools/extrude3d`）新增背景图片（用户专项授权）：材质区之外上传本地 PNG / JPEG / WebP
-  （≤10 MiB、单边 ≤4096 像素，白名单 + 实际解码校验），接到 three 原生 `scene.background` 贴图，
-  用贴图的 `repeat` / `offset`（原生 uv 变换矩阵）按视口与原图宽高比做**居中 cover**；
-  新增一个 1×–3× 的基础缩放（默认 1×，可缩回 1×）。不新增依赖 / 自定义着色器 / UV 算法。
-- 背景图片与表面贴图各自独立；切换材质 / SVG 后背景保留；透明背景开启时预览与导出都抑制背景图片，
-  关闭后恢复同一张保留的图片；移除背景回到所选纯色背景（默认纯色由米色 `#efede8` 改为纯白 `#ffffff`）。
-  MIME / 体积 / 解码 / 尺寸失败与「最新一次选择无效」都保留原背景；加载序列号守卫异步回调与加载中点移除，
-  并及时释放 blob URL 与被替换贴图。导出 PNG 真实包含当前背景（不是 CSS 背景）。
-- 全站工具界面与共享返回链接统一为**白 / 黑 / 中性灰**：`extrude3d`、`image-to-pixel`、`shaders-logo` /
-  `shaders-bg` / `shaders-halftone` 的暖白与灰褐变量、`pixelit` 的金 / 赭 / 墨绿、`psychos` 的品红 / 宝蓝强调色
-  与节点 / 连线色、`texture` 的墨绿主题，全部按相同亮度层级改为中性灰；`public/favicon.ico` 与各工具
-  data-URI favicon 的米色改为纯白 / 纯黑。保留布局、功能、画布 / 素材 / 材质调色板与 9 张真实封面不动。
-- 字节校验：`tools/texture` 本批只改 `style.css` 主题，其余 7 份上游源码逐字节一致；
-  `scripts/check.mjs` 显式登记并校验 `_source_snapshot` 的 8 份根原件哈希未被改动，
-  不通过修改快照来「凑」一致，也不删除原有字节基线检查。
-- 冻结：背景图片落地后 **3D 扩展冻结**（不再新增 3D 功能）；后续 UI 一律白 / 黑 / 中性灰。
-- 验证：纯 Node `npm run check`（42 项）、`npm test`、`npm run build`（含 `tools/psychos`）通过；
-  浏览器验收（含新增背景断言）待 Codex 执行。
+- extrude3d 新增背景图片（用户专项授权）：本地 PNG / JPEG / WebP（≤10 MiB、单边 ≤4096，白名单 + 实际解码）
+  挂 three 原生 `scene.background`，用 `repeat` / `offset` 按视口做居中 cover，1×–3× 缩放；默认纯色改纯白 `#ffffff`。
+- 背景与表面贴图独立；透明时抑制、关闭后恢复；移除回到所选纯色；失败 / 竞态保留原背景并释放 blob URL 与被替换贴图；导出 PNG 真实含背景。
+- 九工具界面与共享返回链接统一白 / 黑 / 中性灰（含 favicon），保留布局、功能、画布 / 素材 / 材质调色板与 9 张真实封面。
+- 封面：extrude3d 封面刷新为默认白背景的真实 PNG 导出（1280×935，约 169 KB），随本批提交。
+- 字节校验：整合副本仅 `tools/texture/style.css` 改主题，7 份非样式源码逐字节一致；`_source_snapshot` 8 份根原件哈希未改动。
+- 冻结：3D 保持可访问、不再新增 3D 功能；后续 UI 一律白 / 黑 / 中性灰。
+- 验证：`npm run check`（42 项）/ `npm test` / `npm run build` 通过；Codex 独立复跑生产浏览器验收 **310/310 PASS**（SVG立体 81、home 63、ASCII 11、dither 34、pixelit 9、psychos 20、bg 37、half 29、logo 19、texture 7），另审计 9 页可见 UI 0 个非中性色，背景上传 / cover / 缩放 / 导出 PNG / 透明恢复 / 移除 / 竞态全过。
 
 ### 修复与第四 / 第五轮：中文名、基础色表面贴图与导出清屏（Codex 浏览器复验通过）
 - 第四轮名称定稿：首页 12 个入口（9 内置 + 3 外链）用常用中文名，卡片不再拼英文副标题；

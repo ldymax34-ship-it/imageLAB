@@ -44,12 +44,14 @@ CHROME_PATH=/path/to/chrome
 
 测试素材可用 `node scripts/make-fixtures.mjs` 重新生成。
 
-## 本轮状态
+## 本轮状态（Codex 独立复跑：310/310 PASS · 0 失败）
 
-规格均由 Codex 执行浏览器验收：纹理间、像素画、字符画、SVG立体（65 项）、图片抖动（34 项）、
-标志材质（独立 19 项）、半调网点（28 项）、图片拼贴（20 项，WebGPU）已通过；
-动态背景的渲染/参数/导出断言全部通过，此前的失败是开发服务器 HTTP 304 假失败，
-已在 `harness.mjs` 关闭浏览器缓存修复。首页 bayer 搜索回归与 9 个内置入口回归已通过。
+在 `8d42fbd` 之后用真实 Chrome 复跑构建产物：extrude3d 81、home 63、image-to-ascii 11、
+image-to-pixel 34、pixelit 9、psychos 20（WebGPU）、shaders-bg 37、shaders-halftone 29、
+shaders-logo 19、texture 7，共 **310 项全部通过**；真实上传 / 调参 / 下载 PNG、GPU 探测均覆盖。
+另做独立计算样式审计：9 个页面可见的 body / header / aside / 按钮 / select / h1 / h2 / 返回链接
+**0 个非中性 UI 色彩**，画布 / 素材 / 材质调色板与 9 张真实封面仍为原有彩色。
+此前的动态背景 HTTP 304 假失败已在 `harness.mjs` 关闭浏览器缓存修复。
 
 本轮名称定稿：`extrude3d` 规格新增轻量断言——38 个材质预设全部有中文名、value（上游 preset id）
 不变且无重复、常用材质（塑料 / 镜面金属 / 透明玻璃 / 黄金）可从下拉选中并生效。浏览器断言仍由
@@ -59,7 +61,7 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 且未自定义颜色时基色为白、自定义颜色可给贴图染色、切换材质预设 / 切换 SVG 重建几何后贴图保留、
 伪 PNG（解码失败）与非白名单类型被拒且保留当前好贴图、移除后 `map` 为 `null` 且基色恢复预设颜色
 （黄金 `#ffd891`）并且像素变化、重选同一文件可再次上传、贴图激活时导出 PNG 非空。
-**已由 Codex 独立复跑 65/65 PASS**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
+**已并入 Codex 本轮 SVG立体 81/81 PASS**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
 实现侧只跑 `npm run check` / `npm test` / `npm run build`。
 
 首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
@@ -69,6 +71,8 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 按视口 / 原图宽高比居中 cover、背景缩放 1×→2×→1× 改变真实像素、导出 PNG 真实包含背景、
 背景与表面贴图同时存在、切换材质 / SVG 后背景保留、透明背景抑制并恢复、移除后回到所选纯色、
 最新无效选择保留原背景。默认纯色背景由米色改为纯白，规格里的背景像素基准同步改为 `#ffffff`。
-**本批浏览器验收待 Codex 执行**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
-实现侧只跑 `npm run check` / `npm test` / `npm run build`。
-九工具界面与共享返回链接已统一为白 / 黑 / 中性灰（本批起未来 UI 规则），画布 / 素材 / 材质调色板与真实封面不动。
+**已由 Codex 在本轮 SVG立体 81/81 PASS 中独立复跑通过**；实现侧只跑
+`npm run check` / `npm test` / `npm run build`。
+九工具界面与共享返回链接已统一为白 / 黑 / 中性灰（本批起未来 UI 规则），
+计算样式审计 9 页 0 个非中性 UI 色彩；画布 / 素材 / 材质调色板与 9 张真实封面保持原有彩色。
+SVG立体保持可访问，但本批起 3D 扩展冻结、不再新增 3D 功能。

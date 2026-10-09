@@ -20,7 +20,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 
 | 项目 | 版本或 commit | 许可 | 用途 | 本项目改动 |
 | --- | --- | --- | --- | --- |
-| 纹理间（本项目自有项目，来源副本 `_source_snapshot`） | 2026-09-29 快照 | **用户原创**（含 `curve-fit.js`，用户已确认可公开） | `tools/texture` 全部功能 | **逐字节复制，未改动任何一行** |
+| 纹理间（本项目自有项目，来源副本 `_source_snapshot`） | 2026-09-29 快照 | **用户原创**（含 `curve-fit.js`，用户已确认可公开） | `tools/texture` 全部功能 | 整合副本仅 `style.css` 改界面主题；其余 7 份非样式源码逐字节原样，`_source_snapshot` 8 份根原件未改动 |
 | giventofly/pixelit | commit `9c53dfa191fcb2f4a4507c21f40647c29e352939` | MIT | `tools/pixelit` 像素化网页与库 | 见下 |
 | Tezumie/Image-to-Pixel | commit `b0d5b7422db309dae22c2a69d4ebca0ce8c14b78` | MIT（库）/ Apache-2.0（应用） | `tools/image-to-pixel` 像素化与抖动**库本体** | 见下 |
 | nitch193/Image-to-Ascii | commit `71da7bcde48d48ada65d5ea507fce68331e8ba77` | MIT | `tools/image-to-ascii` 字符画网页 | 见下 |
@@ -32,9 +32,10 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 （本节在工具落地后按实际修改补全，只记录事实。）
 
 ### tools/texture · 纹理间
-- 与本地只读副本 `_source_snapshot/` 中的 8 份源码 + 7 份测试文件**逐字节一致**
-  （`shasum -a 256` 逐一复核，16/16 一致；`_source_snapshot/` 已被 `.gitignore` 排除，不进仓库）。
-- 该工具**不包含**任何「返回首页」注入，源码一行未改。
+- `_source_snapshot/` 中的 8 份根原件 + 7 份测试文件保持原样，未被改动（`shasum -a 256` 逐一复核，
+  16/16 一致；`_source_snapshot/` 已被 `.gitignore` 排除，不进仓库）。
+- 整合副本 `tools/texture/` 仅 `style.css` 为本站界面主题改为白 / 黑 / 中性灰，
+  其余 7 份非样式源码（含 `curve-fit.js`）与快照**逐字节一致**；该工具**不包含**任何「返回首页」注入。
 - **许可状态：已澄清**。本工具为用户原创项目（含 `curve-fit.js`），用户已确认可以公开；
   此前 TOOL_INDEX 中记录的「`curve-fit.js` 许可未查清」为核查阶段的待确认项，现已由权利人澄清，**不再构成阻塞**。
   分发时以用户对整包许可的决定为准（见文末）。
@@ -94,7 +95,8 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 ## 本项目自身的代码
 
 `index.html`、`assets/`、`scripts/`、`tests/`、`tools/shaders-*/`、`tools/extrude3d/` 等入口与适配代码为 imageLAB 自有代码。
-`tools/texture/` 为用户原创项目源码（`curve-fit.js` 亦为用户本人所写，已确认可公开），按用户要求**逐字节原样收录**。
+`tools/texture/` 为用户原创项目源码（`curve-fit.js` 亦为用户本人所写，已确认可公开），按用户要求**逐字节原样收录**；
+仅整合副本的 `style.css` 为本站界面主题改为白 / 黑 / 中性灰，`_source_snapshot/` 的 8 份根原件保持未改动。
 
 **整包对外许可尚未选定**：本项目不擅自替权利人选择许可证（例如不默认套用 MIT）。
 在权利人明确指定之前，请把本仓库视为「保留所有权利」。

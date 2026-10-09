@@ -35,17 +35,20 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/texture/` | 纹理间 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 基础色表面贴图 / 背景图片（居中 cover，1×–3× 缩放） | PNG（可选透明背景） | 已通过 65 项；背景图片断言待 Codex 复验 |
+| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 基础色表面贴图 / 背景图片（居中 cover，1×–3× 缩放） | PNG（可选透明背景） | 已通过浏览器验收（81 项） |
 | `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
 | `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
 | `tools/shaders-halftone/` | 半调网点 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
 | `tools/psychos/` | 图片拼贴 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
 
-首页按上表登记全部 9 个内置入口（含 `tools/psychos`）；浏览器验收已全部完成（真实上传、调参、
-下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Codex 独立复跑 65/65 PASS
-（见下方 `tools/extrude3d` 说明）。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、
-bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部通过。
+首页按上表登记全部 9 个内置入口（含 `tools/psychos`）。Codex 已在构建产物（`dist/`）上独立复跑
+全部浏览器验收：**310/310 PASS、0 失败**——extrude3d 81、home 63、image-to-ascii 11、
+image-to-pixel 34、pixelit 9、psychos 20、shaders-bg 37、shaders-halftone 29、shaders-logo 19、
+texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。
+另做独立计算样式审计：9 个页面可见的 body / header / aside / 按钮 / select / h1 / h2 / 返回链接
+**0 个非中性 UI 色彩**；画布 / 素材 / 材质调色板与 9 张真实封面保留原有彩色。首页回归：9/9 内置
+真实封面、9 个内置入口 HTTP 200、bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部通过。
 
 > 名称 / 文案与基础色表面贴图：不新增渲染业务外功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
 > 不建高级入口、不接 vgpu / 路径追踪，不新增依赖 / 后端 / CDN。首页卡片只显示现有中文分类
@@ -79,15 +82,17 @@ bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部�
 勾选自定义颜色可染色，移除后恢复材质预设颜色。不打包贴图素材，不加法线 / 粗糙度 / 置换编辑器，
 不新增着色器 / UV 算法 / 依赖 / 后端 / CDN；无效文件给中文原因并保留当前贴图与模型。
 `tests/specs/extrude3d.mjs` 相应断言（真实贴图改变像素与导出 PNG、随材质 / 几何保留、移除恢复无贴图、
-无效文件保留好贴图等）已由 Codex 独立复跑 **65/65 PASS**，本仓库不自行启动浏览器。
+无效文件保留好贴图等）已并入 Codex 本轮 SVG立体 **81/81 PASS**（第五轮表面贴图 + 第六轮背景图片
+同属该规格），本仓库不自行启动浏览器。
 
 `tools/extrude3d` 新增**背景图片 + 基础缩放**（用户专项授权，第六轮）：上传本地 PNG / JPEG / WebP
 （≤10 MiB、单边 ≤4096 像素）后挂到 three 原生 `scene.background` 贴图，用贴图的 `repeat` / `offset`
 按视口与原图宽高比做居中 cover（`1×`–`3×` 缩放，默认 `1×`）；默认纯色背景改为纯白 `#ffffff`。
 透明背景时预览与导出都抑制背景图片，关闭后恢复；移除背景回到所选纯色。表面贴图与背景各自独立，
 切换材质 / SVG 背景保留；非法 / 解码失败 / 超限 / 最新一次无效选择都保留原背景，并释放 blob URL 与被替换贴图。
-不新增依赖 / 自定义着色器 / UV 算法。**本批之后 3D 扩展冻结**，不再新增 3D 功能。
-对应浏览器断言（aspect / zoom 实际像素、导出 PNG、背景 + 表面独立、透明恢复、移除、竞态 / 错误）待 Codex 执行。
+不新增依赖 / 自定义着色器 / UV 算法。**本批之后 3D 扩展冻结**，保持可访问、不再新增 3D 功能。
+对应浏览器断言（aspect / zoom 实际像素、导出 PNG、背景 + 表面独立、透明恢复、移除、竞态 / 错误）
+已由 Codex 本轮独立复跑通过（SVG立体 **81/81 PASS**）。
 
 > 未来 UI 规则（本批起）：全部工具界面与共享返回链接使用**白 / 黑 / 中性灰**，不再出现米色 / 奶油 / 棕 / 绿等
 > 彩色装饰；画布 / 素材 / 算法输出与材质调色板、9 张真实封面不受此规则影响（不重绘为单色）。
@@ -98,6 +103,8 @@ bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部�
 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
 优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；每个工具使用独立临时下载目录，
 只等待本次导出结果）。封面缺失时首页显示中性文字占位，不会破图、也不会用 AI 图或整页截图冒充效果图。
+`public/assets/covers/extrude3d.png` 本批已刷新为默认纯白背景下的真实 PNG 导出（1280×935，约 169 KB），
+由 Codex 用同一脚本生成，随本批提交、不重跑浏览器。
 
 `tools/psychos` 不参与主站 Vite 多页打包，由 `scripts/build-psychos.mjs` 单独构建；它需要 WebGPU
 与安全上下文，因此请先 `npm run build`、再用 `npm run serve`（构建产物）打开，而不是 `npm run dev`。
@@ -146,7 +153,7 @@ CHANGELOG.md               变更记录
 ## 测试与验收
 
 本批次的**浏览器验收已完成**（用真实 Chrome 驱动交互：上传图片、调参、点导出并校验下载到的
-PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Codex 独立复跑 65/65 PASS。需要复跑时：
+PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Codex 独立复跑 **81/81 PASS**（全套 310/310）。需要复跑时：
 
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke                      # 顺序跑全部工具，只启动一个 Chrome
@@ -169,5 +176,6 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
 
 第三方来源与许可见 [THIRD_PARTY.md](THIRD_PARTY.md)，许可原文见 [`third-party-licenses/`](third-party-licenses/)。
 
-`tools/texture` 为用户原创项目（含 `curve-fit.js`），已确认可公开，源码逐字节原样收录。
+`tools/texture` 为用户原创项目（含 `curve-fit.js`），已确认可公开；整合副本仅 `style.css` 改界面主题，
+其余 7 份非样式源码与上游原样逐字节一致，`_source_snapshot/` 的 8 份根原件哈希未改动、原样保留。
 本项目整体尚未选定对外许可证，在以权利人的决定为准之前视为保留所有权利。
