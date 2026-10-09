@@ -130,6 +130,11 @@ const els = {
   exposureOut: document.getElementById("exposure-out"),
   bg: document.getElementById("bg"),
   transparentBg: document.getElementById("transparent-bg"),
+  bgFile: document.getElementById("bg-file"),
+  bgName: document.getElementById("bg-name"),
+  bgRemove: document.getElementById("bg-remove"),
+  bgZoom: document.getElementById("bg-zoom"),
+  bgZoomOut: document.getElementById("bg-zoom-out"),
 
   resetView: document.getElementById("reset-view"),
   exportScale: document.getElementById("export-scale"),
@@ -160,7 +165,11 @@ const state = {
   textureHeight: 0,
   envIntensity: 1,
   exposure: 1,
-  bg: "#efede8",
+  bg: "#ffffff",
+  bgName: "",
+  bgWidth: 0,
+  bgHeight: 0,
+  bgZoom: 1,
   transparent: false,
   shapeCount: 0,
   vertexCount: 0,
@@ -253,15 +262,65 @@ function createMaterial() {
 
 /* ------------------------------------------------------------------ 背景 */
 
+/**
+ * 背景图片：用户本地图片 → three `TextureLoader`（blob URL）→ `scene.background`。
+ * 贴法完全是 three 原生能力：`scene.background` 为普通贴图时，renderer 用贴图的
+ * `matrix`（由 `repeat` / `offset` 生成）做 uv 变换，因此这里只设这两个原生属性，
+ * 就能实现「居中 cover、保持原图宽高比」；不写自定义着色器 / 背景算法。
+ * 缩放（1×–3×）同样只是等比缩小 `repeat`，让画面放大、仍保持居中。
+ * 透明背景开启时 `scene.background` 置空（预览与导出都透明）；关闭时恢复同一张贴图。
+ */
+let bgTexture = null;
+
+/** 供既有调试钩子读取的最小背景元信息（无背景图时为 null）。 */
+function backgroundInfo() {
+  if (!bgTexture) return null;
+  const image = bgTexture.image || {};
+  return {
+    name: state.bgName,
+    width: image.width || state.bgWidth || 0,
+    height: image.height || state.bgHeight || 0,
+    zoom: state.bgZoom,
+    repeat: [+bgTexture.repeat.x.toFixed(6), +bgTexture.repeat.y.toFixed(6)],
+    offset: [+bgTexture.offset.x.toFixed(6), +bgTexture.offset.y.toFixed(6)]
+  };
+}
+
+/** 按当前视口宽高比 + 原图宽高比 + 缩放，写回贴图的 repeat / offset（居中 cover）。 */
+function fitBackgroundTexture() {
+  if (!bgTexture) return;
+  const image = bgTexture.image || {};
+  const imageWidth = image.width || state.bgWidth || 1;
+  const imageHeight = image.height || state.bgHeight || 1;
+  const viewWidth = Math.max(1, els.view.clientWidth);
+  const viewHeight = Math.max(1, els.view.clientHeight);
+  const viewAspect = viewWidth / viewHeight;
+  const imageAspect = imageWidth / imageHeight;
+  const zoom = THREE.MathUtils.clamp(state.bgZoom || 1, 1, 3);
+  const coverX = Math.min(1, viewAspect / imageAspect);
+  const coverY = Math.min(1, imageAspect / viewAspect);
+  bgTexture.repeat.set(coverX / zoom, coverY / zoom);
+  bgTexture.offset.set((1 - bgTexture.repeat.x) / 2, (1 - bgTexture.repeat.y) / 2);
+}
+
 function applyBackground() {
   const color = new THREE.Color(state.bg);
   if (state.transparent) {
+    scene.background = null; // 透明背景：预览与导出都不显示背景图片
     renderer.setClearColor(color, 0);
     renderer.setClearAlpha(0);
     els.view.style.background = "transparent";
+    return;
+  }
+  renderer.setClearAlpha(1);
+  if (bgTexture) {
+    scene.background = bgTexture;
+    renderer.setClearColor(color, 1); // 兜底：cover 正常应铺满，不露出纯色
+    els.view.style.background = "";
+    fitBackgroundTexture();
   } else {
+    scene.background = null;
     renderer.setClearColor(color, 1);
-    renderer.setClearAlpha(1);
     els.view.style.background = "";
   }
 }
@@ -353,21 +412,21 @@ function applyMaterial() {
   els.color.value = state.colorOverride ? state.color : presetColor(state.preset);
 }
 
-/* ------------------------------------------------------------- 表面贴图 */
+/* --------------------------------------------------------- 本地图片校验 */
 
 /**
- * 基础色表面贴图：用户本地图片 → three `TextureLoader`（blob URL）→ `MeshPhysicalMaterial.map`。
- * 只用上游已生成的三平面 UV，不写自定义着色器 / UV 算法，不打包任何贴图素材，
- * 也不提供法线 / 粗糙度 / 置换贴图编辑器。素材仅在本地读取，不发起网络请求。
+ * 本地图片上限（表面贴图与背景图片共用同一套校验）。
+ * 表面贴图：three `TextureLoader`（blob URL）→ `MeshPhysicalMaterial.map`；
+ * 背景图片：同一加载器 → `scene.background`（见上方「背景」一节）。
+ * 只用 three 原生能力，不写自定义着色器 / UV 算法，素材仅在本地读取、不发起网络请求。
  */
-const TEXTURE_LIMITS = {
+const IMAGE_LIMITS = {
   maxBytes: 10 * 1024 * 1024,
   maxSide: 4096,
   mimeTypes: ["image/png", "image/jpeg", "image/webp"]
 };
 
 let surfaceTexture = null;
-let textureSeq = 0;
 
 /** 供既有调试钩子读取的最小贴图元信息（无贴图时为 null）。 */
 function textureInfo() {
@@ -380,6 +439,88 @@ function textureInfo() {
   };
 }
 
+/**
+ * 本地图片读取器（表面贴图 / 背景图片各持一个实例）：
+ * MIME 白名单 → 体积上限 → blob URL → three `TextureLoader` → 实际解码尺寸。
+ * 每次选择都递增序列号，过期回调（含加载中点「移除」、随后选择无效文件）一律丢弃；
+ * 任何失败都不覆盖各自当前已生效的图片，并释放已创建的贴图与 blob URL。
+ */
+function createLocalImageLoader({ noun, onAccept, onReject }) {
+  let seq = 0;
+  return {
+    load(file) {
+      if (!file) return;
+
+      // 无论这次选择最终会不会被拒，都先作废更早的「进行中」加载，
+      // 否则被拒文件的提示会被过期回调清掉、甚至错误换上更早那次选择的图片。
+      const current = ++seq;
+
+      if (!IMAGE_LIMITS.mimeTypes.includes(file.type)) {
+        onReject(`已拒绝${noun}：仅支持 PNG / JPEG / WebP，当前文件类型「${file.type || "未知"}」。`);
+        return;
+      }
+      if (file.size > IMAGE_LIMITS.maxBytes) {
+        onReject(
+          `已拒绝${noun}：文件过大（${(file.size / 1024 / 1024).toFixed(1)} MiB，上限 10 MiB）。请先压缩图片。`
+        );
+        return;
+      }
+
+      const url = URL.createObjectURL(file);
+      setStatus(`正在读取${noun} · ${file.name}…`);
+
+      new THREE.TextureLoader().load(
+        url,
+        (texture) => {
+          try {
+            if (current !== seq) {
+              texture.dispose(); // 过期回调：不覆盖更新一次的选择
+              return;
+            }
+            const image = texture.image || {};
+            const width = image.width || 0;
+            const height = image.height || 0;
+            if (!width || !height) {
+              texture.dispose();
+              onReject(`${noun}读取失败：无法取得图像尺寸，可能不是有效的图片。`);
+              return;
+            }
+            if (width > IMAGE_LIMITS.maxSide || height > IMAGE_LIMITS.maxSide) {
+              texture.dispose();
+              onReject(
+                `${noun}尺寸过大：${width}×${height} 像素，单边上限 ${IMAGE_LIMITS.maxSide} 像素。请先缩小图片再上传。`
+              );
+              return;
+            }
+
+            texture.colorSpace = THREE.SRGBColorSpace;
+            texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+            texture.needsUpdate = true;
+            onAccept(texture, file, width, height);
+          } catch (error) {
+            if (surfaceTexture !== texture && bgTexture !== texture) texture.dispose();
+            if (current === seq) {
+              onReject(`${noun}读取失败：${error && error.message ? error.message : String(error)}`);
+            }
+          } finally {
+            URL.revokeObjectURL(url);
+          }
+        },
+        undefined,
+        () => {
+          URL.revokeObjectURL(url);
+          if (current === seq) onReject(`${noun}解码失败：文件不是有效的 PNG / JPEG / WebP 图像。`);
+        }
+      );
+    },
+    cancel() {
+      seq += 1; // 让进行中的加载回调过期
+    }
+  };
+}
+
+/* ------------------------------------------------------------- 表面贴图 */
+
 /** 贴图被拒绝 / 解码失败：给出中文原因，保留当前有效贴图与模型。 */
 function rejectTexture(reason) {
   setError(reason, "贴图未更换");
@@ -387,29 +528,8 @@ function rejectTexture(reason) {
   els.textureFile.value = "";
 }
 
-/** 贴图读取成功：校验实际解码尺寸后才换上，被替换的旧贴图立即释放。 */
-function acceptTexture(texture, file) {
-  const image = texture.image || {};
-  const width = image.width || 0;
-  const height = image.height || 0;
-
-  if (!width || !height) {
-    texture.dispose();
-    rejectTexture("贴图读取失败：无法取得图像尺寸，可能不是有效的图片。");
-    return;
-  }
-  if (width > TEXTURE_LIMITS.maxSide || height > TEXTURE_LIMITS.maxSide) {
-    texture.dispose();
-    rejectTexture(
-      `贴图尺寸过大：${width}×${height} 像素，单边上限 ${TEXTURE_LIMITS.maxSide} 像素。请先缩小图片再上传。`
-    );
-    return;
-  }
-
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
-  texture.needsUpdate = true;
-
+/** 贴图读取成功：被替换的旧贴图立即释放，材质重新绑定新贴图。 */
+function acceptTexture(texture, file, width, height) {
   const previous = surfaceTexture;
   surfaceTexture = texture;
   state.textureName = file.name;
@@ -425,66 +545,15 @@ function acceptTexture(texture, file) {
   els.textureFile.value = "";
 }
 
-/**
- * 读取并校验本地图片：MIME 白名单 → 体积上限 → blob URL → three TextureLoader →
- * 实际解码尺寸。序列号用于丢弃过期回调（含加载中点「移除贴图」）；任何失败都不覆盖当前贴图。
- */
-function loadTextureFile(file) {
-  if (!file) return;
-
-  // 每一次新的选择都先作废更早的「进行中」加载，即使这次选择随后会因
-  // 类型 / 体积被拒。否则被拒文件的错误提示会被过期回调 acceptTexture 清掉，
-  // 并错误地换上更早那次选择里的贴图。
-  const seq = ++textureSeq;
-
-  if (!TEXTURE_LIMITS.mimeTypes.includes(file.type)) {
-    rejectTexture(
-      `已拒绝贴图：仅支持 PNG / JPEG / WebP，当前文件类型「${file.type || "未知"}」。`
-    );
-    return;
-  }
-  if (file.size > TEXTURE_LIMITS.maxBytes) {
-    rejectTexture(
-      `已拒绝贴图：文件过大（${(file.size / 1024 / 1024).toFixed(1)} MiB，上限 10 MiB）。请先压缩图片。`
-    );
-    return;
-  }
-
-  const url = URL.createObjectURL(file);
-  setStatus(`正在读取贴图 · ${file.name}…`);
-
-  const loader = new THREE.TextureLoader();
-  loader.load(
-    url,
-    (texture) => {
-      try {
-        if (seq !== textureSeq) {
-          texture.dispose(); // 过期回调：不覆盖更新一次的选择
-          return;
-        }
-        acceptTexture(texture, file);
-      } catch (error) {
-        if (surfaceTexture !== texture) texture.dispose();
-        if (seq === textureSeq) {
-          rejectTexture(`贴图读取失败：${error && error.message ? error.message : String(error)}`);
-        }
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-    },
-    undefined,
-    () => {
-      URL.revokeObjectURL(url);
-      if (seq === textureSeq) {
-        rejectTexture("贴图解码失败：文件不是有效的 PNG / JPEG / WebP 图像。");
-      }
-    }
-  );
-}
+const textureLoader = createLocalImageLoader({
+  noun: "贴图",
+  onAccept: acceptTexture,
+  onReject: rejectTexture
+});
 
 /** 移除贴图：释放当前贴图、作废进行中的加载回调，并恢复材质预设颜色。 */
 function removeTexture() {
-  textureSeq += 1; // 让进行中的加载回调过期
+  textureLoader.cancel();
   els.textureFile.value = "";
   if (!surfaceTexture) {
     els.textureName.textContent = "未使用贴图";
@@ -502,6 +571,63 @@ function removeTexture() {
   els.textureName.title = "当前没有使用表面贴图";
   setError(null);
   setStatus("已移除表面贴图 · 恢复材质预设颜色");
+}
+
+/* ------------------------------------------------------------- 背景图片 */
+
+/** 背景图片被拒绝 / 解码失败：保留当前背景，不影响表面贴图。 */
+function rejectBackground(reason) {
+  setError(reason, "背景图片未更换");
+  setStatus("背景图片未更换 · 保留当前背景");
+  els.bgFile.value = "";
+}
+
+/** 背景图片读取成功：换上并立即按视口做居中 cover；旧背景贴图释放。 */
+function acceptBackground(texture, file, width, height) {
+  const previous = bgTexture;
+  bgTexture = texture;
+  state.bgName = file.name;
+  state.bgWidth = width;
+  state.bgHeight = height;
+  if (previous && previous !== texture) previous.dispose();
+
+  applyBackground();
+  els.bgName.textContent = file.name;
+  els.bgName.title = `${file.name} · ${width}×${height}`;
+  setError(null);
+  setStatus(`已应用背景图片 · ${file.name} · ${width}×${height}`);
+  els.bgFile.value = "";
+}
+
+const backgroundLoader = createLocalImageLoader({
+  noun: "背景图片",
+  onAccept: acceptBackground,
+  onReject: rejectBackground
+});
+
+/** 移除背景图片：释放贴图、作废进行中的加载，恢复所选纯色背景。 */
+function removeBackground() {
+  backgroundLoader.cancel();
+  els.bgFile.value = "";
+  state.bgZoom = 1;
+  els.bgZoom.value = "1";
+  els.bgZoomOut.textContent = "1.00";
+  if (!bgTexture) {
+    els.bgName.textContent = "未使用背景图片";
+    els.bgName.title = "当前没有使用背景图片";
+    setStatus("当前没有背景图片");
+    return;
+  }
+  bgTexture.dispose();
+  bgTexture = null;
+  state.bgName = "";
+  state.bgWidth = 0;
+  state.bgHeight = 0;
+  applyBackground();
+  els.bgName.textContent = "未使用背景图片";
+  els.bgName.title = "当前没有使用背景图片";
+  setError(null);
+  setStatus("已移除背景图片 · 恢复所选背景色");
 }
 
 /* ------------------------------------------------------------------ 几何 */
@@ -769,9 +895,20 @@ function init() {
 
   els.textureFile.addEventListener("change", () => {
     const file = els.textureFile.files && els.textureFile.files[0];
-    if (file) loadTextureFile(file);
+    if (file) textureLoader.load(file);
   });
   els.textureRemove.addEventListener("click", () => removeTexture());
+
+  els.bgFile.addEventListener("change", () => {
+    const file = els.bgFile.files && els.bgFile.files[0];
+    if (file) backgroundLoader.load(file);
+  });
+  els.bgRemove.addEventListener("click", () => removeBackground());
+  els.bgZoom.addEventListener("input", () => {
+    state.bgZoom = Number(els.bgZoom.value);
+    els.bgZoomOut.textContent = state.bgZoom.toFixed(2);
+    fitBackgroundTexture();
+  });
 
   els.envIntensity.addEventListener("input", () => {
     state.envIntensity = Number(els.envIntensity.value);
@@ -838,6 +975,7 @@ function resize() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   if (hasGeometry) refitView(); // 视口比例变了，重新取景（保留用户缩放）
+  fitBackgroundTexture(); // 背景图片同样按新视口比例重算居中 cover（保留当前缩放）
   renderer.render(scene, camera); // setSize 会清空画布：同步补一帧，避免错误提示等布局变化后短暂空白
 }
 
@@ -870,6 +1008,7 @@ window.__extrude3d = {
       lastError: state.lastError,
       transparent: state.transparent,
       texture: textureInfo(),
+      background: backgroundInfo(),
       canvas: [els.canvas.width, els.canvas.height]
     };
   },

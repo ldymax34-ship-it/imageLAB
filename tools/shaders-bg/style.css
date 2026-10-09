@@ -1,14 +1,14 @@
 /*
  * imageLAB · 着色器工具共用样式（三个工具各一份副本）
- * 视觉：微暖白底 / 近黑文字 / 1px 实线分割线 / border-radius ≤ 2px。
+ * 视觉：中性白底 / 近黑文字 / 1px 实线分割线 / border-radius ≤ 2px。
  * 预览区里的颜色来自 shader 渲染结果，属于效果本身，不是界面装饰。
  */
 
 :root {
-  --paper: #f6f4f1;
-  --ink: #14120f;
-  --rule: #ddd8d1;
-  --muted: #6f675c;
+  --paper: #f5f5f5;
+  --ink: #141414;
+  --rule: #dddddd;
+  --muted: #666666;
   --panel: #ffffff;
 }
 
@@ -327,7 +327,7 @@ input[type="color"] {
   justify-content: center;
   gap: 6px;
   padding: 24px;
-  background: rgba(246, 244, 241, 0.9);
+  background: rgba(245, 245, 245, 0.9);
   text-align: center;
 }
 
@@ -387,7 +387,7 @@ input[type="color"] {
   border-radius: 2px;
   object-fit: contain;
   background:
-    repeating-conic-gradient(#eeeae4 0% 25%, #fff 0% 50%) 50% / 12px 12px;
+    repeating-conic-gradient(#eaeaea 0% 25%, #fff 0% 50%) 50% / 12px 12px;
 }
 
 .il-file {

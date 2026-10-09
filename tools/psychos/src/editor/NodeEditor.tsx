@@ -1,6 +1,6 @@
 // The node canvas. xyflow renders the document graph; every edit (drag,
-// wire, delete) flows back through store actions. wireIsValid gives live
-// red/green feedback while dragging a connection.
+// wire, delete) flows back through store actions. wireIsValid gates which
+// connections are allowed while dragging.
 //
 // Figma-style pointer scheme: left-drag draws a marquee that selects every
 // node it touches (⌘/shift-click adds to the selection); pan with a
@@ -36,15 +36,16 @@ const nodeTypes = { gfx: GfxNode };
 const NODE_WIDTH = 210;
 const NODE_HEIGHT_GUESS = 120;
 
-// Wire colors — a bright 2000s palette, one unique hue per type, matching the
-// socket circle colors in GfxNode.
+// Wire colors — a neutral gray ladder, one step per type, matching the socket
+// circle shades in GfxNode. imageLAB recolors the upstream hues to keep chrome
+// white/black/gray.
 const WIRE_COLORS: Record<SocketType, string> = {
-  text: '#00e5ff', // cyan
-  vector: '#00a99d', // teal
-  raster: '#1493ff', // azure
-  alpha: '#8a2be2', // blue violet
-  elements: '#9aa0a6', // grey
-  layout: '#ff1493', // hot pink
+  text: '#9e9e9e', // light gray
+  vector: '#8a8a8a', // gray
+  raster: '#757575', // mid gray
+  alpha: '#616161', // dark gray
+  elements: '#a8a8a8', // pale gray
+  layout: '#4a4a4a', // near black
 };
 
 export function NodeEditor() {

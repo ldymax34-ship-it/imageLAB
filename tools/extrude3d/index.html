@@ -6,7 +6,7 @@
 <title>SVG立体 · 图像实验室 imageLAB</title>
 <meta name="description" content="本地把 SVG 轮廓挤出成三维：厚度、倒角、平滑度可调，多种材质预设，可导出透明背景 PNG。素材不上传。">
 <!-- imagelab:entry -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2314120f'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23f6f4f1'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23f6f4f1'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../assets/backlink.css">
 <link rel="stylesheet" href="./style.css">
 </head>
@@ -99,8 +99,22 @@
       <input id="exposure" type="range" min="0.2" max="2" step="0.05" value="1">
 
       <label class="il-field il-color" for="bg">背景色
-        <input id="bg" type="color" value="#efede8">
+        <input id="bg" type="color" value="#ffffff">
       </label>
+
+      <label class="il-file" for="bg-file">上传背景图片
+        <input id="bg-file" type="file" accept="image/png,image/jpeg,image/webp">
+      </label>
+      <p class="il-name" id="bg-name" title="当前使用的背景图片" aria-live="polite">未使用背景图片</p>
+      <button id="bg-remove" class="il-wide" type="button">移除背景</button>
+      <label class="il-slider" for="bg-zoom">背景缩放 <output id="bg-zoom-out">1.00</output></label>
+      <input id="bg-zoom" type="range" min="1" max="3" step="0.05" value="1">
+      <p class="il-help">
+        背景图片按「居中铺满（cover）」贴在三维视图里，保持原图宽高比、不拉伸；
+        缩放 1×–3× 可放大画面。支持 PNG / JPEG / WebP，文件不超过 10 MiB、单边不超过 4096 像素。
+        勾选透明背景时预览与导出都不显示背景图片，取消勾选会恢复这张图。
+      </p>
+
       <label class="il-check"><input id="transparent-bg" type="checkbox">透明背景（导出带透明通道的 PNG）</label>
       <p class="il-help">反射由本页实时生成，不联网加载贴图。</p>
     </section>

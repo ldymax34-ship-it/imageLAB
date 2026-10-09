@@ -1,6 +1,7 @@
 /* Styling adapted from the rotorelief lab theme: light, neutral grayscale,
    sharp corners, uppercase letter-spaced labels, Kulim Park, backdrop-blur
-   panels, with deep-pink / royal-blue data accents. */
+   panels; imageLAB recolors the upstream pink / royal-blue data accents to
+   neutral grays so the tool chrome stays white / black / neutral. */
 :root {
   --bg: #fafafa;
   --panel: rgba(255, 255, 255, 0.85);
@@ -14,8 +15,8 @@
   --muted: #555555;
   --muted-2: #888888;
   --rule: #e5e5e5;
-  --accent: #ff1493; /* deep pink */
-  --accent-2: #0036d9; /* royal blue */
+  --accent: #141414; /* neutral dark */
+  --accent-2: #333333; /* neutral mid */
   color-scheme: light;
 }
 

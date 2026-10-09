@@ -305,8 +305,8 @@ export default function App() {
     canvas.height = height;
     const c = canvas.getContext('2d')!;
     c.clearRect(0, 0, width, height);
-    c.strokeStyle = '#ff1493'; // layout socket color
-    c.fillStyle = '#ff1493';
+    c.strokeStyle = '#141414'; // layout guide overlay (neutral)
+    c.fillStyle = '#141414';
     c.lineWidth = Math.max(1, width / 512);
     if (guide.area) {
       // the generator's coverage rect, dashed so it reads as a bound, not a cell

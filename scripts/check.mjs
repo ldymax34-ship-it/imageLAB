@@ -201,23 +201,54 @@ for (const id of toolDirs) {
 ok("规格引用的控件 id 都存在", specCtl.length === 0, specCtl.slice(0, 4).join(" | "));
 
 /* ---------- 4. 纹理间源码字节一致 ---------- */
-console.log("\n[4] tools/texture 与只读副本逐字节一致");
+// 说明（本批次专项授权）：`tools/texture/style.css` 的界面主题由暖绿改为中性白/黑/灰，
+// 这是唯一允许与上游原件不一致的文件。其余 7 份源码必须逐字节保持上游原样；
+// `_source_snapshot` 里的 8 份根原件本身也必须原样保留（用登记哈希显式校验，
+// 不允许通过改动快照来「凑」一致）。
+console.log("\n[4] tools/texture 与只读副本逐字节一致（仅 style.css 允许改主题）");
 const SNAP = "_source_snapshot";
+const TEXTURE_SOURCES = [
+  "index.html",
+  "engine.js",
+  "curve-engine.js",
+  "curve-fit.js",
+  "svg-import.js",
+  "svg-path-data.js",
+  "app.js",
+  "style.css"
+];
+/** 上游 8 份根原件的 SHA-256（登记值，用于确认快照未被改动）。 */
+const UPSTREAM_SOURCE_HASHES = {
+  "index.html": "0871ba5ba3e6f18a4558dc5ae9183ed21590ae497c7bb89605836fb3611b9de3",
+  "engine.js": "351f4a7bde8fd1abc8929ffb27b59252e11ecd925aed8da9000806af5270c7e4",
+  "curve-engine.js": "fd3b493751938f93d9caaeee558d48fccfa3ce9e60587354b0937a6b20addf11",
+  "curve-fit.js": "2b8e5014228cc8bde40d1b4fae418a8a3488ed753e768f066b54ef19411c53b1",
+  "svg-import.js": "0fe22fdf7665644aa9a41a43bf94d2df2bbea03a847fc223e5b0506ecf1d9df0",
+  "svg-path-data.js": "7e6fc94efbdd627e7641a9f8a7f252de6b553ef518d5b124495198de05b66c60",
+  "app.js": "3fd941199b4f211481525d8df6fc7fcccace7331bfa46b5792ef8e43cac6cd70",
+  "style.css": "d6545126d6b2be94a518832f0fa66cb26b08c60307c1df2a0ce4c8f8a12edf0d"
+};
+const sha256 = (p) => execFileSync("shasum", ["-a", "256", p], { encoding: "utf8" }).split(" ")[0];
+
 if (!existsSync(resolve(ROOT, SNAP))) {
   ok("只读副本存在（可选）", true, "本机无 _source_snapshot，跳过字节比对");
 } else {
+  // 先显式确认「根目录 8 份上游原件」都在快照里、且内容未被改动。
+  const snapshotIssues = [];
+  for (const [f, expected] of Object.entries(UPSTREAM_SOURCE_HASHES)) {
+    const p = resolve(ROOT, SNAP, f);
+    if (!existsSync(p)) snapshotIssues.push(`${f}（缺失）`);
+    else if (sha256(p) !== expected) snapshotIssues.push(`${f}（快照被改动）`);
+  }
+  ok(
+    "根目录 8 份上游原件快照齐备且未被改动",
+    snapshotIssues.length === 0,
+    snapshotIssues.length ? snapshotIssues.join("、") : `${TEXTURE_SOURCES.length} 份哈希一致`
+  );
+
   const files = (await readdir(resolve(ROOT, "tools/texture"))).sort();
-  const TEXTURE_SOURCES = [
-    "index.html",
-    "engine.js",
-    "curve-engine.js",
-    "curve-fit.js",
-    "svg-import.js",
-    "svg-path-data.js",
-    "app.js",
-    "style.css"
-  ];
-  let same = 0;
+  const STYLE_ONLY = "style.css";
+  const nonStyle = TEXTURE_SOURCES.filter((f) => f !== STYLE_ONLY);
   const diff = [];
   for (const f of files) {
     const a = resolve(ROOT, "tools/texture", f);
@@ -226,13 +257,20 @@ if (!existsSync(resolve(ROOT, SNAP))) {
       diff.push(`${f}（副本缺失）`);
       continue;
     }
-    const ha = execFileSync("shasum", ["-a", "256", a], { encoding: "utf8" }).split(" ")[0];
-    const hb = execFileSync("shasum", ["-a", "256", b], { encoding: "utf8" }).split(" ")[0];
-    if (ha === hb) same++;
-    else diff.push(f);
+    if (sha256(a) !== sha256(b)) diff.push(f);
   }
-  ok("8 份源码逐字节一致", TEXTURE_SOURCES.every((f) => !diff.includes(f)), `一致 ${same}/${files.length}${diff.length ? "，不一致：" + diff.join(",") : ""}`);
-  ok("未向纹理间注入导航或其他改动", diff.length === 0, diff.join(", "));
+  ok(
+    "7 份非样式源码与上游原件逐字节一致",
+    nonStyle.every((f) => !diff.includes(f)),
+    nonStyle.some((f) => diff.includes(f))
+      ? `不一致：${nonStyle.filter((f) => diff.includes(f)).join(",")}`
+      : `${nonStyle.length} 份一致`
+  );
+  ok(
+    "仅 style.css 允许改主题（其余文件未注入导航或其他改动）",
+    diff.every((f) => f === STYLE_ONLY),
+    diff.length ? `差异文件：${diff.join(",")}` : "无差异"
+  );
 }
 
 /* ---------- 5. 许可与版本锁定 ---------- */

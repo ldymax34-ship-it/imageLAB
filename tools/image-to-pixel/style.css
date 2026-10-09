@@ -1,14 +1,14 @@
 /* imageLAB · 工具③「像素化与抖动」样式
-   视觉约定：微暖白底 #f6f4f1 / 近黑文字 #14120f / 浅灰分割线 #ddd8d1；
+   视觉约定：中性白底 #f5f5f5 / 近黑文字 #141414 / 中性灰分割线 #dddddd；
    原生控件、1px 实线边框、border-radius ≤ 2px；无彩色装饰、无玻璃拟态。 */
 
 :root {
-  --paper: #f6f4f1;
-  --ink: #14120f;
-  --rule: #ddd8d1;
-  --muted: #6c6459;
+  --paper: #f5f5f5;
+  --ink: #141414;
+  --rule: #dddddd;
+  --muted: #666666;
   --field: #ffffff;
-  --focus: #14120f;
+  --focus: #141414;
 }
 
 * { box-sizing: border-box; }
@@ -29,7 +29,7 @@ body {
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.92em;
-  background: #efece7;
+  background: #efefef;
   border: 1px solid var(--rule);
   border-radius: 2px;
   padding: 0 3px;
@@ -39,7 +39,7 @@ code {
 .il-head { border-bottom: 1px solid var(--rule); background: var(--paper); }
 .il-head-in { max-width: 1220px; margin: 0 auto; padding: 22px 24px 18px; }
 .il-head h1 { margin: 0 0 6px; font-size: 21px; font-weight: 650; letter-spacing: 0.01em; }
-.il-sub { margin: 0 0 8px; max-width: 78ch; color: #38322a; }
+.il-sub { margin: 0 0 8px; max-width: 78ch; color: #333333; }
 .il-src { margin: 0; max-width: 92ch; color: var(--muted); font-size: 12px; }
 
 /* ── 两栏布局 ───────────────────────────────────────── */
@@ -122,8 +122,8 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.il-btn:hover { background: #efeee9; }
-.il-btn:disabled { color: #a39c92; cursor: default; background: #f1efeb; }
+.il-btn:hover { background: #f0f0f0; }
+.il-btn:disabled { color: #a0a0a0; cursor: default; background: #f0f0f0; }
 
 .il-btn-primary { font-weight: 600; padding: 6px 14px; }
 .il-btn-primary:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
@@ -134,13 +134,13 @@ button:focus-visible {
   margin: 0;
   min-height: 1.5em;
   font-size: 12px;
-  color: #38322a;
+  color: #333333;
   border-top: 1px solid var(--rule);
   padding-top: 10px;
 }
 
-.il-hint[data-kind="warn"] { color: #7a4a12; }
-.il-hint[data-kind="error"] { color: #8d2b1c; }
+.il-hint[data-kind="warn"] { color: #6b6b6b; }
+.il-hint[data-kind="error"] { color: #141414; }
 
 /* ── 预览区 ─────────────────────────────────────────── */
 .il-stage-head {

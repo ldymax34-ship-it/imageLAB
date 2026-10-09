@@ -35,7 +35,7 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/texture/` | 纹理间 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 基础色表面贴图 / 环境与背景 | PNG（可选透明背景） | 已通过浏览器验收（65 项） |
+| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 基础色表面贴图 / 背景图片（居中 cover，1×–3× 缩放） | PNG（可选透明背景） | 已通过 65 项；背景图片断言待 Codex 复验 |
 | `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
 | `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
@@ -80,6 +80,19 @@ bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部�
 不新增着色器 / UV 算法 / 依赖 / 后端 / CDN；无效文件给中文原因并保留当前贴图与模型。
 `tests/specs/extrude3d.mjs` 相应断言（真实贴图改变像素与导出 PNG、随材质 / 几何保留、移除恢复无贴图、
 无效文件保留好贴图等）已由 Codex 独立复跑 **65/65 PASS**，本仓库不自行启动浏览器。
+
+`tools/extrude3d` 新增**背景图片 + 基础缩放**（用户专项授权，第六轮）：上传本地 PNG / JPEG / WebP
+（≤10 MiB、单边 ≤4096 像素）后挂到 three 原生 `scene.background` 贴图，用贴图的 `repeat` / `offset`
+按视口与原图宽高比做居中 cover（`1×`–`3×` 缩放，默认 `1×`）；默认纯色背景改为纯白 `#ffffff`。
+透明背景时预览与导出都抑制背景图片，关闭后恢复；移除背景回到所选纯色。表面贴图与背景各自独立，
+切换材质 / SVG 背景保留；非法 / 解码失败 / 超限 / 最新一次无效选择都保留原背景，并释放 blob URL 与被替换贴图。
+不新增依赖 / 自定义着色器 / UV 算法。**本批之后 3D 扩展冻结**，不再新增 3D 功能。
+对应浏览器断言（aspect / zoom 实际像素、导出 PNG、背景 + 表面独立、透明恢复、移除、竞态 / 错误）待 Codex 执行。
+
+> 未来 UI 规则（本批起）：全部工具界面与共享返回链接使用**白 / 黑 / 中性灰**，不再出现米色 / 奶油 / 棕 / 绿等
+> 彩色装饰；画布 / 素材 / 算法输出与材质调色板、9 张真实封面不受此规则影响（不重绘为单色）。
+> `tools/texture` 的根原件不动，仅整合副本 `style.css` 改主题；`scripts/check.mjs` 仍逐字节校验 7 份非样式原件，
+> 并显式校验 `_source_snapshot` 的 8 份根原件哈希。
 
 `public/assets/covers/*.png` 是 9 张真实工具 PNG 导出（互不相同，实际内容已核验），由
 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；

@@ -64,3 +64,11 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 
 首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
 `target="_blank" rel="noopener noreferrer"`、准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。
+
+`extrude3d` 背景图片（第六轮，用户专项授权）新增断言：上传真实 PNG 后 `scene.background` 是真实贴图且
+按视口 / 原图宽高比居中 cover、背景缩放 1×→2×→1× 改变真实像素、导出 PNG 真实包含背景、
+背景与表面贴图同时存在、切换材质 / SVG 后背景保留、透明背景抑制并恢复、移除后回到所选纯色、
+最新无效选择保留原背景。默认纯色背景由米色改为纯白，规格里的背景像素基准同步改为 `#ffffff`。
+**本批浏览器验收待 Codex 执行**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
+实现侧只跑 `npm run check` / `npm test` / `npm run build`。
+九工具界面与共享返回链接已统一为白 / 黑 / 中性灰（本批起未来 UI 规则），画布 / 素材 / 材质调色板与真实封面不动。

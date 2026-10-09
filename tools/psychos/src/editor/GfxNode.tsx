@@ -11,16 +11,16 @@ import { registry } from '../nodes';
 import { BIND_TARGETS, parseBinds, type BindSpec } from '../nodes/elements';
 import { endGesture, localFontsSupported, selectActiveGraph, useApp } from '../store';
 
-// Type ladder colors — a bright 2000s computer palette, one unique hue per type,
-// matching the wire colors. Sockets (the circles) and the wires that leave them
-// read as the same color.
+// Type ladder colors — a neutral gray ladder, one step per type, matching the
+// wire colors. Sockets (the circles) and the wires that leave them read as the
+// same shade. imageLAB recolors the upstream hues to keep chrome white/black/gray.
 export const SOCKET_COLORS: Record<SocketType, string> = {
-  text: '#00e5ff', // cyan
-  vector: '#00a99d', // teal
-  raster: '#1493ff', // azure
-  alpha: '#8a2be2', // blue violet
-  elements: '#9aa0a6', // grey
-  layout: '#ff1493', // hot pink
+  text: '#9e9e9e', // light gray
+  vector: '#8a8a8a', // gray
+  raster: '#757575', // mid gray
+  alpha: '#616161', // dark gray
+  elements: '#a8a8a8', // pale gray
+  layout: '#4a4a4a', // near black
 };
 
 /** single type → its color; union input → neutral (accepts several) */

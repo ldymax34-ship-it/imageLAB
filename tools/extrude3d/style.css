@@ -1,15 +1,15 @@
 @charset "UTF-8";
-/* SVG 挤出三维 · 视觉约定：微暖白底 / 近黑文字 / 浅灰分割线，
+/* SVG 挤出三维 · 视觉约定：中性白底 / 近黑文字 / 中性灰分割线，
    原生控件、1px 实线边框、圆角 ≤ 2px、无彩色装饰、无玻璃拟态。 */
 
 :root {
-  --il-bg: #f6f4f1;
-  --il-ink: #14120f;
-  --il-line: #ddd8d1;
-  --il-muted: #6f6a63;
-  --il-faint: #8d8880;
-  --il-panel: #fbfaf8;
-  --il-stage: #eceae5;
+  --il-bg: #f5f5f5;
+  --il-ink: #141414;
+  --il-line: #dddddd;
+  --il-muted: #666666;
+  --il-faint: #8a8a8a;
+  --il-panel: #fafafa;
+  --il-stage: #eaeaea;
 }
 
 * { box-sizing: border-box; }
@@ -37,14 +37,14 @@ button {
   background: #fff;
   cursor: pointer;
 }
-button:hover { background: #f1eee9; }
+button:hover { background: #f0f0f0; }
 button:focus-visible,
 select:focus-visible,
 input:focus-visible,
 a:focus-visible { outline: 1px solid var(--il-ink); outline-offset: 1px; }
 button:disabled { opacity: .5; cursor: not-allowed; }
-button.il-primary { background: var(--il-ink); border-color: var(--il-ink); color: #f6f4f1; }
-button.il-primary:hover { background: #2c2823; }
+button.il-primary { background: var(--il-ink); border-color: var(--il-ink); color: #ffffff; }
+button.il-primary:hover { background: #2b2b2b; }
 
 code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -230,7 +230,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
   min-height: 260px;
   border: 1px solid var(--il-line);
   background: var(--il-stage);
-  background-image: radial-gradient(rgba(20, 18, 15, .09) .6px, transparent .6px);
+  background-image: radial-gradient(rgba(20, 20, 20, .09) .6px, transparent .6px);
   background-size: 12px 12px;
   overflow: hidden;
 }

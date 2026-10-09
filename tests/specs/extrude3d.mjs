@@ -6,8 +6,8 @@
  * 上传本地 PNG 作为基础色表面贴图（真实改变像素、随材质与几何保留、移除恢复预设颜色、
  * 无效文件不丢当前贴图）。
  */
-import { mkdir, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, writeFile, readdir, rm } from "node:fs/promises";
+import { resolve, join } from "node:path";
 import { ROOT, canvasLooksDrawn, pngInfo, webglReport } from "../harness.mjs";
 
 export const id = "extrude3d";
@@ -57,9 +57,9 @@ function sampleCanvas(page) {
   });
 }
 
-/** 背景色（#efede8）下两份采样的差异：只在「模型区域」内统计，避免被大片背景稀释。 */
+/** 背景色（#ffffff）下两份采样的差异：只在「模型区域」内统计，避免被大片背景稀释。 */
 function pixelDiff(a, b) {
-  const BG = [239, 237, 232];
+  const BG = [255, 255, 255];
   if (!a || !b || a.length !== b.length) return { changed: 0, model: 0, ratio: 0 };
   const near = (d, i) =>
     Math.abs(d[i] - BG[0]) + Math.abs(d[i + 1] - BG[1]) + Math.abs(d[i + 2] - BG[2]) > 14;
@@ -302,7 +302,7 @@ export async function run({ page, base, downloads, check, sleep }) {
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const i = (y * w + x) * 4;
-        const diff = Math.abs(d[i] - 239) + Math.abs(d[i + 1] - 237) + Math.abs(d[i + 2] - 232);
+        const diff = Math.abs(d[i] - 255) + Math.abs(d[i + 1] - 255) + Math.abs(d[i + 2] - 255);
         if (diff > 14) {
           count++;
           if (x < minX) minX = x;
@@ -556,6 +556,272 @@ export async function run({ page, base, downloads, check, sleep }) {
     reselected.hasMap && !!reselected.texture && reselected.texture.name.includes("test-photo"),
     `map=${reselected.hasMap} texture=${reselected.texture ? reselected.texture.name : "null"}`
   );
+
+  /* ---------- 背景图片（第六轮，用户专项授权）：真实 scene.background + 居中 cover + 基础缩放 ---------- */
+  // 上传前先记录四角（纯白背景），用于确认背景图片真的改变了画布像素。
+  const bgBeforePixel = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas");
+    const tmp = document.createElement("canvas");
+    tmp.width = 4;
+    tmp.height = 4;
+    const ctx = tmp.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(canvas, 0, 0, 4, 4);
+    const d = ctx.getImageData(0, 0, 4, 4).data;
+    return [d[0], d[1], d[2], d[3]];
+  });
+
+  const bgInput = await page.$("#bg-file");
+  await bgInput.uploadFile(TEXTURE_PHOTO);
+  await page.waitForFunction(
+    () => {
+      const el = document.getElementById("bg-name");
+      return el && el.textContent.includes("test-photo");
+    },
+    { timeout: 20000, polling: 100 }
+  );
+  await sleep(700);
+  const bgApplied = await page.evaluate(() => {
+    const api = window.__extrude3d;
+    const tex = api.scene.background;
+    const view = document.getElementById("view");
+    const img = tex && tex.image;
+    const viewAspect = view.clientWidth / view.clientHeight;
+    const imgAspect = img ? img.width / img.height : 1;
+    return {
+      isTexture: !!(tex && tex.isTexture),
+      info: api.getInfo().background,
+      hasMap: !!api.mesh.material.map,
+      name: document.getElementById("bg-name").textContent.trim(),
+      expectedRepeat: [Math.min(1, viewAspect / imgAspect), Math.min(1, imgAspect / viewAspect)],
+      repeat: tex ? [tex.repeat.x, tex.repeat.y] : null,
+      offset: tex ? [tex.offset.x, tex.offset.y] : null
+    };
+  });
+  check.ok(
+    "背景图片载入并挂到真实 scene.background 贴图",
+    bgApplied.isTexture && !!bgApplied.info && bgApplied.name.includes("test-photo"),
+    `isTexture=${bgApplied.isTexture} name=${bgApplied.name}`
+  );
+  check.ok(
+    "背景按视口与原图宽高比居中 cover（repeat / offset 符合公式）",
+    !!bgApplied.repeat &&
+      Math.abs(bgApplied.repeat[0] - bgApplied.expectedRepeat[0]) < 0.01 &&
+      Math.abs(bgApplied.repeat[1] - bgApplied.expectedRepeat[1]) < 0.01 &&
+      Math.abs(bgApplied.offset[0] - (1 - bgApplied.repeat[0]) / 2) < 0.005 &&
+      Math.abs(bgApplied.offset[1] - (1 - bgApplied.repeat[1]) / 2) < 0.005,
+    `repeat=${JSON.stringify(bgApplied.repeat)} 期望=${JSON.stringify(bgApplied.expectedRepeat)} offset=${JSON.stringify(bgApplied.offset)}`
+  );
+  const bgPixels = await sampleCanvas(page);
+  const bgDelta =
+    Math.abs(bgPixels[0] - bgBeforePixel[0]) +
+    Math.abs(bgPixels[1] - bgBeforePixel[1]) +
+    Math.abs(bgPixels[2] - bgBeforePixel[2]);
+  check.ok(
+    "背景图片真实改变画布像素（不是 CSS 背景）",
+    bgPixels[3] === 255 && bgPixels[0] + bgPixels[1] + bgPixels[2] < 740 && bgDelta > 12,
+    `上传前=${bgBeforePixel.slice(0, 3).join(",")} 上传后=${bgPixels.slice(0, 4).join(",")}`
+  );
+  check.ok(
+    "背景图片与表面贴图互不影响（同时存在）",
+    bgApplied.hasMap && bgApplied.isTexture,
+    `map=${bgApplied.hasMap} background=${bgApplied.isTexture}`
+  );
+
+  // 背景在材质 / SVG 变化后仍然保留。
+  await setControl(page, "material", "plastic", "change");
+  await setControl(page, "sample", "letter-a-star", "change");
+  await waitModelled(page).catch(() => {});
+  await sleep(700);
+  const bgPersisted = await page.evaluate(() => ({
+    isTexture: !!(window.__extrude3d.scene.background && window.__extrude3d.scene.background.isTexture),
+    name: (window.__extrude3d.getInfo().background || {}).name || ""
+  }));
+  check.ok(
+    "切换材质 / SVG 后背景图片保留",
+    bgPersisted.isTexture && bgPersisted.name.includes("test-photo"),
+    `isTexture=${bgPersisted.isTexture} name=${bgPersisted.name}`
+  );
+
+  // 缩放：1× → 2×（repeat 减半、仍居中、像素变化）→ 1×（可缩回）。
+  const bgZoomBase = await sampleCanvas(page);
+  await setControl(page, "bg-zoom", "2", "input");
+  await sleep(500);
+  const bgZoomed = await page.evaluate(() => {
+    const tex = window.__extrude3d.scene.background;
+    return {
+      zoom: window.__extrude3d.getState().bgZoom,
+      repeat: [tex.repeat.x, tex.repeat.y],
+      offset: [tex.offset.x, tex.offset.y],
+      out: document.getElementById("bg-zoom-out").textContent.trim()
+    };
+  });
+  check.ok(
+    "背景缩放 2× 时贴图重复比例减半且仍居中",
+    Math.abs(bgZoomed.repeat[0] - bgApplied.repeat[0] / 2) < 0.005 &&
+      Math.abs(bgZoomed.repeat[1] - bgApplied.repeat[1] / 2) < 0.005 &&
+      Math.abs(bgZoomed.offset[0] - (1 - bgZoomed.repeat[0]) / 2) < 0.005 &&
+      Math.abs(bgZoomed.offset[1] - (1 - bgZoomed.repeat[1]) / 2) < 0.005,
+    `zoom=${bgZoomed.zoom} repeat=${JSON.stringify(bgZoomed.repeat)} offset=${JSON.stringify(bgZoomed.offset)} 输出=${bgZoomed.out}`
+  );
+  const bgZoomPixels = await sampleCanvas(page);
+  const bgZoomDiff = pixelDiff(bgZoomBase, bgZoomPixels);
+  check.ok(
+    "背景缩放改变真实像素",
+    bgZoomDiff.ratio > 0.2,
+    `变化 ${bgZoomDiff.changed}/${bgZoomDiff.model}（${(bgZoomDiff.ratio * 100).toFixed(1)}%）`
+  );
+  await setControl(page, "bg-zoom", "1", "input");
+  await sleep(400);
+  const bgBackToOne = await page.evaluate(() => {
+    const tex = window.__extrude3d.scene.background;
+    return { repeat: [tex.repeat.x, tex.repeat.y], zoom: window.__extrude3d.getState().bgZoom };
+  });
+  check.ok(
+    "背景缩放可回到 1×（repeat 恢复 cover 基准）",
+    bgBackToOne.zoom === 1 &&
+      Math.abs(bgBackToOne.repeat[0] - bgApplied.repeat[0]) < 0.005 &&
+      Math.abs(bgBackToOne.repeat[1] - bgApplied.repeat[1]) < 0.005,
+    `zoom=${bgBackToOne.zoom} repeat=${JSON.stringify(bgBackToOne.repeat)}`
+  );
+
+  // 背景参与真实 PNG 导出：透明关闭时，导出的四角应是背景图片像素（不透明）。
+  const bgPreview = await sampleCanvas(page);
+  await setControl(page, "export-scale", "1", "change");
+  await page.click("#export-png");
+  const bgFile = await downloads.waitForFile({ ext: ".png", timeoutMs: 30000 });
+  const bgPng = pngInfo(bgFile.bytes);
+  const bgExportPixel = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const tmp = document.createElement("canvas");
+    tmp.width = 40;
+    tmp.height = 40;
+    const ctx = tmp.getContext("2d", { willReadFrequently: true });
+    ctx.clearRect(0, 0, 40, 40);
+    ctx.drawImage(img, 0, 0, 40, 40);
+    const d = ctx.getImageData(0, 0, 40, 40).data;
+    return [d[0], d[1], d[2], d[3]];
+  }, bgFile.bytes.toString("base64"));
+  const bgExportDelta =
+    Math.abs(bgExportPixel[0] - bgPreview[0]) +
+    Math.abs(bgExportPixel[1] - bgPreview[1]) +
+    Math.abs(bgExportPixel[2] - bgPreview[2]);
+  check.ok(
+    "含背景图的导出 PNG 非空且尺寸为 1× 视图",
+    bgFile.size > 1000 && bgPng.width > 0 && bgPng.height > 0,
+    `${bgPng.width}x${bgPng.height} ${bgFile.size}B`
+  );
+  check.ok(
+    "导出的 PNG 真实包含背景图片（边角与预览一致、不透明且非纯白）",
+    bgExportPixel[3] === 255 &&
+      bgExportPixel[0] + bgExportPixel[1] + bgExportPixel[2] < 740 &&
+      bgExportDelta < 90,
+    `PNG 边角=${bgExportPixel.join(",")} 预览=${bgPreview.slice(0, 4).join(",")} 差=${bgExportDelta}`
+  );
+  // 清掉这次导出的文件，避免影响后面「透明导出」的下载选取。
+  for (const n of await readdir(downloads.dir)) {
+    if (n.toLowerCase().endsWith(".png")) await rm(join(downloads.dir, n), { force: true });
+  }
+
+  /* ---------- 背景选择竞态：最新一次无效选择不得顶替已生效背景 ---------- */
+  await page.evaluate(async () => {
+    const input = document.getElementById("bg-file");
+    const makePng = async (name, color) => {
+      const c = document.createElement("canvas");
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 64, 64);
+      const blob = await new Promise((res) => c.toBlob(res, "image/png"));
+      return new File([blob], name, { type: "image/png" });
+    };
+    const setFile = (file) => {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    setFile(await makePng("bg-pending.png", "#1e88e5")); // 开始异步解码
+    setFile(new File(["not an image at all\n"], "bg-invalid.txt", { type: "text/plain" })); // 同一 tick 立刻拒绝
+  });
+  await sleep(900);
+  const bgRace = await page.evaluate(() => ({
+    isTexture: !!(window.__extrude3d.scene.background && window.__extrude3d.scene.background.isTexture),
+    name: (window.__extrude3d.getInfo().background || {}).name || "",
+    errorHidden: document.getElementById("error").hidden,
+    errorText: document.getElementById("error").textContent.trim()
+  }));
+  check.ok(
+    "最新无效背景选择后保留原背景（过期 pending 不顶替）",
+    bgRace.isTexture && bgRace.name.includes("test-photo"),
+    `isTexture=${bgRace.isTexture} name=${bgRace.name}`
+  );
+  check.ok(
+    "无效背景选择给出中文原因且不被过期加载清掉",
+    bgRace.errorHidden === false && /背景图片/.test(bgRace.errorText) && /仅支持|文件类型/.test(bgRace.errorText),
+    bgRace.errorText.slice(0, 100)
+  );
+
+  // 透明背景抑制背景图片，但图片仍保留；关闭后恢复同一张贴图。
+  await setControl(page, "transparent-bg", true, "change");
+  await sleep(400);
+  const bgSuppressed = await page.evaluate(() => ({
+    background: window.__extrude3d.scene.background,
+    info: window.__extrude3d.getInfo().background
+  }));
+  check.ok(
+    "透明背景时 scene.background 被抑制但图片仍保留",
+    bgSuppressed.background === null && !!bgSuppressed.info && bgSuppressed.info.name.includes("test-photo"),
+    `scene.background=${bgSuppressed.background} 保留=${bgSuppressed.info ? bgSuppressed.info.name : "null"}`
+  );
+  await setControl(page, "transparent-bg", false, "change");
+  await sleep(400);
+  const bgRestored = await page.evaluate(() => ({
+    isTexture: !!(window.__extrude3d.scene.background && window.__extrude3d.scene.background.isTexture),
+    name: (window.__extrude3d.getInfo().background || {}).name || ""
+  }));
+  check.ok(
+    "关闭透明背景后恢复保留的背景图片",
+    bgRestored.isTexture && bgRestored.name.includes("test-photo"),
+    `isTexture=${bgRestored.isTexture} name=${bgRestored.name}`
+  );
+
+  // 移除背景：回到所选纯色背景（这里先选 #dddddd 以便用像素确认），表面贴图不受影响。
+  await setControl(page, "bg", "#dddddd", "input");
+  await page.click("#bg-remove");
+  await sleep(500);
+  const bgRemoved = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas");
+    const tmp = document.createElement("canvas");
+    tmp.width = 4;
+    tmp.height = 4;
+    const ctx = tmp.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(canvas, 0, 0, 4, 4);
+    const d = ctx.getImageData(0, 0, 4, 4).data;
+    return {
+      background: window.__extrude3d.scene.background,
+      info: window.__extrude3d.getInfo().background,
+      hasMap: !!window.__extrude3d.mesh.material.map,
+      pixel: [d[0], d[1], d[2], d[3]]
+    };
+  });
+  check.ok(
+    "移除背景后 scene.background 归零并恢复所选纯色背景",
+    bgRemoved.background === null &&
+      bgRemoved.info === null &&
+      Math.abs(bgRemoved.pixel[0] - 221) < 12 &&
+      Math.abs(bgRemoved.pixel[1] - 221) < 12 &&
+      Math.abs(bgRemoved.pixel[2] - 221) < 12,
+    `background=${bgRemoved.background} info=${bgRemoved.info} 像素=${bgRemoved.pixel.join(",")}`
+  );
+  check.ok(
+    "移除背景不影响表面贴图",
+    bgRemoved.hasMap,
+    `map=${bgRemoved.hasMap}`
+  );
+  await setControl(page, "bg", "#ffffff", "input"); // 恢复纯白，供后续断言使用
 
   // 透明背景：画布alpha生效（导出 PNG 走 alpha:true 的渲染器）
   await setControl(page, "transparent-bg", true, "change");
