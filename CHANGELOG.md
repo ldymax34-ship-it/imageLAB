@@ -4,6 +4,25 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 修复：SVG立体导出预览清屏 + 表面贴图选择竞态（Codex 浏览器回归后修复）
+- 导出 PNG 的 `toBlob` 回调恢复预览渲染尺寸后立即 `renderer.render(scene, camera)` 重绘一次：
+  `renderer.setSize` 会清空画布，此前要等下一帧 RAF 才恢复，导致 Codex 复验时「曲线超限拒绝后
+  `canvasLooksDrawn`」偶发 `opaqueRatio=0`。导出语义（倍率 / 透明背景 / 文件名）不变。
+- 表面贴图加载序列号 `++textureSeq` 移到 `loadTextureFile` 开头（非空文件之后、MIME / 体积校验之前）：
+  最新一次选择即使是会被拒的非白名单 / 超大文件，也会先作废更早的「进行中」加载，不再让过期回调
+  `acceptTexture` 顶替 baseline 贴图并清掉 `setError` 的拒绝原因；原有回调 seq 守卫与
+  「加载中点移除贴图 → 保持为空」行为不变。
+- `tests/specs/extrude3d.mjs`：导出 PNG 断言改为真正解码下载到的字节（data URL → `Image`），在
+  40×40 下与预览画布比对（覆盖像素数 / 模型内部差异允许抗锯齿容差），并要求存在带 alpha 的彩色模型
+  像素——不再只看 map 标志或 IHDR 头，且复用同一次导出、不重复导出。
+- 新增紧凑浏览器回归：页内用 `canvas.toBlob` 生成 PNG `File` + `DataTransfer`，同一 tick 内
+  pending.png → invalid.txt，断言 baseline（test-photo.png）保留且拒绝原因不被清掉；再加
+  「加载中点移除贴图」断言贴图保持 `null`。全部使用浏览器内建能力，不写自定义图像算法。
+- Codex 已在 a5fc0c0 独立跑过主要操作（SVG立体既有规格 59/60 PASS，唯一失败即上述偶发清屏）；
+  本轮新增 / 加强的浏览器断言待 Codex 复跑（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）。
+  实现侧只跑纯 Node：`npm run check`（41 项）、`npm test`（5 套 Node 测试共 35 项）、`npm run build` 全过。
+- 未改纹理间原 8 份源码，未新增依赖 / 后端 / CDN，未启动浏览器 / Chrome。
+
 ### 第五轮：SVG立体新增基础色表面贴图（用户专项授权）
 - `tools/extrude3d` 材质区新增可访问中文 UI「上传表面贴图」（`#texture-file`，accept PNG / JPEG / WebP）
   与「移除贴图」（`#texture-remove`），文件名与状态显示在 `#texture-name`（`aria-live="polite"`）。

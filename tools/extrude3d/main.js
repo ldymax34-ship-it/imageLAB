@@ -432,6 +432,11 @@ function acceptTexture(texture, file) {
 function loadTextureFile(file) {
   if (!file) return;
 
+  // 每一次新的选择都先作废更早的「进行中」加载，即使这次选择随后会因
+  // 类型 / 体积被拒。否则被拒文件的错误提示会被过期回调 acceptTexture 清掉，
+  // 并错误地换上更早那次选择里的贴图。
+  const seq = ++textureSeq;
+
   if (!TEXTURE_LIMITS.mimeTypes.includes(file.type)) {
     rejectTexture(
       `已拒绝贴图：仅支持 PNG / JPEG / WebP，当前文件类型「${file.type || "未知"}」。`
@@ -445,7 +450,6 @@ function loadTextureFile(file) {
     return;
   }
 
-  const seq = ++textureSeq;
   const url = URL.createObjectURL(file);
   setStatus(`正在读取贴图 · ${file.name}…`);
 
@@ -673,9 +677,11 @@ function exportPng() {
   renderer.render(scene, camera);
 
   els.canvas.toBlob((blob) => {
-    // 立刻恢复视图尺寸，避免导出分辨率残留
+    // 立刻恢复视图尺寸，避免导出分辨率残留；setSize 会清空画布，
+    // 而下一帧 RAF 之前画布会保持空白，所以这里必须紧接着重绘一次预览。
     renderer.setPixelRatio(previousPixelRatio);
     renderer.setSize(size.x, size.y, false);
+    renderer.render(scene, camera);
     exporting = false;
     els.exportPng.disabled = false;
 

@@ -75,6 +75,86 @@ function pixelDiff(a, b) {
   return { changed, model, ratio: model ? +(changed / model).toFixed(4) : 0 };
 }
 
+/**
+ * 两份 40×40 RGBA 采样在「模型区域」（任一帧 alpha>8）内的差异。
+ * 用于把「真正解码出来的导出 PNG」和「预览画布」放在同一分辨率下比较：
+ * 覆盖像素数应接近，模型内部（两帧都 alpha>200）的差异应极小；
+ * 边缘允许少量抗锯齿差异，因此每像素差异要足够大才计入 changed。
+ */
+function modelSampleDiff(a, b) {
+  if (!a || !b || a.length !== b.length) {
+    return {
+      model: 0,
+      changed: 0,
+      ratio: 1,
+      modelA: 0,
+      modelB: 0,
+      core: 0,
+      coreChanged: 0,
+      coreRatio: 1,
+      meanA: [0, 0, 0],
+      meanB: [0, 0, 0],
+      meanDelta: 255
+    };
+  }
+  let model = 0;
+  let changed = 0;
+  let modelA = 0;
+  let modelB = 0;
+  let core = 0;
+  let coreChanged = 0;
+  const sumA = [0, 0, 0];
+  const sumB = [0, 0, 0];
+  for (let i = 0; i < a.length; i += 4) {
+    const aa = a[i + 3];
+    const ba = b[i + 3];
+    if (aa > 8) {
+      modelA++;
+      sumA[0] += a[i];
+      sumA[1] += a[i + 1];
+      sumA[2] += a[i + 2];
+    }
+    if (ba > 8) {
+      modelB++;
+      sumB[0] += b[i];
+      sumB[1] += b[i + 1];
+      sumB[2] += b[i + 2];
+    }
+    const delta =
+      Math.abs(a[i] - b[i]) +
+      Math.abs(a[i + 1] - b[i + 1]) +
+      Math.abs(a[i + 2] - b[i + 2]) +
+      Math.abs(aa - ba);
+    if (aa > 8 || ba > 8) {
+      model++;
+      if (delta > 100) changed++;
+    }
+    if (aa > 200 && ba > 200) {
+      core++;
+      const rgb =
+        Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+      if (rgb > 60) coreChanged++;
+    }
+  }
+  const meanA = sumA.map((s) => s / Math.max(modelA, 1));
+  const meanB = sumB.map((s) => s / Math.max(modelB, 1));
+  const meanDelta =
+    Math.abs(meanA[0] - meanB[0]) + Math.abs(meanA[1] - meanB[1]) + Math.abs(meanA[2] - meanB[2]);
+  return {
+    model,
+    changed,
+    ratio: model ? +(changed / model).toFixed(4) : 1,
+    modelA,
+    modelB,
+    core,
+    coreChanged,
+    coreRatio: core ? +(coreChanged / core).toFixed(4) : 1,
+    meanA,
+    meanB,
+    meanDelta: +meanDelta.toFixed(1)
+  };
+}
+
 /** 设置 input/select 的值并派发原生事件，等价于用户操作。 */
 function setControl(page, id, value, type = "input") {
   return page.evaluate(
@@ -527,6 +607,135 @@ export async function run({ page, base, downloads, check, sleep }) {
     exportMap.hasMap && !!exportMap.texture && file.size > 1000,
     `map=${exportMap.hasMap} texture=${exportMap.texture ? exportMap.texture.name : "null"} ${file.size}B`
   );
+
+  // 强化：不看「map 标志 / IHDR 头」就下结论，而是把下载到的 PNG 字节真正解码成
+  // 图像（data URL → Image），和预览画布放在同一 40×40 分辨率下比较；
+  // 并确认导出像素里确实有「带 alpha 的彩色模型像素」。复用上面这一次导出，不重复导出。
+  const exportedSample = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const w = 40;
+    const h = 40;
+    const tmp = document.createElement("canvas");
+    tmp.width = w;
+    tmp.height = h;
+    const ctx = tmp.getContext("2d", { willReadFrequently: true });
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    const d = ctx.getImageData(0, 0, w, h).data;
+    let solid = 0;
+    let colored = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 200) {
+        solid++;
+        const spread = Math.max(d[i], d[i + 1], d[i + 2]) - Math.min(d[i], d[i + 1], d[i + 2]);
+        if (spread > 18) colored++;
+      }
+    }
+    return {
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      solid,
+      colored,
+      data: Array.from(d)
+    };
+  }, file.bytes.toString("base64"));
+  const previewSample = await sampleCanvas(page);
+  const exportDiff = modelSampleDiff(exportedSample.data, previewSample);
+  const coverageDelta =
+    Math.abs(exportDiff.modelA - exportDiff.modelB) / Math.max(exportDiff.modelA, exportDiff.modelB, 1);
+  check.ok(
+    "导出 PNG 真实解码后有带 alpha 的彩色模型像素",
+    exportedSample.solid > 20 && exportedSample.colored > 20,
+    `解码=${exportedSample.width}x${exportedSample.height} 实心像素=${exportedSample.solid} 彩色像素=${exportedSample.colored}`
+  );
+  check.ok(
+    "导出 PNG 与预览画布同分辨率下画面一致（允许抗锯齿差异）",
+    coverageDelta < 0.25 && exportDiff.meanDelta < 45 && exportDiff.coreRatio < 0.25 && exportDiff.ratio < 0.5,
+    `模型像素 ${exportDiff.modelA}(PNG)/${exportDiff.modelB}(预览) 覆盖差=${(coverageDelta * 100).toFixed(1)}% ` +
+      `均值差=${exportDiff.meanDelta} 核心差异 ${exportDiff.coreChanged}/${exportDiff.core} ` +
+      `明显差异 ${exportDiff.changed}/${exportDiff.model}（${(exportDiff.ratio * 100).toFixed(1)}%）`
+  );
+
+  /* ---------- 贴图选择竞态：最新一次选择（哪怕被拒）必须作废更早的进行中加载 ---------- */
+  // 当前 baseline 贴图是 test-photo.png。同一 tick 里先选一张有效 PNG（异步解码，处于
+  //「进行中」），紧接着选一个非白名单 .txt；后者被拒后，前一张的解码回调不得再顶替
+  // baseline，也不得把这条错误提示清掉。
+  await page.evaluate(async () => {
+    const input = document.getElementById("texture-file");
+    const makePng = async (name, color) => {
+      const c = document.createElement("canvas");
+      c.width = 64;
+      c.height = 64;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, 64, 64);
+      const blob = await new Promise((resolve) => c.toBlob(resolve, "image/png"));
+      return new File([blob], name, { type: "image/png" });
+    };
+    const setFile = (file) => {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const pending = await makePng("pending.png", "#1e88e5");
+    setFile(pending); // 开始异步解码
+    setFile(new File(["not an image at all\n"], "invalid.txt", { type: "text/plain" })); // 同一 tick 立刻拒绝
+  });
+  await sleep(900);
+  const raceAfterInvalid = await page.evaluate(() => ({
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture,
+    name: document.getElementById("texture-name").textContent.trim(),
+    errorHidden: document.getElementById("error").hidden,
+    errorText: document.getElementById("error").textContent.trim()
+  }));
+  check.ok(
+    "最新无效选择后保留 baseline 贴图（过期 pending 不顶替）",
+    raceAfterInvalid.hasMap &&
+      !!raceAfterInvalid.texture &&
+      raceAfterInvalid.texture.name.includes("test-photo") &&
+      raceAfterInvalid.name.includes("test-photo"),
+    `map=${raceAfterInvalid.hasMap} texture=${raceAfterInvalid.texture ? raceAfterInvalid.texture.name : "null"} name=${raceAfterInvalid.name}`
+  );
+  check.ok(
+    "最新无效选择的中文原因不会被过期加载清掉",
+    raceAfterInvalid.errorHidden === false && /仅支持|文件类型/.test(raceAfterInvalid.errorText),
+    raceAfterInvalid.errorText.slice(0, 100)
+  );
+
+  // 加载中点「移除贴图」：进行中的加载必须过期，回调不得复活贴图。
+  await page.evaluate(async () => {
+    const input = document.getElementById("texture-file");
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#43a047";
+    ctx.fillRect(0, 0, 64, 64);
+    const blob = await new Promise((resolve) => c.toBlob(resolve, "image/png"));
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], "pending2.png", { type: "image/png" }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    document.getElementById("texture-remove").click();
+  });
+  await sleep(900);
+  const clearedDuringPending = await page.evaluate(() => ({
+    hasMap: !!window.__extrude3d.mesh.material.map,
+    texture: window.__extrude3d.getInfo().texture,
+    name: document.getElementById("texture-name").textContent.trim()
+  }));
+  check.ok(
+    "加载中点「移除贴图」后保持为空（过期回调不复活贴图）",
+    !clearedDuringPending.hasMap &&
+      clearedDuringPending.texture === null &&
+      clearedDuringPending.name.includes("未使用"),
+    `map=${clearedDuringPending.hasMap} texture=${clearedDuringPending.texture} name=${clearedDuringPending.name}`
+  );
+
   check.ok("页面无未捕获异常", page.errors.length === 0, page.errors.slice(0, 3).join(" | "));
 
   // 危险 SVG：含 <text> 必须被明确拒绝
