@@ -2,9 +2,9 @@
  * tools/ascii-motion · smoke
  *
  * 覆盖：页面可进入 / WebGL2 真实渲染 / 4 组预设与 4 组字符集 /
- * 默认水母是真实字符画（多字符、多颜色）/ 运行中字符快照持续变化 /
- * 切预设、改密度、换字符集、换颜色都引起真实变化 / 暂停后字符快照稳定 /
- * 导出 PNG 是从当前字符快照重绘的字符画（真实字符 + 颜色，非原始网格）/ 无外部网络请求。
+ * 默认水母是真实字符画（多字符、多颜色）/ 紧凑视觉信号（前景不止横线、触手连续、整体不被底部裁切）/
+ * 运行中字符快照持续变化 / 切预设、改密度、换字符集、换颜色都引起真实变化 / 暂停后字符快照稳定 /
+ * 导出 PNG 是从当前字符快照重绘的字符画（真实字符 + 颜色 + 底部触手像素，非原始网格）/ 无外部网络请求。
  */
 import { pngInfo, webglReport } from "../harness.mjs";
 
@@ -65,6 +65,23 @@ export async function run({ page, base, downloads, check, sleep }) {
     `${stats.rows} 行 × ${stats.cols} 列，字符类 ${stats.chars}，着色 ${stats.colored}`
   );
 
+  /* ------------------------------------------------ 紧凑视觉信号（默认水母） */
+  // 一次采样同时约束：前景不止是横线、触手在下半部仍连续成束、整体未被底部裁切。
+  const signal = await page.evaluate(() => window.imagelab.visualSignal());
+  check.ok(
+    "默认水母前景不止是孤立横线且未被底部裁切（触手连续、整体入画）",
+    !!signal &&
+      signal.fg > 200 &&
+      signal.varied >= 2 &&
+      signal.lowerCells >= 12 &&
+      signal.lowerRows >= 8 &&
+      signal.lowerCols >= 5 &&
+      signal.bottomMargin >= 2,
+    signal
+      ? `前景格=${signal.fg} 非横线类=${signal.varied} 下半格=${signal.lowerCells} 下半行=${signal.lowerRows}/占列=${signal.lowerCols} 底部留白=${signal.bottomMargin} 横线占比=${signal.dashRatio}`
+      : "无信号"
+  );
+
   /* ------------------------------------------------------------ 真实动效 */
   const sig1 = await page.evaluate(() => window.imagelab.signature());
   await sleep(900);
@@ -94,7 +111,7 @@ export async function run({ page, base, downloads, check, sleep }) {
     afterDensity.rows > beforeDensity.rows && afterDensity.cols >= beforeDensity.cols,
     `${beforeDensity.rows}×${beforeDensity.cols} → ${afterDensity.rows}×${afterDensity.cols}`
   );
-  await setRange(page, "#p-density", 0.35);
+  await setRange(page, "#p-density", 0.55);
   await sleep(600);
 
   /* ------------------------------------------------------------- 字符集 */
@@ -108,7 +125,7 @@ export async function run({ page, base, downloads, check, sleep }) {
 
   /* --------------------------------------------------------------- 颜色 */
   const beforeColor = (await page.evaluate(() => window.imagelab.stats())).avgColor;
-  await page.click("#color-lilac");
+  await page.click("#color-blue");
   await sleep(700);
   const afterColor = (await page.evaluate(() => window.imagelab.stats())).avgColor;
   check.ok(
@@ -142,26 +159,53 @@ export async function run({ page, base, downloads, check, sleep }) {
     const c = document.createElement("canvas");
     c.width = img.naturalWidth;
     c.height = img.naturalHeight;
+    const W = c.width;
+    const H = c.height;
     const x = c.getContext("2d");
     x.drawImage(img, 0, 0);
-    const d = x.getImageData(0, 0, c.width, c.height).data;
+    const d = x.getImageData(0, 0, W, H).data;
     let fg = 0;
     let total = 0;
+    let top = H;
+    let bottom = -1;
     const colors = new Set();
-    for (let i = 0; i < d.length; i += 4) {
-      total++;
-      const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
-      if (lum > 24) {
-        fg++;
-        colors.add(`${d[i] >> 5},${d[i + 1] >> 5},${d[i + 2] >> 5}`);
+    for (let y = 0; y < H; y++) {
+      for (let px = 0; px < W; px++) {
+        const i = (y * W + px) * 4;
+        total++;
+        const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+        if (lum > 24) {
+          fg++;
+          colors.add(`${d[i] >> 5},${d[i + 1] >> 5},${d[i + 2] >> 5}`);
+          if (y < top) top = y;
+          if (y > bottom) bottom = y;
+        }
       }
     }
-    return { fgRatio: +(fg / total).toFixed(4), colors: colors.size, size: [c.width, c.height] };
+    // 前景包围盒底部 40% 内的前景像素与覆盖列数：触手若断成零星短划，这里会明显稀疏。
+    const bandTop = bottom >= 0 ? Math.max(0, Math.floor(bottom - (bottom - top) * 0.4)) : 0;
+    let strandFg = 0;
+    const strandCols = new Set();
+    for (let y = bandTop; y <= bottom; y++) {
+      for (let px = 0; px < W; px++) {
+        const i = (y * W + px) * 4;
+        if ((d[i] + d[i + 1] + d[i + 2]) / 3 > 24) {
+          strandFg++;
+          strandCols.add(px);
+        }
+      }
+    }
+    return { fgRatio: +(fg / total).toFixed(4), colors: colors.size, size: [W, H], strandFg, strandCols: strandCols.size };
   });
   check.ok(
     "导出画布是真实字符画（有字符像素且多色，不是原始网格）",
     rendered.fgRatio > 0.01 && rendered.colors >= 3,
     `前景占比=${rendered.fgRatio} 色彩簇=${rendered.colors} ${rendered.size.join("×")}`
+  );
+  check.ok(
+    "导出画布包含触手像素（底部区域仍有横向铺开的字符像素）",
+    rendered.strandFg > 20 && rendered.strandCols >= 5,
+    `底部区域前景=${rendered.strandFg} 占列=${rendered.strandCols}`
   );
 
   await page.click("#btn-export");

@@ -4,6 +4,19 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 修复：动态字符画水母触手改用原生宽线（待 Codex 复验）
+- `tools/ascii-motion` 水母触手由 1 像素 `LineBasicMaterial` 换成 three 自带 `addons/lines` 的
+  `Line2` + `LineGeometry` + `LineMaterial` 原生宽线（宽 6 逻辑像素），resize 时同步 `resolution`；
+  每帧只原地改写 `instanceStart` / `instanceEnd` 共用缓冲区，不重建 / 不销毁几何体，不写自定义着色器、
+  不加依赖；10 条触手的相位与路径曲线保持不变。
+- 默认值同步：水母颜色改浅薰衣草 `#b8c6ff`（HTML 默认选中同步）、辉光 0.65、密度 0.55；水母镜头拉远到
+  z≈6.5、看向 y≈-0.4，伞盖与最长触手完整入画；圆环 / 隧道 / 波形三组预设镜头不变。
+- `tests/specs/ascii-motion.mjs` 扩展一条紧凑视觉信号（默认前景不止横线、下半部触手连续、底部不裁切）
+  与一条导出画布底部触手像素断言；浏览器断言与真实封面仍由 Codex 执行。
+- 限制：字符采样格约 13px，宽线仍可能被字符化成横线 / 等号；这是 AsciiEffect 按亮度取字的固有上限，
+  本轮只保证「连续成束、不被裁切」，不改变字符映射规则。验证：`npm run check`（46 项）/ `npm test` /
+  `npm run build` 通过，真实 Chrome 复验待 Codex。
+
 ### 修复：文字混排本机字体 API 路径订正（待 Codex 独立复验）
 - `tools/mixed-type` 的「读取本机字体」改按 MDN 主 API 调用 `window.queryLocalFonts`：原写成
   `navigator.queryLocalFonts`，而已安装 Chrome 只把该函数挂在 `window` 上（`navigator` 上为 `undefined`），

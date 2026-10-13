@@ -5,6 +5,10 @@
  * `addons/effects/AsciiEffect`（MIT）把渲染结果转成字符。没有自定义着色器、
  * 没有外部模型 / 贴图 / 字体。
  *
+ * 水母触手用 three 自带 `addons/lines`（Line2 + LineGeometry + LineMaterial，均 MIT）
+ * 画原生宽线：1 像素的 LineBasicMaterial 在字符采样格里会碎成孤立短划，宽线能保持连续；
+ * 每帧只原地改写 instanceStart / instanceEnd 共用的数据，不重建、不销毁几何体。
+ *
  * 预览：AsciiEffect 生成的 DOM 表格（真实字符 + 行内颜色）。
  * 导出：读取当前这一帧表格里的「真实字符 + 行内颜色 + 背景」，用 Canvas 2D 重绘成 PNG，
  *       因此导出的是字符画本身，而不是原始三维网格，也不需要 html2canvas 之类的依赖。
@@ -12,6 +16,9 @@
 
 import * as THREE from "three";
 import { AsciiEffect } from "three/addons/effects/AsciiEffect.js";
+import { Line2 } from "three/addons/lines/Line2.js";
+import { LineGeometry } from "three/addons/lines/LineGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -32,13 +39,15 @@ const PRESETS = {
 
 const BG = "#05060b";
 const FALLBACK_COLOR = "#f2f4ff";
+/** 触手宽线的逻辑像素宽度：字符采样格约 13px，太细会在采样时断成孤立短划。 */
+const STRAND_WIDTH = 6;
 
 const state = {
   preset: "jellyfish",
-  density: 0.35,
+  density: 0.55,
   speed: 1,
-  glow: 0.5,
-  color: "#6ea8ff",
+  glow: 0.65,
+  color: "#b8c6ff",
   charsetId: "standard"
 };
 
@@ -84,11 +93,6 @@ function mat() {
   materials.push(m);
   return m;
 }
-function lineMat() {
-  const m = new THREE.LineBasicMaterial({ color: state.color });
-  materials.push(m);
-  return m;
-}
 function track(geo) {
   geometries.push(geo);
   return geo;
@@ -128,12 +132,18 @@ function buildJellyfish() {
   for (let k = 0; k < count; k++) {
     const angle = (k / count) * Math.PI * 2;
     const N = 18;
-    const positions = new Float32Array(N * 3);
-    const geo = track(new THREE.BufferGeometry());
-    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    const line = new THREE.Line(geo, lineMat());
+    // LineGeometry.setPositions 接收 N 个点，内部换算成 N-1 段并建立 instanceStart /
+    // instanceEnd 共用缓冲区；这里只建一次，之后每帧原地改写该原生缓冲区，不再分配 / 销毁几何体。
+    const geo = track(new LineGeometry());
+    geo.setPositions(new Float32Array(N * 3));
+    const segs = geo.attributes.instanceStart.data.array;
+    const lineMat = new LineMaterial({ color: state.color, linewidth: STRAND_WIDTH });
+    lineMat.resolution.set(1, 1); // 真实分辨率在 resize() / buildEffect() 后同步
+    materials.push(lineMat);
+    const line = new Line2(geo, lineMat);
+    line.frustumCulled = false; // 缓冲区原地更新后包围球会过期，关掉剔除
     root.add(line);
-    tentacles.push({ positions, geo, angle, phase: k * 0.9, length: 1.5 + (k % 3) * 0.45, radius: 1.05 });
+    tentacles.push({ segs, geo, points: N, angle, phase: k * 0.9, length: 1.5 + (k % 3) * 0.45, radius: 1.05 });
   }
   root.position.y = 0.1;
 }
@@ -180,33 +190,55 @@ function buildPreset(name) {
   else if (name === "tunnel") buildTunnel();
   else if (name === "wave") buildWave();
   else buildJellyfish();
+  if (name === "jellyfish") camera.position.set(0, 0.35, 6.5);
   applyColor();
 }
 
 /* --------------------------------------------------------------- 动画更新 */
 
+/** 水母触手：同样的相位 / 路径曲线，写进 LineGeometry 共用的 instance 缓冲区。 */
+function updateTentacles(t) {
+  for (const tn of tentacles) {
+    const segs = tn.segs;
+    const N = tn.points;
+    const cos = Math.cos(tn.angle);
+    const sin = Math.sin(tn.angle);
+    for (let j = 0; j < N; j++) {
+      const f = j / (N - 1);
+      const sway = Math.sin(t * 2 + f * 6.5 + tn.phase) * 0.3 * f;
+      const sway2 = Math.cos(t * 1.35 + f * 4 + tn.phase * 0.7) * 0.24 * f;
+      const r = tn.radius - f * 0.5;
+      const x = cos * r + sway * cos + sway2 * -sin * 0.7;
+      const y = -f * tn.length;
+      const z = sin * r + sway * sin + sway2 * cos * 0.7;
+      // 点 j 同时是线段 j 的起点、线段 j-1 的终点（instanceStart / instanceEnd 共用一块数据）。
+      if (j > 0) {
+        const e = (j - 1) * 6 + 3;
+        segs[e] = x;
+        segs[e + 1] = y;
+        segs[e + 2] = z;
+      }
+      if (j < N - 1) {
+        const s = j * 6;
+        segs[s] = x;
+        segs[s + 1] = y;
+        segs[s + 2] = z;
+      }
+    }
+    tn.geo.attributes.instanceStart.data.needsUpdate = true;
+  }
+}
+
 function updateScene(t) {
   if (state.preset === "jellyfish") {
-    for (const tn of tentacles) {
-      const N = tn.positions.length / 3;
-      const cos = Math.cos(tn.angle);
-      const sin = Math.sin(tn.angle);
-      for (let j = 0; j < N; j++) {
-        const f = j / (N - 1);
-        const sway = Math.sin(t * 2 + f * 6.5 + tn.phase) * 0.3 * f;
-        const sway2 = Math.cos(t * 1.35 + f * 4 + tn.phase * 0.7) * 0.24 * f;
-        const r = (tn.radius - f * 0.5);
-        tn.positions[j * 3] = cos * r + sway * cos + sway2 * -sin * 0.7;
-        tn.positions[j * 3 + 1] = -f * tn.length;
-        tn.positions[j * 3 + 2] = sin * r + sway * sin + sway2 * cos * 0.7;
-      }
-      tn.geo.attributes.position.needsUpdate = true;
-    }
+    updateTentacles(t);
     root.rotation.y = Math.sin(t * 0.25) * 0.35;
     root.position.y = 0.1 + Math.sin(t * 0.9) * 0.08;
+    // 伞盖 + 触手整体偏下：镜头拉远到 6.5、看向 y≈-0.4，保证最长触手也在画面内。
     camera.position.x = Math.sin(t * 0.22) * 0.7;
-    camera.position.y = 0.55 + Math.sin(t * 0.5) * 0.18;
-    camera.lookAt(0, 0.1, 0);
+    camera.position.y = 0.35 + Math.sin(t * 0.5) * 0.18;
+    camera.position.z = 6.5;
+    camera.lookAt(0, -0.4, 0);
   } else if (state.preset === "ring") {
     for (const rr of rings) {
       rr.mesh.rotation.z += 0.016 * rr.speed;
@@ -277,6 +309,8 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   if (effect) effect.setSize(w, h);
+  // 宽线着色器按 resolution 把线宽换算到屏幕像素，跟随画布尺寸同步。
+  for (const m of materials) if (m.isLineMaterial) m.resolution.set(w, h);
   dirty = true;
 }
 
@@ -360,6 +394,77 @@ function glyphStats() {
 }
 
 const exportCanvas = document.createElement("canvas");
+
+/**
+ * 紧凑视觉信号：从当前字符快照一次性算出
+ * - 前景是否不止是横线（非横线字符种类 / 横线占比）；
+ * - 前景包围盒四边留白（判断模型有没有被画面裁切，底部尤其关键）；
+ * - 下半部前景字符数 / 覆盖行数 / 占列数（判断触手是连续成束还是零星短划）。
+ */
+function visualSignal() {
+  const rows = readGlyphRows();
+  if (!rows || !rows.length) return null;
+  const dashChars = new Set(["-", "=", "_", "~", "\u2014", "\u2013"]);
+  let cols = 0;
+  let fg = 0;
+  let dash = 0;
+  let top = -1;
+  let bottom = -1;
+  let left = -1;
+  let right = -1;
+  const varied = new Set();
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r];
+    if (row.length > cols) cols = row.length;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (!cell || cell.ch === " ") continue;
+      fg++;
+      if (dashChars.has(cell.ch)) dash++;
+      else varied.add(cell.ch);
+      if (top < 0) top = r;
+      bottom = r;
+      if (left < 0 || c < left) left = c;
+      if (c > right) right = c;
+    }
+  }
+  const mid = top < 0 ? 0 : (top + bottom) / 2;
+  let lowerCells = 0;
+  let lowerRows = 0;
+  const lowerCols = new Set();
+  for (let r = 0; r < rows.length; r++) {
+    if (r <= mid) continue;
+    const row = rows[r];
+    let hitRow = false;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (!cell || cell.ch === " ") continue;
+      lowerCells++;
+      lowerCols.add(c);
+      hitRow = true;
+    }
+    if (hitRow) lowerRows++;
+  }
+  return {
+    rows: rows.length,
+    cols,
+    fg,
+    dash,
+    dashRatio: fg ? +(dash / fg).toFixed(3) : 1,
+    varied: varied.size,
+    top,
+    bottom,
+    left,
+    right,
+    topMargin: top,
+    bottomMargin: top < 0 ? 0 : rows.length - 1 - bottom,
+    leftMargin: left,
+    rightMargin: right < 0 ? 0 : cols - 1 - right,
+    lowerCells,
+    lowerRows,
+    lowerCols: lowerCols.size
+  };
+}
 
 /** 把当前字符快照真正画到 canvas（不是原始网格、不是页面截图）。 */
 function buildExportCanvas() {
@@ -557,6 +662,7 @@ window.imagelab = {
   charsets: () => CHARSETS.map((c) => c.id),
   stats: () => glyphStats(),
   signature: () => glyphStats().signature,
+  visualSignal: () => visualSignal(),
   exportSize: () => {
     const c = buildExportCanvas();
     return c ? { width: c.width, height: c.height } : null;
