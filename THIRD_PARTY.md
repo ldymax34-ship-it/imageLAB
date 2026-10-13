@@ -9,7 +9,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 
 | 包 | 版本 | 许可 | 用途 | 上游 |
 | --- | --- | --- | --- | --- |
-| `three` | 0.186.1（锁定） | MIT | 3D 渲染、SVG 加载、挤出几何、OrbitControls、RoomEnvironment | https://github.com/mrdoob/three.js |
+| `three` | 0.186.1（锁定） | MIT | 3D 渲染、SVG 加载、挤出几何、OrbitControls、RoomEnvironment、`addons/effects/AsciiEffect` 字符化 | https://github.com/mrdoob/three.js |
 | `@visant/extrude3d` | 0.1.0（锁定） | MIT | SVG → 挤出几何、材质预设库 | https://github.com/pedrojaques99/visantlabs-os （子包 `packages/extrude3d`） |
 | `@paper-design/shaders` | 0.0.81（锁定） | Apache-2.0 + NOTICE | WebGL2 着色器（液态金属、动态背景、半调等） | https://github.com/paper-design/shaders |
 
@@ -81,6 +81,21 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
   `vite.config.ts` 设 `base: './'` 且 `outDir` 指向 `dist/tools/psychos`。
 - `JetBrains Mono` 为 SIL OFL 1.1，随上游分发，未改动。
 
+### tools/mixed-type · tools/wave-grid · tools/ascii-motion（本批新增 · 独立实现）
+
+- 这三个工具是依据用户提供的参考视频**新写的独立实现**：只调用仓库已锁定的 `three@0.186.1`（MIT）与
+  浏览器原生能力（Canvas 2D、`Intl.Segmenter`、`FontFaceSet`、`navigator.queryLocalFonts`），
+  **没有**复制任何商业站点的源码、品牌、素材或字体，也没有把参考页面当作模板。
+- `tools/ascii-motion` 复用 three 自带的 `examples/jsm/effects/AsciiEffect.js`（MIT，随 `three@0.186.1`
+  分发，许可原文见 [`third-party-licenses/three-LICENSE.txt`](third-party-licenses/three-LICENSE.txt)），
+  未改写其中的字符转换算法，也没有引入自定义 Shader 或额外运行时依赖。
+- 参考来源「Mixweight」的网址在本机**不可达**：未能逐条核对原始开源许可。本批以用户对「按视频效果实现」的
+  专项授权为前提，许可登记以本文件与 `third-party-licenses/` 中已锁定的上游（three）为准。
+- 字体：三个工具只使用访问者本机已安装的系统字体，仓库**不打包、不分发**任何字体文件；
+  本机字体的许可由使用者在自己的机器上自行确认，不进入本项目的分发范围。
+- 封面路径 `public/assets/covers/mixed-type.png`、`wave-grid.png`、`ascii-motion.png` 已登记；
+  在 Codex 用真实导出抓取前，首页对这些入口显示中性文字占位（不伪造效果图）。
+
 ## 明确排除（未接入）
 
 | 项目 | 原因 |
@@ -94,7 +109,8 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 
 ## 本项目自身的代码
 
-`index.html`、`assets/`、`scripts/`、`tests/`、`tools/shaders-*/`、`tools/extrude3d/` 等入口与适配代码为 imageLAB 自有代码。
+`index.html`、`assets/`、`scripts/`、`tests/`、`tools/shaders-*/`、`tools/extrude3d/`、`tools/mixed-type/`、
+`tools/wave-grid/`、`tools/ascii-motion/` 等入口与适配代码为 imageLAB 自有代码。
 `tools/texture/` 为用户原创项目源码（`curve-fit.js` 亦为用户本人所写，已确认可公开），按用户要求**逐字节原样收录**；
 仅整合副本的 `style.css` 为本站界面主题改为白 / 黑 / 中性灰，`_source_snapshot/` 的 8 份根原件保持未改动。
 

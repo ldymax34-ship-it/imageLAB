@@ -1,12 +1,13 @@
 /**
- * 首页 smoke：大标题 / 分类 / 搜索可用；9 张内置卡片都有封面位（真实封面或明确占位，不许破图），
+ * 首页 smoke：大标题 / 分类 / 搜索可用；12 张内置卡片都有封面位（真实封面或明确占位，不许破图），
  * 且每个内置进入链接真的可达（HTTP 200）。这条测试保证「只列已可用入口」这条规则被真正执行。
  *
  * 3 个外部网站入口只做跳转：校验标注 / 按钮文案 / 两处链接 target-rel / 准确网址 / 关键词搜索，
  * 不向外部 URL 发请求（会 CORS 失败），也不纳入本地封面与可达断言。
  *
  * 封面说明：真实封面由验收阶段用工具的真实导出画面生成（`node scripts/capture-covers.mjs`）。
- * 尚未生成时首页显示中性文字占位，此项会如实报出「待生成」清单而不是伪造通过。
+ * 原有 9 个内置入口必须保持真实封面；本批新增的 3 个工具（文字混排 / 波动点阵 / 动态字符画）
+ * 在 Codex 抓取真实封面之前显示中性文字占位，此项会如实报出「待生成」而不是伪造通过。
  */
 export const id = "home";
 export const title = "首页 ImageLAB";
@@ -30,7 +31,7 @@ export async function run({ page, base, browser, check, sleep }) {
   await page.waitForSelector(".card", { timeout: 15000 });
   const cardCount = await page.$$eval(".card", (n) => n.length);
   check.ok("工具卡片数量 ≥ 1", cardCount >= 1, `${cardCount} 张`);
-  check.ok("首页共 12 个入口（9 内置 + 3 外部）", cardCount === 12, `${cardCount} 张`);
+  check.ok("首页共 15 个入口（12 内置 + 3 外部）", cardCount === 15, `${cardCount} 张`);
   const extCardCount = await page.$$eval(".card.is-external", (n) => n.length);
   check.ok("其中外部网站入口 3 个", extCardCount === 3, `${extCardCount} 张`);
 
@@ -192,11 +193,22 @@ export async function run({ page, base, browser, check, sleep }) {
     `真实封面 ${realCovers.length}/${covers.length}` +
       (pendingCovers.length ? `；待生成：${pendingCovers.map((c) => c.name).join("、")}` : "")
   );
-  // 原有 9 个内置入口的封面断言不降低：数量固定为 9，且都必须是真实封面而非占位。
+  // 原有 9 个内置入口的封面断言不降低：必须都是真实封面而非占位。
+  // 本批新增的 3 个工具在 Codex 抓取前允许是中性文字占位（不是伪造效果图）。
+  const NEW_TOOLS = ["文字混排", "波动点阵", "动态字符画"];
+  const newCards = covers.filter((c) => NEW_TOOLS.includes(c.name));
+  const originalReal = covers.filter((c) => !NEW_TOOLS.includes(c.name) && c.natural[0] > 0);
+  const newReal = newCards.filter((c) => c.natural[0] > 0);
+  const newPending = newCards.filter((c) => !c.natural[0] && c.fallback);
   check.ok(
-    "9 个内置入口都有真实封面（不降级为占位）",
-    covers.length === 9 && realCovers.length === 9,
-    `内置卡片 ${covers.length}，真实封面 ${realCovers.length}`
+    "原有 9 个内置入口都有真实封面（不降级为占位）",
+    covers.length === 12 && originalReal.length === 9,
+    `内置卡片 ${covers.length}，原有真实封面 ${originalReal.length}`
+  );
+  check.ok(
+    "新增 3 个工具封面为真实封面或中性占位（不伪造效果图）",
+    newCards.length === 3 && newReal.length + newPending.length === 3 && newCards.every((c) => !c.broken),
+    `真实 ${newReal.length}，待生成占位 ${newPending.length}`
   );
 
   // 每个内置入口链接都要真的可达（外部入口不 fetch，避免 CORS 假失败）

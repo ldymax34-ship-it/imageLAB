@@ -185,6 +185,41 @@ const TARGETS = {
     export: "#export-png",
     canvas: "#view-canvas"
   },
+  "mixed-type": {
+    path: "/tools/mixed-type/index.html",
+    async setup(page) {
+      await page.waitForSelector("#mix-canvas", { timeout: 30000 });
+      await page.waitForFunction(() => window.imagelab && window.imagelab.ready === true, { timeout: 30000 });
+      await sleep(1200);
+    },
+    export: "#btn-export",
+    canvas: "#mix-canvas"
+  },
+  "wave-grid": {
+    path: "/tools/wave-grid/index.html",
+    async setup(page) {
+      await page.waitForSelector("#wave-canvas", { timeout: 30000 });
+      await page.waitForFunction(() => window.imagelab && window.imagelab.ready === true, { timeout: 30000 });
+      await sleep(1500);
+      // 暂停后再导出，保证封面对应确定的一帧。
+      await page.click("#btn-pause").catch(() => {});
+      await sleep(300);
+    },
+    export: "#btn-export",
+    canvas: "#wave-canvas"
+  },
+  "ascii-motion": {
+    path: "/tools/ascii-motion/index.html",
+    async setup(page) {
+      await page.waitForFunction(() => window.imagelab && window.imagelab.ready === true, { timeout: 30000 });
+      await sleep(2000);
+      await page.click("#btn-pause").catch(() => {});
+      await sleep(300);
+    },
+    export: "#btn-export",
+    // 退路：只截真实字符画预览区（不是整页，也不含任何参数面板 UI）。
+    canvas: "#ascii-holder"
+  },
   psychos: {
     path: "/tools/psychos/index.html",
     webgpu: true,

@@ -64,8 +64,17 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 **已并入 Codex 本轮 SVG立体 81/81 PASS**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
 实现侧只跑 `npm run check` / `npm test` / `npm run build`。
 
-首页现有 12 个入口：9 个内置（封面 / 进入链接可达断言不变）+ 3 个外部网站（仅校验标注、两处链接
-`target="_blank" rel="noopener noreferrer"`、准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。
+首页现有 15 个入口：12 个内置（原有 9 个封面 / 进入链接可达断言不变；本批新增 3 个在真实封面
+抓取前允许中性占位）+ 3 个外部网站（仅校验标注、两处链接 `target="_blank" rel="noopener noreferrer"`、
+准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。
+
+本批新增 3 份规格：`tests/specs/mixed-type.mjs`（默认可渲染 / 固定种子可复现 / 重新随机 / 描边 /
+本地字体降级 / 空文本空态 / 导出 PNG）、`tests/specs/wave-grid.mjs`（默认点阵 / 动效 / 暂停帧像素稳定 /
+文字与图片采样 / 无效图片保留上一张并 revoke / 当前帧导出不放大）、`tests/specs/ascii-motion.mjs`
+（WebGL2 真实渲染 / 4 预设 4 字符集 / 字符快照随动效变化 / 密度·字符集·颜色切换 / 暂停稳定 /
+导出为真实字符画而非原始网格）。三份规格都断言**0 外部网络请求**与无 console 错误。
+`home.mjs` 同步为 12 内置 + 3 外部 = 15。以上浏览器断言与真实封面**待 Codex 执行**，
+实现侧不启动浏览器。
 
 `extrude3d` 背景图片（第六轮，用户专项授权）新增断言：上传真实 PNG 后 `scene.background` 是真实贴图且
 按视口 / 原图宽高比居中 cover、背景缩放 1×→2×→1× 改变真实像素、导出 PNG 真实包含背景、

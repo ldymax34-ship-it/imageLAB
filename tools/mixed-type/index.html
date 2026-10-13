@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- imagelab:entry -->
+<title>文字混排 · 图像实验室 imageLAB</title>
+<meta name="description" content="中英文混排的文字海报生成器：字族池、字号、行高、字距、随机抖动与描边比例可调，固定随机种子可复现，导出 PNG。文字只在浏览器里排版，不上传。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/backlink.css">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./main.js"></script>
+</head>
+<body>
+
+<header class="il-head">
+  <h1>文字混排</h1>
+  <p>
+    输入中文 / 拉丁混排文字，勾选字族池，调字号、行高、字距与随机抖动，生成一张文字海报。
+    默认黑字白底；同一个随机种子永远得到同一版式，点「重新随机」才会换一版。文字只在浏览器里排版。
+  </p>
+</header>
+
+<main class="il-main">
+  <aside class="il-panel">
+
+    <section class="il-group">
+      <h2>文字</h2>
+      <textarea id="text-input" rows="4" maxlength="2000" spellcheck="false"
+        placeholder="粘贴或输入中文 / 英文混排文字，最多 2000 字"></textarea>
+      <p class="il-note"><span id="text-count">0 / 2000</span> · 支持换行与中英文混排</p>
+    </section>
+
+    <section class="il-group">
+      <h2>字族池</h2>
+      <p class="il-note" id="font-hint">勾选会用到的字族，每个字随机取其中一个。默认用系统无衬线 / 衬线 / 等宽加上中文回退。</p>
+      <div class="il-fonts" id="font-list"></div>
+      <div class="il-row">
+        <label for="custom-font">自定义字族</label>
+        <input type="text" id="custom-font" placeholder="如 Songti SC" autocomplete="off">
+      </div>
+      <div class="il-chips">
+        <button type="button" id="btn-add-custom">加入字族池</button>
+        <button type="button" id="btn-local-fonts">读取本地字体</button>
+      </div>
+      <p class="il-note" id="font-status">本机字体仅在你点击后读取，不会上传，也不会打包含字体文件。</p>
+    </section>
+
+    <section class="il-group">
+      <h2>排版</h2>
+      <div class="il-range">
+        <label for="p-size">字号</label>
+        <input type="range" id="p-size" min="10" max="200" step="1" value="68">
+        <input type="number" id="n-size" min="10" max="200" step="1" value="68">
+      </div>
+      <div class="il-range">
+        <label for="p-line">行高</label>
+        <input type="range" id="p-line" min="0.9" max="2.4" step="0.01" value="1.25">
+        <input type="number" id="n-line" min="0.9" max="2.4" step="0.01" value="1.25">
+      </div>
+      <div class="il-range">
+        <label for="p-tracking">字距</label>
+        <input type="range" id="p-tracking" min="-6" max="40" step="0.5" value="2">
+        <input type="number" id="n-tracking" min="-6" max="40" step="0.5" value="2">
+      </div>
+      <div class="il-range">
+        <label for="p-jitter">随机幅度</label>
+        <input type="range" id="p-jitter" min="0" max="1" step="0.01" value="0.28">
+        <input type="number" id="n-jitter" min="0" max="1" step="0.01" value="0.28">
+      </div>
+      <div class="il-range">
+        <label for="p-outline">描边比例</label>
+        <input type="range" id="p-outline" min="0" max="1" step="0.01" value="0.22">
+        <input type="number" id="n-outline" min="0" max="1" step="0.01" value="0.22">
+      </div>
+      <div class="il-range">
+        <label for="p-width">画布宽</label>
+        <input type="range" id="p-width" min="640" max="2400" step="20" value="1200">
+        <input type="number" id="n-width" min="640" max="2400" step="20" value="1200">
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>随机与导出</h2>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-reroll">重新随机</button>
+      </div>
+      <p class="il-note">种子：<b id="seed-label">—</b>（同一组参数下，种子不变则版式不变）</p>
+      <button type="button" id="btn-export">导出 PNG</button>
+      <p class="il-note" id="export-info">导出当前这一版，默认黑字白底。</p>
+    </section>
+
+  </aside>
+
+  <section>
+    <div class="il-stage">
+      <div class="il-canvas" id="stage">
+        <canvas id="mix-canvas" width="1200" height="1500"></canvas>
+        <div class="il-empty" id="empty" hidden>
+          <b>还没有文字</b>
+          <span>在左侧「文字」里输入中文 / 英文混排内容，就会生成版式。</span>
+        </div>
+      </div>
+    </div>
+    <div class="il-legend">
+      <span id="status">初始化中…</span>
+      <span>本地排版 · 文字不上传 · 可导出 PNG</span>
+    </div>
+  </section>
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+</body>
+</html>

@@ -320,8 +320,8 @@ const externalEntries = entries.filter((e) => e.external);
 
 ok("首页清单非空", entries.length > 0, `${entries.length} 个入口`);
 ok(
-  "入口总数为 12（9 内置 + 3 外部）",
-  entries.length === 12 && builtinEntries.length === 9 && externalEntries.length === 3,
+  "入口总数为 15（12 内置 + 3 外部）",
+  entries.length === 15 && builtinEntries.length === 12 && externalEntries.length === 3,
   `总 ${entries.length}：内置 ${builtinEntries.length}，外部 ${externalEntries.length}`
 );
 ok(
@@ -331,13 +331,27 @@ ok(
 );
 
 // 内置入口：只校验仓库里的本地文件（入口页与封面）真实存在（封面经 public/ 复制进 dist 根）。
+// 本批次新增的 3 个工具封面由 Codex 用真实导出抓取；在抓取完成前登记为「待生成」，
+// 首页显示中性文字占位，绝不伪造效果图。待生成条目必须已经登记了预期封面路径。
+const PENDING_COVERS = new Set(["mixed-type", "wave-grid", "ascii-motion"]);
 const brokenHref = builtinEntries.filter((e) => !existsSync(resolve(ROOT, e.href)));
 ok("内置入口文件都存在", brokenHref.length === 0, brokenHref.map((e) => e.href).join(", "));
-const missingCover = builtinEntries.filter((e) => !e.cover || !existsSync(resolve(ROOT, "public", e.cover)));
+const missingCoverPath = builtinEntries.filter((e) => !e.cover);
+const missingCoverFile = builtinEntries.filter((e) => e.cover && !existsSync(resolve(ROOT, "public", e.cover)));
+const unexpectedMissing = missingCoverFile.filter((e) => !PENDING_COVERS.has(e.id));
 ok(
-  "内置入口封面文件都存在",
-  missingCover.length === 0,
-  missingCover.length ? missingCover.map((e) => e.id).join(", ") : `${builtinEntries.length} 张`
+  "内置入口都登记了封面路径",
+  missingCoverPath.length === 0,
+  missingCoverPath.length ? missingCoverPath.map((e) => e.id).join(", ") : `${builtinEntries.length} 个`
+);
+ok(
+  "已有封面文件齐备（新增 3 个工具登记为待 Codex 抓取）",
+  unexpectedMissing.length === 0,
+  unexpectedMissing.length
+    ? unexpectedMissing.map((e) => e.id).join(", ")
+    : missingCoverFile.length
+      ? `待生成：${missingCoverFile.map((e) => e.id).join(", ")}`
+      : `${builtinEntries.length} 张`
 );
 
 // 外部网站：不做本地文件 / spec / dist 校验，只确认是明确合法的 HTTPS 地址，

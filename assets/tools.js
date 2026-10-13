@@ -40,6 +40,18 @@ window.IMAGELAB_TOOLS = [
     note: "本地处理 · 素材不上传"
   },
   {
+    id: "wave-grid",
+    name: "波动点阵",
+    en: "Wave Grid",
+    cat: "像素与点阵",
+    desc: "暗底发光点阵：彩色波浪逐行流动，可把文字或本地图片采样成点阵亮度，调密度、波幅、速度与辉光，导出当前帧 PNG。",
+    href: "tools/wave-grid/index.html",
+    cover: "assets/covers/wave-grid.png",
+    span: 6,
+    keywords: "点阵 发光 波浪 led 矩阵 动效 辉光 wave grid matrix led",
+    note: "实时渲染 · 可定格单帧导出 PNG"
+  },
+  {
     id: "image-to-ascii",
     name: "字符画",
     en: "Image to ASCII",
@@ -50,6 +62,30 @@ window.IMAGELAB_TOOLS = [
     span: 6,
     keywords: "字符 ascii 文字 点阵 终端 text art",
     note: "本地处理 · 素材不上传"
+  },
+  {
+    id: "mixed-type",
+    name: "文字混排",
+    en: "Mixed Type",
+    cat: "字符与文字",
+    desc: "中英文混排的文字海报：字族池、字号、行高、字距、随机抖动与描边比例可调，同一随机种子可复现，导出 PNG。",
+    href: "tools/mixed-type/index.html",
+    cover: "assets/covers/mixed-type.png",
+    span: 6,
+    keywords: "文字 混排 中英文 排版 字族 海报 描边 字体 typography poster",
+    note: "本地处理 · 文字不上传"
+  },
+  {
+    id: "ascii-motion",
+    name: "动态字符画",
+    en: "ASCII Motion",
+    cat: "字符与文字",
+    desc: "水母、圆环、隧道、波形四组三维预设，用字符实时重绘；密度、字符集、速度、颜色与辉光可调，导出当前帧 PNG。",
+    href: "tools/ascii-motion/index.html",
+    cover: "assets/covers/ascii-motion.png",
+    span: 8,
+    keywords: "字符画 ascii 动态 水母 圆环 隧道 波形 三维 动画 jellyfish",
+    note: "实时渲染 · 可定格单帧导出 PNG"
   },
   {
     id: "shaders-logo",

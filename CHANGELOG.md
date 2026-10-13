@@ -4,6 +4,23 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 第七轮：新增 3 个独立可视化工具（文字混排 / 波动点阵 / 动态字符画）
+- 新增 `tools/mixed-type`（文字混排）：Canvas 2D 中英文混排海报；字族池、字号 / 行高 / 字距、随机抖动与
+  `strokeText` 描边比例；固定随机种子可复现（无逐帧重排），「重新随机」换版式；可选按钮调用原生
+  `navigator.queryLocalFonts`（仅用户点击 + 安全上下文；拒绝 / 不支持时给中文提示并保留系统回退），不打包字体。
+- 新增 `tools/wave-grid`（波动点阵）：原生 Canvas 2D 深底发光点阵，彩色波浪逐行流动；网格 ≤20000 单元、
+  画布边长约 1600；文字 / 本地图片（≤10 MiB、单边 ≤4096、真实解码、失败保留上一张并 revoke URL）采样亮度颜色；
+  形状 / 配色 / 密度 / 波幅 / 速度 / 辉光；暂停后导出当前帧 PNG（不放大）。
+- 新增 `tools/ascii-motion`（动态字符画）：three 0.186.1 + 自带 `AsciiEffect`（MIT）真实字符化；水母（球面片段 +
+  线段触手）/ 圆环 / 隧道 / 波形四组预设；密度 / 字符集 / 速度 / 颜色 / 辉光；暂停后从当前字符快照（真实字符 +
+  行内颜色 + 背景）用 Canvas 2D 重绘导出 PNG，不截原始网格、不依赖 html2canvas。
+- 集成：`assets/tools.js` 首页清单 12 内置 + 3 外部 = 15；`scripts/check.mjs` 入口 / 封面断言同步，
+  新增 3 条封面登记为「待 Codex 抓取」（首页显示中性占位，不伪造）；`scripts/capture-covers.mjs` 增加 3 个目标；
+  `tests/specs/` 新增 3 份规格（上传 / 调参 / 暂停像素 / 当前帧导出 PNG / 0 外部请求）。
+- 许可：3 个工具为视频效果的新写独立实现，只用已锁定的 three 与浏览器 API；参考来源 Mixweight 网址不可达，
+  以用户专项授权为前提；不打包 / 不分发任何字体，字体许可由使用者自担。`README` / `THIRD_PARTY` 已同步。
+- 验证：`npm run check`（46 项）/ `npm test` / `npm run build` 通过；浏览器验收与真实封面待 Codex 执行。
+
 ### 第六轮：SVG立体背景图片、全站中性化与 3D 冻结（本批）
 - extrude3d 新增背景图片（用户专项授权）：本地 PNG / JPEG / WebP（≤10 MiB、单边 ≤4096，白名单 + 实际解码）
   挂 three 原生 `scene.background`，用 `repeat` / `offset` 按视口做居中 cover，1×–3× 缩放；默认纯色改纯白 `#ffffff`。

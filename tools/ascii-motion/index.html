@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- imagelab:entry -->
+<title>动态字符画 · 图像实验室 imageLAB</title>
+<meta name="description" content="用字符拼出的动态画面：水母、圆环、隧道、波形四组预设，用 three 的 AsciiEffect 把真实三维动画转成字符，可调密度、字符集、速度、颜色与辉光，暂停后导出当前帧 PNG。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/backlink.css">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./main.js"></script>
+</head>
+<body>
+
+<header class="il-head">
+  <h1>动态字符画</h1>
+  <p>
+    用水母、圆环、隧道、波形四组预设生成真实的三维动画，再用字符重新拼出来：字符、颜色与明暗都来自当前这一帧。
+    调密度、字符集、速度、颜色与辉光；暂停后导出的就是屏幕上的这一帧字符画。全部在浏览器本地渲染。
+  </p>
+</header>
+
+<main class="il-main">
+  <aside class="il-panel">
+
+    <section class="il-group">
+      <h2>预设</h2>
+      <div class="il-chips" id="preset-chips">
+        <button type="button" id="preset-jellyfish" data-preset="jellyfish" aria-pressed="true">水母</button>
+        <button type="button" id="preset-ring" data-preset="ring" aria-pressed="false">圆环</button>
+        <button type="button" id="preset-tunnel" data-preset="tunnel" aria-pressed="false">隧道</button>
+        <button type="button" id="preset-wave" data-preset="wave" aria-pressed="false">波形</button>
+      </div>
+      <p class="il-note" id="preset-note"></p>
+    </section>
+
+    <section class="il-group">
+      <h2>字符</h2>
+      <div class="il-row">
+        <label for="char-pattern">字符集</label>
+        <select id="char-pattern"></select>
+      </div>
+      <div class="il-range">
+        <label for="p-density">密度</label>
+        <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.35">
+        <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.35">
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>动态</h2>
+      <div class="il-range">
+        <label for="p-speed">速度</label>
+        <input type="range" id="p-speed" min="0" max="2.5" step="0.02" value="1">
+        <input type="number" id="n-speed" min="0" max="2.5" step="0.02" value="1">
+      </div>
+      <div class="il-range">
+        <label for="p-glow">辉光</label>
+        <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.5">
+        <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>颜色</h2>
+      <div class="il-chips" id="color-chips">
+        <button type="button" id="color-blue" data-color="#6ea8ff" aria-pressed="true">蓝</button>
+        <button type="button" id="color-lilac" data-color="#c9a7ff" aria-pressed="false">淡紫</button>
+        <button type="button" id="color-cyan" data-color="#7ff0ff" aria-pressed="false">青</button>
+        <button type="button" id="color-white" data-color="#f2f4ff" aria-pressed="false">白</button>
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>单帧与导出</h2>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-pause">暂停</button>
+        <button type="button" id="btn-play">播放</button>
+      </div>
+      <p class="il-note">帧：<b id="frame-info">—</b></p>
+      <button type="button" id="btn-export">导出当前帧 PNG</button>
+      <p class="il-note" id="export-info">导出的是当前这一帧字符画（真实字符与颜色），不是原始三维网格。</p>
+    </section>
+
+  </aside>
+
+  <section>
+    <div class="il-stage">
+      <div class="il-canvas" id="stage">
+        <div id="ascii-holder"></div>
+      </div>
+    </div>
+    <div class="il-legend">
+      <span id="status">初始化中…</span>
+      <span>本地渲染 · 无外部素材 · 可导出 PNG</span>
+    </div>
+  </section>
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+</body>
+</html>

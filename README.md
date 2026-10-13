@@ -2,12 +2,12 @@
 
 名称拼写固定为 **ImageLAB**（首字母 `I` 大写、`mage` 小写、`LAB` 大写）。
 
-生成纹理、处理图片、探索材质。调好参数，直接出图。9 个内置工具在本地处理素材、不上传。
+生成纹理、处理图片、探索材质。调好参数，直接出图。12 个内置工具在本地处理素材、不上传。
 
 一个**纯静态、纯前端**的图像设计工具箱：首页 `index.html` + `tools/<id>/` 下的独立工具网页。
 内置工具只在本地浏览器里处理素材，不上传；没有数据库、没有账号、没有服务端渲染、也没有运行时远程模型或 API。
 首页另登记 **3 个外部网站入口，只做跳转**（外部网站内容由对方提供，本项目不部署、不复制源码、不下载封面、不 iframe、
-不引入运行时外部请求），因此「素材不上传」只适用于 9 个内置工具，不构成对第三方网站的保证。
+不引入运行时外部请求），因此「素材不上传」只适用于 12 个内置工具，不构成对第三方网站的保证。
 
 ## 快速开始
 
@@ -25,8 +25,9 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 `127.0.0.1` 上启动本地服务器后打开浏览器。
 
 > 首页视觉：纯白 + 纯黑 + 中性灰，hero 复用 `public/brand/ImageLAB-logo-preview.png` 字标（CSS 裁空白），
-> 全部视图为连续 12 栏网格。首页回归：9/9 内置真实封面、9 个内置入口 HTTP 200、bayer 搜索、
-> 分类、1440 与 390 宽无横向溢出、body 纯白；外部入口只断言标注 / target-rel / 网址 / 关键词，不向外部发请求。
+> 全部视图为连续 12 栏网格。首页回归：12 个内置入口（原有 9 个保持真实封面，本批新增 3 个在 Codex
+> 抓取前显示中性占位）、全部内置入口 HTTP 200、bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白；
+> 外部入口只断言标注 / target-rel / 网址 / 关键词，不向外部发请求。
 
 ## 工具清单与状态
 
@@ -41,14 +42,18 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
 | `tools/shaders-halftone/` | 半调网点 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
 | `tools/psychos/` | 图片拼贴 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
+| `tools/mixed-type/` | 文字混排 | `tools/mixed-type/index.html` | 中英文混排文字海报：字族池 / 字号 / 行高 / 字距 / 随机抖动 / 描边比例，固定种子可复现 | PNG | 待 Codex 浏览器验收 |
+| `tools/wave-grid/` | 波动点阵 | `tools/wave-grid/index.html` | 暗底发光点阵波浪；文字 / 本地图片采样、密度 / 波幅 / 速度 / 辉光 / 配色 | PNG（当前帧） | 待 Codex 浏览器验收 |
+| `tools/ascii-motion/` | 动态字符画 | `tools/ascii-motion/index.html` | 水母 / 圆环 / 隧道 / 波形四组三维预设，three `AsciiEffect` 真实字符化 | PNG（当前帧） | 待 Codex 浏览器验收 |
 
-首页按上表登记全部 9 个内置入口（含 `tools/psychos`）。Codex 已在构建产物（`dist/`）上独立复跑
+首页按上表登记全部 12 个内置入口（含 `tools/psychos`）。Codex 已在构建产物（`dist/`）上独立复跑
 全部浏览器验收：**310/310 PASS、0 失败**——extrude3d 81、home 63、image-to-ascii 11、
 image-to-pixel 34、pixelit 9、psychos 20、shaders-bg 37、shaders-halftone 29、shaders-logo 19、
 texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。
-另做独立计算样式审计：9 个页面可见的 body / header / aside / 按钮 / select / h1 / h2 / 返回链接
-**0 个非中性 UI 色彩**；画布 / 素材 / 材质调色板与 9 张真实封面保留原有彩色。首页回归：9/9 内置
-真实封面、9 个内置入口 HTTP 200、bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白，全部通过。
+另做独立计算样式审计：原有 9 个页面可见的 body / header / aside / 按钮 / select / h1 / h2 / 返回链接
+**0 个非中性 UI 色彩**；画布 / 素材 / 材质调色板与原有 9 张真实封面保留原有彩色。
+本批新增 3 个工具已随 `npm run check` / `npm test` / `npm run build` 通过静态与构建校验，
+**浏览器行为验收与真实封面抓取待 Codex 执行**（见 `tests/specs/`）。
 
 > 名称 / 文案与基础色表面贴图：不新增渲染业务外功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
 > 不建高级入口、不接 vgpu / 路径追踪，不新增依赖 / 后端 / CDN。首页卡片只显示现有中文分类
@@ -95,16 +100,27 @@ texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGP
 已由 Codex 本轮独立复跑通过（SVG立体 **81/81 PASS**）。
 
 > 未来 UI 规则（本批起）：全部工具界面与共享返回链接使用**白 / 黑 / 中性灰**，不再出现米色 / 奶油 / 棕 / 绿等
-> 彩色装饰；画布 / 素材 / 算法输出与材质调色板、9 张真实封面不受此规则影响（不重绘为单色）。
+> 彩色装饰；画布 / 素材 / 算法输出与材质调色板、真实封面不受此规则影响（不重绘为单色）。
 > `tools/texture` 的根原件不动，仅整合副本 `style.css` 改主题；`scripts/check.mjs` 仍逐字节校验 7 份非样式原件，
 > 并显式校验 `_source_snapshot` 的 8 份根原件哈希。
+
+### 本批新增的 3 个工具（视频效果复刻 · 独立实现）
+
+`tools/mixed-type` / `tools/wave-grid` / `tools/ascii-motion` 是依据用户提供的参考视频**新写的独立实现**：
+只使用仓库已锁定的 three 0.186.1（MIT，含 `examples/jsm/effects/AsciiEffect.js`）与浏览器原生
+Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `navigator.queryLocalFonts`，不复制任何商业站点源码、品牌、
+素材或字体，也不把这些页面当作模板。参考来源「Mixweight」的网址在本机**不可达**，未能逐条核对原始开源许可；
+本批按用户对「按视频效果实现」的专项授权执行，实现与许可登记以本仓库（`THIRD_PARTY.md`）自身为准。
+字体一律使用访问者本机已安装的系统字体，仓库**不打包、不分发**任何字体文件；本机字体的许可由使用者在
+自己的机器上自行确认。三条封面路径已登记，Codex 抓取真实导出前的首页占位不伪造效果图。
 
 `public/assets/covers/*.png` 是 9 张真实工具 PNG 导出（互不相同，实际内容已核验），由
 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
 优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；每个工具使用独立临时下载目录，
 只等待本次导出结果）。封面缺失时首页显示中性文字占位，不会破图、也不会用 AI 图或整页截图冒充效果图。
-`public/assets/covers/extrude3d.png` 本批已刷新为默认纯白背景下的真实 PNG 导出（1280×935，约 169 KB），
-由 Codex 用同一脚本生成，随本批提交、不重跑浏览器。
+本批新增的 `mixed-type` / `wave-grid` / `ascii-motion` 三条封面路径已登记进本脚本与首页清单，
+**待 Codex 用同一脚本抓取真实导出入库**；抓取前首页显示中性文字占位。
+`public/assets/covers/extrude3d.png` 已刷新为默认纯白背景下的真实 PNG 导出（1280×935，约 169 KB）。
 
 `tools/psychos` 不参与主站 Vite 多页打包，由 `scripts/build-psychos.mjs` 单独构建；它需要 WebGPU
 与安全上下文，因此请先 `npm run build`、再用 `npm run serve`（构建产物）打开，而不是 `npm run dev`。

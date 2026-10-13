@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- imagelab:entry -->
+<title>波动点阵 · 图像实验室 imageLAB</title>
+<meta name="description" content="暗底发光点阵：彩色波浪逐行流动，可把文字或本地图片采样成点阵亮度，密度、波幅、速度、辉光与配色可调，暂停后导出当前帧 PNG。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/backlink.css">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./main.js"></script>
+</head>
+<body>
+
+<header class="il-head">
+  <h1>波动点阵</h1>
+  <p>
+    暗底上的发光点阵：彩色波浪逐行流动，有轻微的起伏与纵深。可以把一段文字或一张本地图片采样成点阵的亮度，
+    调密度、波幅、速度、辉光与配色；暂停后导出当前这一帧。所有计算都在浏览器本地完成。
+  </p>
+</header>
+
+<main class="il-main">
+  <aside class="il-panel">
+
+    <section class="il-group">
+      <h2>网格</h2>
+      <div class="il-range">
+        <label for="p-density">密度</label>
+        <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.55">
+        <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.55">
+      </div>
+      <div class="il-range">
+        <label for="p-amp">波幅</label>
+        <input type="range" id="p-amp" min="0" max="1" step="0.01" value="0.6">
+        <input type="number" id="n-amp" min="0" max="1" step="0.01" value="0.6">
+      </div>
+      <div class="il-range">
+        <label for="p-speed">速度</label>
+        <input type="range" id="p-speed" min="0" max="3" step="0.02" value="1">
+        <input type="number" id="n-speed" min="0" max="3" step="0.02" value="1">
+      </div>
+      <div class="il-range">
+        <label for="p-glow">辉光</label>
+        <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.55">
+        <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.55">
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>单元形状</h2>
+      <div class="il-chips" id="shape-chips">
+        <button type="button" id="shape-squares" data-shape="squares" aria-pressed="true">方块</button>
+        <button type="button" id="shape-dots" data-shape="dots" aria-pressed="false">圆点</button>
+        <button type="button" id="shape-chars" data-shape="chars" aria-pressed="false">字符</button>
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>配色</h2>
+      <div class="il-chips" id="preset-chips">
+        <button type="button" id="preset-mono" data-preset="mono" aria-pressed="false">单色</button>
+        <button type="button" id="preset-cool" data-preset="cool" aria-pressed="false">冷色</button>
+        <button type="button" id="preset-multi" data-preset="multi" aria-pressed="true">多彩</button>
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>文字点阵</h2>
+      <p class="il-note">输入文字后，点阵会按文字形状取样，波浪在笔画里流动。</p>
+      <input type="text" id="mask-text" maxlength="24" placeholder="如 imageLAB" autocomplete="off">
+    </section>
+
+    <section class="il-group">
+      <h2>图片参考</h2>
+      <p class="il-note">可选：上传本地 PNG / JPEG / WebP（≤10 MiB、单边 ≤4096），点阵亮度与颜色会跟随图片。</p>
+      <input type="file" id="image-file" accept="image/png,image/jpeg,image/webp">
+      <div class="il-image-slot">
+        <p class="il-note" id="image-name">未选择图片。</p>
+        <button type="button" id="image-clear" hidden>清除图片</button>
+      </div>
+    </section>
+
+    <section class="il-group">
+      <h2>随机与导出</h2>
+      <div class="il-chips" style="margin-bottom:9px">
+        <button type="button" id="btn-pause">暂停</button>
+        <button type="button" id="btn-play">播放</button>
+        <button type="button" id="btn-reroll">重新随机</button>
+      </div>
+      <p class="il-note">种子：<b id="seed-label">—</b> · 暂停后导出的就是当前这一帧</p>
+      <button type="button" id="btn-export">导出当前帧 PNG</button>
+      <p class="il-note" id="export-info">导出当前预览画面，不放大、不改变分辨率。</p>
+    </section>
+
+  </aside>
+
+  <section>
+    <div class="il-stage">
+      <div class="il-canvas" id="stage">
+        <canvas id="wave-canvas"></canvas>
+      </div>
+    </div>
+    <div class="il-legend">
+      <span id="status">初始化中…</span>
+      <span>本地渲染 · 素材不上传 · 可导出 PNG</span>
+    </div>
+  </section>
+</main>
+
+<a class="il-back" href="../../index.html">← 图像实验室</a>
+
+</body>
+</html>

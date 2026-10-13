@@ -1,0 +1,311 @@
+/*
+ * imageLAB · 文字混排
+ * 视觉：中性白底 / 近黑文字 / 1px 实线分割线 / border-radius ≤ 2px。
+ * 预览区里的黑色字与白底来自生成结果本身。
+ */
+
+:root {
+  --paper: #f5f5f5;
+  --ink: #141414;
+  --rule: #dddddd;
+  --muted: #666666;
+  --panel: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
+    "Hiragino Sans GB", "Noto Sans SC", sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.il-head {
+  border-bottom: 1px solid var(--rule);
+  padding: 16px 18px 14px;
+}
+
+.il-head h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.il-head p {
+  margin: 5px 0 0;
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.il-main {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .il-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.il-panel {
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--panel);
+}
+
+.il-group {
+  padding: 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.il-group:last-child {
+  border-bottom: 0;
+}
+
+.il-group > h2 {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.il-note {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.il-note:last-child {
+  margin-bottom: 0;
+}
+
+.il-note b {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.il-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.il-chips button {
+  flex: 0 1 auto;
+}
+
+label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+input[type="number"],
+input[type="text"],
+select,
+textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 78px;
+  line-height: 1.5;
+}
+
+select {
+  padding: 4px 4px;
+}
+
+button {
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  accent-color: var(--ink);
+}
+
+.il-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.il-row:last-child {
+  margin-bottom: 0;
+}
+
+.il-range {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) 54px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.il-range:last-child {
+  margin-bottom: 0;
+}
+
+.il-range input[type="number"] {
+  padding: 3px 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 字族池：可滚动的复选列表，避免长列表把侧栏撑爆 */
+.il-fonts {
+  display: grid;
+  gap: 2px;
+  max-height: 168px;
+  overflow: auto;
+  margin-bottom: 9px;
+  padding: 6px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: #fff;
+}
+
+.il-fonts label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.il-fonts input {
+  accent-color: var(--ink);
+  margin: 0;
+}
+
+.il-fonts .il-font-tag {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* 预览区 */
+.il-stage {
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.il-canvas {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  background: #ffffff;
+}
+
+#mix-canvas {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 76vh;
+  border: 1px solid var(--rule);
+  background: #ffffff;
+}
+
+.il-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  background: rgba(245, 245, 245, 0.92);
+  text-align: center;
+}
+
+.il-empty[hidden] {
+  display: none;
+}
+
+.il-empty b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.il-empty span {
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.il-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.il-legend b {
+  color: var(--ink);
+  font-weight: 600;
+}
