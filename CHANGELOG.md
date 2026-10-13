@@ -4,10 +4,26 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 修复：文字混排本机字体 API 路径订正（待 Codex 独立复验）
+- `tools/mixed-type` 的「读取本机字体」改按 MDN 主 API 调用 `window.queryLocalFonts`：原写成
+  `navigator.queryLocalFonts`，而已安装 Chrome 只把该函数挂在 `window` 上（`navigator` 上为 `undefined`），
+  会导致误报「不支持」。保留安全上下文校验、点击手势与权限拒绝（`NotAllowedError` / `SecurityError`）
+  的中文回退；仍只在内存中登记去重后的字族名，不读取、不缓存、不上传、不打包任何字体文件。
+- `tests/specs/mixed-type.mjs` 增加两段紧凑分支并补一条真「不支持」分支（新增 5 项断言、替换原 1 项）：
+
+  仅在 `window` 上桩 `queryLocalFonts`（不动 `navigator`）返回含重复 family 的合成元数据，点击后断言
+  去重、中文成功提示与「只登记字族名、不自动勾选」；再桩成抛 `NotAllowedError`，点击后断言权限回退、
+  保留回退字族且无崩溃，并在 `finally` 按 `getOwnPropertyDescriptor` 现场精确还原（原生不存在时删除）；
+  只有 `window` 上确实没有可调用函数时才断言「不支持」，避免假缺省顶替。
+- 复核 `render()`：`await fontsReady()` 之后已有 `renderToken` 守卫，字体异步等待结束时若已触发更新的
+  渲染会直接放弃，旧字体异步不会覆盖较新文字；现有守卫已覆盖，无额外改动。
+- 验证：`npm run check`（46 项）/ `npm test`（35 项）/ `npm run build` 通过。真实 Chrome 的原生本机
+  字体读取与权限流程仍待 Codex 独立复验，**本记录不声称已在真实浏览器通过**。
+
 ### 第七轮：新增 3 个独立可视化工具（文字混排 / 波动点阵 / 动态字符画）
 - 新增 `tools/mixed-type`（文字混排）：Canvas 2D 中英文混排海报；字族池、字号 / 行高 / 字距、随机抖动与
   `strokeText` 描边比例；固定随机种子可复现（无逐帧重排），「重新随机」换版式；可选按钮调用原生
-  `navigator.queryLocalFonts`（仅用户点击 + 安全上下文；拒绝 / 不支持时给中文提示并保留系统回退），不打包字体。
+  `window.queryLocalFonts`（仅用户点击 + 安全上下文；拒绝 / 不支持时给中文提示并保留系统回退），不打包字体。
 - 新增 `tools/wave-grid`（波动点阵）：原生 Canvas 2D 深底发光点阵，彩色波浪逐行流动；网格 ≤20000 单元、
   画布边长约 1600；文字 / 本地图片（≤10 MiB、单边 ≤4096、真实解码、失败保留上一张并 revoke URL）采样亮度颜色；
   形状 / 配色 / 密度 / 波幅 / 速度 / 辉光；暂停后导出当前帧 PNG（不放大）。

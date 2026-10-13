@@ -108,7 +108,7 @@ texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGP
 
 `tools/mixed-type` / `tools/wave-grid` / `tools/ascii-motion` 是依据用户提供的参考视频**新写的独立实现**：
 只使用仓库已锁定的 three 0.186.1（MIT，含 `examples/jsm/effects/AsciiEffect.js`）与浏览器原生
-Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `navigator.queryLocalFonts`，不复制任何商业站点源码、品牌、
+Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `window.queryLocalFonts`，不复制任何商业站点源码、品牌、
 素材或字体，也不把这些页面当作模板。参考来源「Mixweight」的网址在本机**不可达**，未能逐条核对原始开源许可；
 本批按用户对「按视频效果实现」的专项授权执行，实现与许可登记以本仓库（`THIRD_PARTY.md`）自身为准。
 字体一律使用访问者本机已安装的系统字体，仓库**不打包、不分发**任何字体文件；本机字体的许可由使用者在

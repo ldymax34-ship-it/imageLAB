@@ -3,8 +3,8 @@
  *
  * 覆盖：页面可进入 / 默认文字即可渲染（黑字白底）/ 混排文字输入 /
  * 同一随机种子重复渲染得到同一张图（无逐帧重排）/ 重新随机换版式 /
- * 描边比例影响像素 / 空文本有中性空态 / 读取本地字体的降级提示 /
- * 单张 PNG 导出 / 无外部网络请求 / 无 console 错误。
+ * 描边比例影响像素 / 空文本有中性空态 / window.queryLocalFonts 成功去重与
+ * 权限拒绝 / 不支持的降级提示 / 单张 PNG 导出 / 无外部网络请求 / 无 console 错误。
  */
 import { pngInfo } from "../harness.mjs";
 
@@ -107,16 +107,94 @@ export async function run({ page, base, downloads, check, sleep }) {
     n.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
-  /* ------------------------------------------------- 本地字体按钮的降级 */
-  await page.click("#btn-local-fonts");
-  await sleep(700);
-  const fontStatus = await page.$eval("#font-status", (n) => n.textContent.trim());
-  const poolAfter = await page.evaluate(() => window.imagelab.fonts());
-  check.ok(
-    "读取本地字体失败 / 不可用时给出中文提示并保留回退字族",
-    fontStatus.length > 0 && poolAfter.length >= 1,
-    `${fontStatus.slice(0, 46)} · 字族 ${poolAfter.length}`
-  );
+  /* ------------------------------------- 本地字体：成功 / 权限拒绝 / 不支持 */
+  // 只桩 window.queryLocalFonts（MDN 主 API），不碰 navigator：Chrome 把该函数挂在
+  // window 上，若沿用 navigator.queryLocalFonts 会永远落到「不支持」，那是假通过。
+  // 用 getOwnPropertyDescriptor 记录现场，并在 finally 精确还原（原生不存在时删除）。
+  const SYNTHETIC_FONT_META = [
+    { family: "ImageLAB Synthetic Sans", fullName: "ImageLAB Synthetic Sans Regular", postscriptName: "ImageLABSyntheticSans-Regular", style: "Regular" },
+    { family: "ImageLAB Synthetic Sans", fullName: "ImageLAB Synthetic Sans Bold", postscriptName: "ImageLABSyntheticSans-Bold", style: "Bold" },
+    { family: "ImageLAB Synthetic Sans", fullName: "ImageLAB Synthetic Sans Italic", postscriptName: "ImageLABSyntheticSans-Italic", style: "Italic" },
+    { family: "ImageLAB Synthetic Serif", fullName: "ImageLAB Synthetic Serif Regular", postscriptName: "ImageLABSyntheticSerif-Regular", style: "Regular" },
+    { family: "ImageLAB Synthetic Serif", fullName: "ImageLAB Synthetic Serif Bold", postscriptName: "ImageLABSyntheticSerif-Bold", style: "Bold" }
+  ];
+  const stubLocalFonts = (kind, fonts) =>
+    page.evaluate(
+      (mode, list) => {
+        const desc = Object.getOwnPropertyDescriptor(window, "queryLocalFonts");
+        window.__ilFontApi = { desc: desc || null };
+        const impl =
+          mode === "success"
+            ? () => Promise.resolve((list || []).map((f) => ({ ...f })))
+            : mode === "denied"
+              ? () => Promise.reject(Object.assign(new Error("local font access denied"), { name: "NotAllowedError" }))
+              : undefined; // 不支持：window 上没有可调用函数
+        Object.defineProperty(window, "queryLocalFonts", { value: impl, configurable: true, writable: true });
+      },
+      kind,
+      fonts || null
+    );
+  const restoreLocalFonts = () =>
+    page.evaluate(() => {
+      const saved = window.__ilFontApi;
+      if (!saved) return;
+      if (saved.desc) Object.defineProperty(window, "queryLocalFonts", saved.desc);
+      else delete window.queryLocalFonts;
+      delete window.__ilFontApi;
+    });
+  const clickLocalFonts = async () => {
+    await page.click("#btn-local-fonts");
+    await sleep(300);
+    return page.$eval("#font-status", (n) => n.textContent.trim());
+  };
+  const toolFamilies = () => page.evaluate(() => window.imagelab.families());
+  const toolPool = () => page.evaluate(() => window.imagelab.fonts());
+
+  try {
+    /* 成功：合成元数据里同一 family 出现多次，断言按 family 去重并给出成功提示 */
+    await stubLocalFonts("success", SYNTHETIC_FONT_META);
+    const successStatus = await clickLocalFonts();
+    const families = await toolFamilies();
+    const uniqFamilies = [...new Set(SYNTHETIC_FONT_META.map((f) => f.family))];
+    check.ok(
+      "window.queryLocalFonts 成功：重复 family 去重后每个只登记一次",
+      new Set(families).size === families.length && uniqFamilies.every((f) => families.filter((x) => x === f).length === 1),
+      `${SYNTHETIC_FONT_META.length} 条元数据 → ${uniqFamilies.length} 个唯一字族`
+    );
+    check.ok(
+      "window.queryLocalFonts 成功：给出中文成功提示",
+      successStatus.includes("已读取") && successStatus.includes("去重"),
+      successStatus.slice(0, 46)
+    );
+    const poolAfterSuccess = await toolPool();
+    check.ok(
+      "本机字体只登记字族名，不自动勾选、不携带字体文件",
+      uniqFamilies.every((f) => !poolAfterSuccess.includes(f)) && poolAfterSuccess.length >= 1,
+      `渲染字族池 ${poolAfterSuccess.length} 个未受影响`
+    );
+
+    /* 权限拒绝：抛 NotAllowedError，断言中文回退且不崩溃 */
+    await stubLocalFonts("denied");
+    const deniedStatus = await clickLocalFonts();
+    const poolAfterDenied = await toolPool();
+    check.ok(
+      "NotAllowedError：给出中文权限回退提示、保留回退字族且不崩溃",
+      deniedStatus.includes("未获得读取本机字体的权限") && poolAfterDenied.length >= 1 && page.errors.length === 0,
+      `${deniedStatus.slice(0, 46)} · 字族 ${poolAfterDenied.length}`
+    );
+
+    /* 真不支持：window 上没有可调用函数时才走「不支持」分支，不拿假缺失去顶替 */
+    await stubLocalFonts("unsupported");
+    const unsupportedStatus = await clickLocalFonts();
+    const poolAfterUnsupported = await toolPool();
+    check.ok(
+      "window 无 queryLocalFonts：给出不支持提示并保留系统回退",
+      unsupportedStatus.includes("不支持") && poolAfterUnsupported.length >= 1,
+      unsupportedStatus.slice(0, 46)
+    );
+  } finally {
+    await restoreLocalFonts();
+  }
 
   /* ---------------------------------------------------------- 空文本空态 */
   await setText(page, "");

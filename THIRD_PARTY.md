@@ -84,7 +84,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 ### tools/mixed-type · tools/wave-grid · tools/ascii-motion（本批新增 · 独立实现）
 
 - 这三个工具是依据用户提供的参考视频**新写的独立实现**：只调用仓库已锁定的 `three@0.186.1`（MIT）与
-  浏览器原生能力（Canvas 2D、`Intl.Segmenter`、`FontFaceSet`、`navigator.queryLocalFonts`），
+  浏览器原生能力（Canvas 2D、`Intl.Segmenter`、`FontFaceSet`、`window.queryLocalFonts`），
   **没有**复制任何商业站点的源码、品牌、素材或字体，也没有把参考页面当作模板。
 - `tools/ascii-motion` 复用 three 自带的 `examples/jsm/effects/AsciiEffect.js`（MIT，随 `three@0.186.1`
   分发，许可原文见 [`third-party-licenses/three-LICENSE.txt`](third-party-licenses/three-LICENSE.txt)），

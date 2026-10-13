@@ -8,7 +8,7 @@
  * 伪随机数发生器重新开始，因此同一组参数重复渲染得到同一张图，不存在「每帧重排」。
  *
  * 无第三方字体、无远程请求：字族池只使用访问者本机已安装的系统字体，
- * 「读取本地字体」按钮才会调用浏览器原生的 queryLocalFonts（需用户点击 + 安全上下文）。
+ * 「读取本地字体」按钮才会调用浏览器原生的 window.queryLocalFonts（需用户点击 + 安全上下文）。
  */
 
 const MAX_TEXT = 2000;
@@ -160,7 +160,9 @@ function setFontStatus(message) {
 /* ------------------------------------------------------------ 本地字体读取 */
 
 async function readLocalFonts() {
-  if (typeof navigator.queryLocalFonts !== "function") {
+  /* MDN 主 API 是 Window.queryLocalFonts；Chrome 只把函数挂在 window 上，
+   * navigator 上没有该属性，写成 navigator.queryLocalFonts 会误判为「不支持」。 */
+  if (typeof window.queryLocalFonts !== "function") {
     setFontStatus("当前浏览器不支持读取本机字体；已继续使用系统字族渲染，不影响导出。");
     return;
   }
@@ -169,7 +171,8 @@ async function readLocalFonts() {
     return;
   }
   try {
-    const fonts = await navigator.queryLocalFonts();
+    // 只登记元数据里的 family 名，不读取 / 不缓存 / 不上传任何字体文件。
+    const fonts = await window.queryLocalFonts();
     const families = [...new Set((fonts || []).map((f) => f && f.family).filter(Boolean))].sort((a, b) =>
       a.localeCompare(b, "zh-Hans-CN")
     );
