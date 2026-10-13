@@ -6,12 +6,61 @@
  * 不向外部 URL 发请求（会 CORS 失败），也不纳入本地封面与可达断言。
  *
  * 封面说明：真实封面由验收阶段用工具的真实导出画面生成（`node scripts/capture-covers.mjs`）。
- * 原有 9 个内置入口必须保持真实封面；本批新增的 3 个工具（文字混排 / 波动点阵 / 动态字符画）
+ * 原有 9 个内置入口必须保持真实封面；本批新增的 3 个工具（文字混排 / 辉光点阵 / 动态字符画）
  * 在 Codex 抓取真实封面之前显示中性文字占位，此项会如实报出「待生成」而不是伪造通过。
  */
 export const id = "home";
 export const title = "首页 ImageLAB";
 export const gpu = null;
+
+/**
+ * 切到指定视口，回报首页的真实布局事实：
+ * 每行工具卡片数（12 栏网格的列数）、横向溢出、贯穿视口的大区块线宽、内容宽度、hero 高度，
+ * 以及首屏字标尺寸。只读测量，不改页面内容。
+ */
+async function layoutAt(page, sleep, width, height = 900) {
+  await page.setViewport({ width, height, deviceScaleFactor: 1 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await sleep(260);
+  return page.evaluate(() => {
+    const cards = [...document.querySelectorAll(".card")];
+    const rows = new Map();
+    for (const c of cards) {
+      const key = Math.round(c.getBoundingClientRect().top);
+      rows.set(key, (rows.get(key) || 0) + 1);
+    }
+    const perRow = [...rows.values()];
+    const bleed = [".hero", ".toolbar", ".section-head", "footer"].map((sel) => {
+      const n = document.querySelector(sel);
+      return n ? Math.round(n.getBoundingClientRect().width) : -1;
+    });
+    const bodyWrap = document.querySelector(".section-body .wrap");
+    const mark = document.querySelector(".hero-mark");
+    const hero = document.querySelector(".hero");
+    const markRect = mark ? mark.getBoundingClientRect() : null;
+    const heroRect = hero ? hero.getBoundingClientRect() : null;
+    const toolbarRect = document.querySelector(".toolbar")
+      ? document.querySelector(".toolbar").getBoundingClientRect()
+      : null;
+    return {
+      maxPerRow: perRow.length ? Math.max(...perRow) : 0,
+      perRow,
+      scrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      innerWidth: window.innerWidth,
+      bleedWidths: bleed,
+      wrapWidth: bodyWrap ? Math.round(bodyWrap.getBoundingClientRect().width) : 0,
+      markWidth: markRect ? Math.round(markRect.width) : 0,
+      markHeight: markRect ? Math.round(markRect.height) : 0,
+      cardCount: cards.length,
+      heroBottom: heroRect ? Math.round(heroRect.bottom) : 0,
+      heroHeight: heroRect ? Math.round(heroRect.height) : 0,
+      // 首屏留白要「定量」：顶栏横线→字标、字标→工具栏横线各自的实际间距。
+      gapAboveMark: markRect ? Math.round(markRect.top - heroRect.top) : 0,
+      gapBelowMark: markRect && toolbarRect ? Math.round(toolbarRect.top - markRect.bottom) : 0
+    };
+  });
+}
 
 export async function run({ page, base, browser, check, sleep }) {
   const res = await page.goto(`${base}/index.html`, { waitUntil: "networkidle2", timeout: 60000 });
@@ -34,6 +83,10 @@ export async function run({ page, base, browser, check, sleep }) {
   check.ok("首页共 15 个入口（12 内置 + 3 外部）", cardCount === 15, `${cardCount} 张`);
   const extCardCount = await page.$$eval(".card.is-external", (n) => n.length);
   check.ok("其中外部网站入口 3 个", extCardCount === 3, `${extCardCount} 张`);
+  const firstRow = await page.$$eval(".card", (cards) => cards.slice(0, 4).map((c) => c.dataset.tool));
+  check.ok("成熟视觉工具优先，SVG 转 3D 排第一", firstRow.join(",") === "extrude3d,shaders-logo,shaders-bg,shaders-halftone", firstRow.join(","));
+  const textureName = await page.$eval('[data-tool="texture"] h3', (n) => n.textContent);
+  check.ok("纹理工具使用直观名称", textureName === "纹理生成器", textureName);
 
   // 分类筛选：选中某分类后，页面上只应出现该分类的卡片
   const filterCount = await page.$$eval("#filters button", (n) => n.length);
@@ -109,7 +162,6 @@ export async function run({ page, base, browser, check, sleep }) {
       return {
         id: c.dataset.tool || "",
         shotLabel: (c.querySelector(".shot-external") || {}).textContent || "",
-        note: (c.querySelector(".note") || {}).textContent || "",
         hasImg: !!c.querySelector("img"),
         shotHref: shot ? shot.getAttribute("href") : null,
         shotTarget: shot ? shot.getAttribute("target") : null,
@@ -129,9 +181,8 @@ export async function run({ page, base, browser, check, sleep }) {
     if (!c) continue;
     check.ok(
       `外部入口「${e.name}」标注为 外部网站 · 跳转官网`,
-      c.shotLabel.includes("外部网站") && c.shotLabel.includes("跳转官网") &&
-        c.note.includes("外部网站") && c.note.includes("跳转官网"),
-      `封面区=${c.shotLabel} / note=${c.note}`
+      c.shotLabel.includes("外部网站") && c.shotLabel.includes("跳转官网"),
+      `封面区=${c.shotLabel}`
     );
     check.ok(
       `外部入口「${e.name}」按钮为 打开官网 ↗`,
@@ -195,7 +246,7 @@ export async function run({ page, base, browser, check, sleep }) {
   );
   // 原有 9 个内置入口的封面断言不降低：必须都是真实封面而非占位。
   // 本批新增的 3 个工具在 Codex 抓取前允许是中性文字占位（不是伪造效果图）。
-  const NEW_TOOLS = ["文字混排", "波动点阵", "动态字符画"];
+  const NEW_TOOLS = ["文字混排", "辉光点阵", "动态字符画"];
   const newCards = covers.filter((c) => NEW_TOOLS.includes(c.name));
   const originalReal = covers.filter((c) => !NEW_TOOLS.includes(c.name) && c.natural[0] > 0);
   const newReal = newCards.filter((c) => c.natural[0] > 0);
@@ -268,4 +319,90 @@ export async function run({ page, base, browser, check, sleep }) {
       check.ok(`封面不是纯色块 (${name})`, s.dominantShare < 0.995, `单色占比=${s.dominantShare}`);
     }
   }
+
+  // ---------- 宽排版：工具一览一行 4 个 / 中屏 2 个 / 小屏 1 个，且无横溢出 ----------
+  // 首屏改成「只有一个字标 + 顶到工具栏的大留白」，因此 hero 高度按「首屏填满」断言。
+  const wide = await layoutAt(page, sleep, 1440, 900);
+  check.ok("1440 工具一览一行 4 个", wide.maxPerRow === 4, `每行 ${wide.perRow.join("/")}`);
+  check.ok(
+    "1440 无横向溢出",
+    wide.scrollWidth <= wide.innerWidth + 1 && wide.bodyScrollWidth <= wide.innerWidth + 1,
+    `文档 ${wide.scrollWidth} / body ${wide.bodyScrollWidth} / 视口 ${wide.innerWidth}`
+  );
+  check.ok(
+    "顶部 / hero / 工具区标题 / 页脚横线横穿整个视口",
+    wide.bleedWidths.every((w) => w >= wide.innerWidth - 2),
+    `区块线宽=${wide.bleedWidths.join(",")} 视口=${wide.innerWidth}`
+  );
+  // 首屏留白必须「定量」而不是失控：顶栏→字标 96–150px，字标→工具栏 84–140px，
+  // 首屏整块 240–420px。既不允许空掉半个屏幕，也不允许被压成小头图。
+  check.ok(
+    "首屏留白定量：顶栏→字标 96–150px",
+    wide.gapAboveMark >= 96 && wide.gapAboveMark <= 150,
+    `顶栏横线→字标 ${wide.gapAboveMark}px`
+  );
+  check.ok(
+    "首屏留白定量：字标→工具栏横线 84–140px",
+    wide.gapBelowMark >= 84 && wide.gapBelowMark <= 140,
+    `字标→工具栏横线 ${wide.gapBelowMark}px`
+  );
+  check.ok(
+    "首屏整块高度 240–420px（留白受控，不空掉半个屏幕）",
+    wide.heroHeight >= 240 && wide.heroHeight <= 420,
+    `首屏高 ${wide.heroHeight}px（视口 ${wide.innerWidth}×900）`
+  );
+  // 首屏只有一个字标：必须够大够稳（≈ 33vw 宽、64–96px 高），但不能铺满整屏。
+  check.ok(
+    "首屏字标为紧凑 logo（≤ 视口 36% 宽、≤ 100px 高）",
+    wide.markWidth >= 140 && wide.markWidth <= wide.innerWidth * 0.36 && wide.markHeight <= 100,
+    `首屏字标 ${wide.markWidth}×${wide.markHeight}px / 视口 ${wide.innerWidth}px`
+  );
+  check.ok(
+    "顶部无重复小 logo 和说明导航",
+    !(await page.$(".masthead, .brand-mark, .nav")),
+    "只保留主字标与工具筛选栏"
+  );
+  // 首屏已去掉说明文字 / 按钮 / 数字徽标：hero 内只允许有字标这一块可见内容。
+  const heroOnlyMark = await page.evaluate(() => {
+    const hero = document.querySelector(".hero");
+    if (!hero) return { ok: false, detail: "未找到 .hero" };
+    const kids = [...hero.querySelector(".wrap").children].map(
+      (n) => n.tagName.toLowerCase() + (n.className ? "." + String(n.className).split(/\s+/).join(".") : "")
+    );
+    const text = hero.innerText.replace(/\s+/g, "");
+    return { ok: kids.length === 1 && kids[0].startsWith("h1") && text === "", detail: `子元素=${kids.join(",") || "无"} 可见文字="${text}"` };
+  });
+  check.ok(
+    "首屏不再有说明文字 / 按钮 / 数字徽标，只有字标",
+    heroOnlyMark.ok,
+    heroOnlyMark.detail
+  );
+
+  const big = await layoutAt(page, sleep, 1920, 1080);
+  check.ok("1920 大屏仍为一行 4 个", big.maxPerRow === 4, `每行 ${big.perRow.join("/")}`);
+  check.ok(
+    "1920 内容不再受 1360px 上限，且无横向溢出",
+    big.wrapWidth > 1360 && big.scrollWidth <= big.innerWidth + 1,
+    `内容宽 ${big.wrapWidth} 视口 ${big.innerWidth} 文档 ${big.scrollWidth}`
+  );
+
+  const huge = await layoutAt(page, sleep, 2560, 1440);
+  check.ok("2560 大屏仍为一行 4 个", huge.maxPerRow === 4, `每行 ${huge.perRow.join("/")}`);
+  check.ok(
+    "2560 内容铺满视口（无 1360px 上限）且无横向溢出",
+    huge.wrapWidth > 1360 && huge.scrollWidth <= huge.innerWidth + 1,
+    `内容宽 ${huge.wrapWidth} 视口 ${huge.innerWidth} 文档 ${huge.scrollWidth}`
+  );
+
+  const mid = await layoutAt(page, sleep, 900, 900);
+  check.ok("中屏一行 2 个", mid.maxPerRow === 2, `每行 ${mid.perRow.join("/")}`);
+  check.ok("中屏无横向溢出", mid.scrollWidth <= mid.innerWidth + 1, `文档 ${mid.scrollWidth} 视口 ${mid.innerWidth}`);
+
+  const mobile = await layoutAt(page, sleep, 390, 844);
+  check.ok("小屏 1 列", mobile.maxPerRow === 1, `每行 ${mobile.perRow.join("/")}`);
+  check.ok(
+    "移动端无横向溢出",
+    mobile.scrollWidth <= mobile.innerWidth + 1 && mobile.bodyScrollWidth <= mobile.innerWidth + 1,
+    `文档 ${mobile.scrollWidth} / body ${mobile.bodyScrollWidth} / 视口 ${mobile.innerWidth}`
+  );
 }

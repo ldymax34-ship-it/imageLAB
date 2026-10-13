@@ -1,8 +1,8 @@
 /**
  * 生成式版式切片（a-psychos-gd-tool）smoke 规格。
  *
- * 这个工具的页面在 dist/tools/psychos/，不在根 Vite dev server 的 root 下，
- * 所以规格自己起一个极简 node:http 静态服务器指向 dist/tools/psychos，
+ * 这个工具的页面在 dist/tools/psychos/，并引用 dist/assets/backlink.css。
+ * 规格自己起一个极简 node:http 静态服务器指向整个 dist，
  * 在 finally 里关闭。只用 http://127.0.0.1:<port>（secure context）打开，
  * 否则拿不到 WebGPU adapter。
  *
@@ -19,6 +19,8 @@ export const title = "图片拼贴（节点式）";
 export const gpu = "webgpu";
 
 const SITE_DIR = resolve(ROOT, "dist", "tools", "psychos");
+const DIST_DIR = resolve(ROOT, "dist");
+const PAGE_PATH = "/tools/psychos/index.html";
 const PORT = Number(process.env.PSYCHOS_PORT || 5261);
 const FRAME = 2048; // presets.ts collageDoc frame — the exported PNG must match
 
@@ -253,7 +255,7 @@ async function scanBuiltAssets(dir) {
 }
 
 export async function run({ page, downloads, check }) {
-  const server = await serveSite(SITE_DIR, PORT);
+  const server = await serveSite(DIST_DIR, PORT);
   // every request the page makes, so cross-origin traffic can be asserted away
   const requests = [];
   page.on("request", (req) => {
@@ -266,8 +268,8 @@ export async function run({ page, downloads, check }) {
     await page.setViewport({ width: 1600, height: 1000, deviceScaleFactor: 1 });
 
     // 1) 页面可进入
-    const res = await page.goto(`${server.url}/index.html`, { waitUntil: "load", timeout: 60000 });
-    check.ok("页面可进入（HTTP 200）", !!res && res.status() === 200, `status=${res && res.status()} url=${server.url}/index.html`);
+    const res = await page.goto(`${server.url}${PAGE_PATH}`, { waitUntil: "load", timeout: 60000 });
+    check.ok("页面可进入（HTTP 200）", !!res && res.status() === 200, `status=${res && res.status()} url=${server.url}${PAGE_PATH}`);
 
     // 2) WebGPU adapter（真实断言，headless 下走本机 Metal）
     const adapter = await page.evaluate(async () => {
@@ -335,7 +337,9 @@ export async function run({ page, downloads, check }) {
       `${info.width}x${info.height}`
     );
 
-    // 8) 返回首页链接（内联样式，不依赖外部 css）
+    // 8) 共享 shell CSS 与返回首页链接（与真实 dist 子路径一致）
+    const shellCss = requests.find((u) => new URL(u).pathname === "/assets/backlink.css");
+    check.ok("共享深色外壳 CSS 可加载", !!shellCss, shellCss || "missing /assets/backlink.css request");
     const back = await page.evaluate(() => {
       const a = document.querySelector("a.il-back");
       if (!a) return null;
@@ -345,6 +349,8 @@ export async function run({ page, downloads, check }) {
         text: a.textContent.trim(),
         border: `${cs.borderTopWidth} ${cs.borderTopStyle}`,
         radius: cs.borderTopLeftRadius,
+        top: cs.top,
+        left: cs.left,
         resolved: new URL(a.getAttribute("href"), location.href).pathname
       };
     });
@@ -354,7 +360,7 @@ export async function run({ page, downloads, check }) {
       !!back && back.href === "../../index.html" && back.resolved === "/index.html",
       back && `href=${back.href} resolved=${back.resolved}`
     );
-    check.ok("返回链接样式极简（1px 边框 / 小圆角）", !!back && back.border === "1px solid" && parseFloat(back.radius) <= 2, back && `border=${back.border} radius=${back.radius}`);
+    check.ok("返回链接位于左上角且有中性边框", !!back && back.border === "1px solid" && back.top === "8px" && back.left === "12px", back && `border=${back.border} top=${back.top} left=${back.left}`);
 
     // 9) 这个站点的每个静态请求都命中本地服务器（无跨源、无远程）
     const crossOrigin = requests.filter((u) => !u.startsWith(server.url));

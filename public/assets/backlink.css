@@ -1,29 +1,20 @@
-/* 工具页「返回首页」小链接：中性白/黑、无圆角胶囊、无彩色装饰。 */
-.il-back {
-  position: fixed;
-  right: 14px;
-  bottom: 14px;
-  z-index: 2147483000;
-  display: inline-block;
-  padding: 7px 11px;
-  border: 1px solid rgba(0, 0, 0, 0.22);
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.94);
-  color: #141414;
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
-    "Hiragino Sans GB", "Noto Sans SC", sans-serif;
-  font-size: 12px;
-  font-weight: 550;
-  line-height: 1;
-  letter-spacing: 0.02em;
-  text-decoration: none;
-  -webkit-font-smoothing: antialiased;
-}
+/* Shared local-tool shell: neutral dark chrome and one consistent home link. */
+html, body { color-scheme:dark !important; background-color:#080808 !important; color:#f2f2f2 !important; }
+body { padding-top:42px !important; max-width:100vw; overflow-x:hidden; }
+:root { --ink:#eee !important; --muted:#aaa !important; --paper:#080808 !important; --panel:#111 !important; --field:#111 !important; --rule:#303030 !important; --line:#303030 !important; --green:#555 !important; --accent:#aaa !important; --il-bg:#080808 !important; --il-ink:#eee !important; --il-line:#303030 !important; --il-muted:#aaa !important; --il-faint:#858585 !important; --il-panel:#111 !important; --il-stage:#111 !important; }
+body > .il-back { box-sizing:border-box !important; position:fixed !important; z-index:10000 !important; top:8px !important; left:12px !important; right:auto !important; bottom:auto !important; display:inline-flex !important; align-items:center; width:auto !important; height:26px !important; min-height:26px !important; padding:0 8px !important; border:1px solid #3a3a3a !important; border-radius:3px !important; background:#111 !important; color:#eee !important; text-decoration:none !important; font:12px/1.3 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif !important; box-shadow:none !important; }
+body > .il-back:hover { background:#222 !important; border-color:#777 !important; }
+.il-head,.app-header,.controls,.workspace-toolbar,.il-panel,.il-group,.panel-title,.control-section,.il-stage,.stage,.il-legend,.canvas-status,.presets-header,.presets,.sidebar,.toolbar,.panel,.control-panel,.canvas-panel { background-color:#111 !important; color:#eee !important; border-color:#303030 !important; }
+.tab-list,.segmented,.segmented button,.il-fonts,.il-file,.il-view,.il-preview,.il-canvas { background-color:#111 !important; color:#eee !important; border-color:#303030 !important; }
+.tab-list { box-shadow:none !important; }
+.il-empty { background:rgba(17,17,17,.94) !important; color:#eee !important; }
+.container-lg,canvas,video,img { max-width:100%; }
+.container-lg { width:min(100%, 1100px); }
+.il-head p,.il-note,.il-legend,.help,.eyebrow,.canvas-status,.muted,.subtitle { color:#aaa !important; }
+button,select,input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),textarea,.btn { background-color:#171717 !important; color:#eee !important; border-color:#3d3d3d !important; }
+button:hover:not(:disabled),.btn:hover { background-color:#252525 !important; border-color:#777 !important; }
+button[aria-pressed="true"],button.selected,button.active { background-color:#343434 !important; color:#fff !important; border-color:#777 !important; }
+input[type="range"] { accent-color:#aaa !important; }
+:focus-visible { outline-color:#aaa !important; }
 
-.il-back:hover,
-.il-back:focus-visible {
-  background: #141414;
-  border-color: #141414;
-  color: #ffffff;
-  outline: none;
-}
+a:not(.il-back) { color:#ddd !important; }

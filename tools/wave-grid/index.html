@@ -4,20 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- imagelab:entry -->
-<title>波动点阵 · 图像实验室 imageLAB</title>
-<meta name="description" content="暗底发光点阵：彩色波浪逐行流动，可把文字或本地图片采样成点阵亮度，密度、波幅、速度、辉光与配色可调，暂停后导出当前帧 PNG。">
+<title>辉光点阵 · 图像实验室 imageLAB</title>
+<meta name="description" content="竖幅固定字符网格上的宽厚分段辉光色带：可调密度、辉光强度与长度、方向与色带宽度；也可按文字或本地图片取样，暂停后导出当前帧 PNG。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../assets/backlink.css">
 <link rel="stylesheet" href="./style.css">
+
 <script type="module" src="./main.js"></script>
 </head>
 <body>
+<a class="il-back" href="../../index.html">← 返回首页</a>
 
 <header class="il-head">
-  <h1>波动点阵</h1>
+  <h1>辉光点阵</h1>
   <p>
-    暗底上的发光点阵：彩色波浪逐行流动，有轻微的起伏与纵深。可以把一段文字或一张本地图片采样成点阵的亮度，
-    调密度、波幅、速度、辉光与配色；暂停后导出当前这一帧。所有计算都在浏览器本地完成。
+    竖幅 4:5 画面里，四条蓝青 / 品红 / 红 / 绿青的宽厚色带斜向交错，亮核是连排实心方块，边缘是空心方块与叉号，
+    外部是柔和圆形光晕与沿指定方向拉长的光丝。也可切成小写字母或本地图片取样；暂停后导出这一帧 PNG。素材在浏览器本地处理。
   </p>
 </header>
 
@@ -25,14 +27,49 @@
   <aside class="il-panel">
 
     <section class="il-group">
-      <h2>网格</h2>
+      <h2>网格密度</h2>
       <div class="il-range">
         <label for="p-density">密度</label>
         <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.55">
         <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.55">
       </div>
+      <div class="il-chips" id="density-chips">
+        <button type="button" id="preset-coarse" data-density="0.15" aria-pressed="false">粗</button>
+        <button type="button" id="preset-medium" data-density="0.55" aria-pressed="true">中</button>
+        <button type="button" id="preset-fine" data-density="0.92" aria-pressed="false">细</button>
+      </div>
+      <p class="il-note" id="grid-info">网格随密度实时改变，默认约 9px 间距。</p>
+    </section>
+
+    <section class="il-group">
+      <h2>辉光</h2>
       <div class="il-range">
-        <label for="p-amp">波幅</label>
+        <label for="p-glow">辉光强度</label>
+        <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.55">
+        <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.55">
+      </div>
+      <div class="il-range">
+        <label for="p-glowLength">辉光长度 px</label>
+        <input type="range" id="p-glowLength" min="0" max="120" step="1" value="72">
+        <input type="number" id="n-glowLength" min="0" max="120" step="1" value="72">
+      </div>
+      <div class="il-range">
+        <label for="p-glowAngle">辉光方向 °</label>
+        <input type="range" id="p-glowAngle" min="0" max="360" step="1" value="90">
+        <input type="number" id="n-glowAngle" min="0" max="360" step="1" value="90">
+      </div>
+      <div class="il-range">
+        <label for="p-bandWidth">色带宽度</label>
+        <input type="range" id="p-bandWidth" min="0.4" max="1.8" step="0.02" value="1">
+        <input type="number" id="n-bandWidth" min="0.4" max="1.8" step="0.02" value="1">
+      </div>
+      <p class="il-note">长度控制光丝延伸，方向控制光丝角度，强度控制光晕能量；三者独立。长度 0 仍有圆形光晕，强度 0 关闭辉光，保留清晰点阵。</p>
+    </section>
+
+    <section class="il-group">
+      <h2>动效</h2>
+      <div class="il-range">
+        <label for="p-amp">亮度变化</label>
         <input type="range" id="p-amp" min="0" max="1" step="0.01" value="0.6">
         <input type="number" id="n-amp" min="0" max="1" step="0.01" value="0.6">
       </div>
@@ -41,35 +78,20 @@
         <input type="range" id="p-speed" min="0" max="3" step="0.02" value="1">
         <input type="number" id="n-speed" min="0" max="3" step="0.02" value="1">
       </div>
-      <div class="il-range">
-        <label for="p-glow">辉光</label>
-        <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.55">
-        <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.55">
-      </div>
     </section>
 
     <section class="il-group">
-      <h2>单元形状</h2>
+      <h2>图形</h2>
       <div class="il-chips" id="shape-chips">
-        <button type="button" id="shape-squares" data-shape="squares" aria-pressed="true">方块</button>
-        <button type="button" id="shape-dots" data-shape="dots" aria-pressed="false">圆点</button>
-        <button type="button" id="shape-chars" data-shape="chars" aria-pressed="false">字符</button>
+        <button type="button" id="preset-ribbons" data-preset="ribbons" aria-pressed="true">宽厚色带</button>
+        <button type="button" id="preset-letters" data-preset="letters" aria-pressed="false">字母图形</button>
       </div>
     </section>
 
     <section class="il-group">
-      <h2>配色</h2>
-      <div class="il-chips" id="preset-chips">
-        <button type="button" id="preset-mono" data-preset="mono" aria-pressed="false">单色</button>
-        <button type="button" id="preset-cool" data-preset="cool" aria-pressed="false">冷色</button>
-        <button type="button" id="preset-multi" data-preset="multi" aria-pressed="true">多彩</button>
-      </div>
-    </section>
-
-    <section class="il-group">
-      <h2>文字点阵</h2>
-      <p class="il-note">输入文字后，点阵会按文字形状取样，波浪在笔画里流动。</p>
-      <input type="text" id="mask-text" maxlength="24" placeholder="如 imageLAB" autocomplete="off">
+      <h2>文字图形</h2>
+      <p class="il-note">切换“字母图形”后输入内容，画面按文字形状显示。最多 48 个字符。</p>
+      <input type="text" id="mask-text" maxlength="48" placeholder="如 a" autocomplete="off">
     </section>
 
     <section class="il-group">
@@ -80,16 +102,18 @@
         <p class="il-note" id="image-name">未选择图片。</p>
         <button type="button" id="image-clear" hidden>清除图片</button>
       </div>
+      <label class="il-note" for="image-sampling">图片取样</label>
+      <select id="image-sampling"><option value="auto">自动（透明图按轮廓）</option><option value="brightness">明暗</option><option value="alpha">透明轮廓</option><option value="invert">反相明暗</option></select>
     </section>
 
     <section class="il-group">
-      <h2>随机与导出</h2>
+      <h2>播放与导出</h2>
       <div class="il-chips" style="margin-bottom:9px">
         <button type="button" id="btn-pause">暂停</button>
         <button type="button" id="btn-play">播放</button>
-        <button type="button" id="btn-reroll">重新随机</button>
+        <button type="button" id="btn-reroll" hidden>重新随机</button>
       </div>
-      <p class="il-note">种子：<b id="seed-label">—</b> · 暂停后导出的就是当前这一帧</p>
+      <p class="il-note">暂停后导出的就是当前这一帧</p>
       <button type="button" id="btn-export">导出当前帧 PNG</button>
       <p class="il-note" id="export-info">导出当前预览画面，不放大、不改变分辨率。</p>
     </section>
@@ -108,8 +132,6 @@
     </div>
   </section>
 </main>
-
-<a class="il-back" href="../../index.html">← 图像实验室</a>
 
 </body>
 </html>

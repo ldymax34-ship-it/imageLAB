@@ -1,18 +1,18 @@
 /**
- * 纹理间（原样搬运）smoke：确认页面可进入、点阵能生成、PNG 导出非空且尺寸正确。
+ * 纹理生成器（原样搬运）smoke：确认页面可进入、点阵能生成、PNG 导出非空且尺寸正确。
  * 该目录源码与 _source_snapshot 逐字节一致，本文件是外部测试规格，不修改工具源码。
  */
 import { pngInfo } from "../harness.mjs";
 
 export const id = "texture";
-export const title = "纹理间 · 点阵渐变 / 曲线纹理";
+export const title = "纹理生成器 · 点阵渐变 / 曲线纹理";
 export const gpu = "webgl2";
 
 export async function run({ page, base, downloads, check }) {
   const url = `${base}/tools/texture/index.html`;
   const res = await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
   check.ok("页面可进入（HTTP 200）", res && res.status() === 200, `status=${res && res.status()}`);
-  check.ok("标题正确", (await page.title()).includes("纹理间"), await page.title());
+  check.ok("标题正确", (await page.title()).includes("纹理生成器"), await page.title());
 
   await page.waitForSelector("#tab-quick", { timeout: 20000 });
   check.ok("快速纹理标签存在", !!(await page.$("#tab-quick")));
@@ -47,7 +47,7 @@ export async function run({ page, base, downloads, check }) {
   await page.click("#tab-quick");
   await new Promise((r) => setTimeout(r, 300));
 
-  // 导出 PNG：纹理间的 #export-top / #export-png 直接触发下载（无二级面板）
+  // 导出 PNG：纹理生成器的 #export-top / #export-png 直接触发下载（无二级面板）
   const pngBtn = (await page.$("#export-png")) || (await page.$("#export-top"));
   check.ok("存在 PNG 导出按钮", !!pngBtn);
   await page.select("#scale", "1");

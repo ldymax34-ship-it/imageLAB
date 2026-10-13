@@ -1,5 +1,7 @@
-/* ImageLAB · 首页样式 —— 纯白 #fff + 纯黑 #000，次要信息只用中性灰；
-   12 栏网格、大留白、细线；无渐变 / 玻璃 / 圆角 / 装饰动画。 */
+/* ImageLAB · 首页样式 —— 纯白 #fff + 纯黑 #000，次要信息只用中性灰。
+   版式语言：单一 12 栏网格 + 贯穿视口的 1px 横线切割；顶部仅保留一个主字标。
+   留白受控：工具区上下留白 72–120px，卡片行距 56–88px；无渐变 / 玻璃 / 圆角 / 阴影 / 装饰动画。
+   宽排版：不设 max-width，按 1920 / 2560 自适应；左右 padding clamp(24px, 3vw, 96px)，移动 20px。 */
 
 :root {
   --paper: #fff;
@@ -8,9 +10,10 @@
   --ink-3: #6e6e6e;   /* 中性灰：辅助信息 */
   --rule: #e4e4e4;    /* 中性灰：细线 */
   --rule-strong: #b0b0b0;
-  --gap: 24px;
-  --maxw: 1360px;
-  --pad: clamp(20px, 4vw, 56px);
+  --gap: clamp(22px, 1.8vw, 32px);
+  --pad: clamp(24px, 3vw, 96px);
+  --block-pad: clamp(72px, 6vw, 120px);  /* 工具区上下留白 72–120 */
+  --row-gap: clamp(56px, 4.6vw, 88px);   /* 卡片行距 56–88 */
 }
 
 * { box-sizing: border-box; }
@@ -31,65 +34,16 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
+/* 内容只做左右留白，不设 max-width：1920 / 2560 大屏铺满视口。 */
 .wrap {
-  max-width: var(--maxw);
+  width: 100%;
   margin: 0 auto;
   padding: 0 var(--pad);
 }
 
-/* ---------- masthead ---------- */
-
-.masthead {
-  border-bottom: 1px solid var(--rule);
-  padding: 20px 0 18px;
-}
-
-.masthead .wrap {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.masthead .toc {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 12px;
-  letter-spacing: 0.18em;
-}
-
-.masthead .toc a { color: var(--ink); }
-.masthead .toc a:hover { border-bottom: 1px solid var(--ink); }
-.masthead .toc span { color: var(--ink-3); }
-
-.masthead .tagline {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--ink-3);
-  letter-spacing: 0.02em;
-}
-
-/* ---------- hero ---------- */
-
-.hero {
-  padding: clamp(64px, 10vw, 140px) 0 clamp(40px, 6vw, 84px);
-  border-bottom: 1px solid var(--rule);
-}
-
-.hero .grid {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: var(--gap);
-}
-
-/* hero 直接使用已批准的 ImageLAB 字标；CSS 按字形外框裁掉四周大面积空白，
-   不改动图片本身、也不重绘字形（图片 1774×887，字墨范围 229,316–1543,582）。 */
+/* 字标使用原素材，通过裁掉图片外围空白保留字形。 */
 .hero-mark {
-  grid-column: 1 / span 9;
-  align-self: start;
-  margin: 0;
+  display: block;
   aspect-ratio: 1315 / 267;
   overflow: hidden;
 }
@@ -101,31 +55,22 @@ a { color: inherit; text-decoration: none; }
   transform: translate(-12.9087%, -35.6257%);
 }
 
-.hero .lede {
-  grid-column: 1 / span 6;
-  margin: 36px 0 0;
-  font-size: clamp(15px, 1.35vw, 18px);
-  line-height: 1.75;
-  color: var(--ink-2);
-  max-width: 46ch;
+/* ---------- hero ---------- */
+
+/* 首屏只有一个字标：留白靠被「定量」的上下边距控制，不撑满视口。
+   顶栏横线 → 字标 ≈ 96–120px，字标 → 工具栏横线 ≈ 84–112px，
+   两条线之间是一块比例固定的留白，避免出现「上半屏空一大块」的失衡。 */
+.hero {
+  border-bottom: 1px solid var(--ink);
+  padding: clamp(72px, 6.8vw, 116px) 0 clamp(64px, 6vw, 100px);
 }
 
-.hero .meta {
-  grid-column: 8 / span 5;
-  margin: 36px 0 0;
-  align-self: end;
-  font-size: 13px;
-  color: var(--ink-3);
-  border-top: 1px solid var(--rule);
-  padding-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 22px;
-}
-
-.hero .meta b {
-  color: var(--ink);
-  font-weight: 600;
+/* 首页只保留这一处品牌字标，宽约 33vw、高 64–96px。 */
+.hero-mark {
+  margin: 0;
+  height: clamp(64px, 6.6vw, 96px);
+  width: clamp(270px, 33vw, 480px);
+  max-width: 100%;
 }
 
 /* ---------- toolbar ---------- */
@@ -142,15 +87,15 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   align-items: center;
   gap: 28px;
-  min-height: 58px;
+  min-height: 66px;
   flex-wrap: wrap;
-  padding-top: 10px;
-  padding-bottom: 10px;
+  padding-top: 13px;
+  padding-bottom: 13px;
 }
 
 .filters {
   display: flex;
-  gap: 20px;
+  gap: 22px;
   flex-wrap: wrap;
   margin-right: auto;
 }
@@ -204,46 +149,53 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------- sections ---------- */
+/* 工具区标题线是一个整视口宽的元素（不是窄容器里的小盒子），用于切开大区块。 */
 
-main { padding-bottom: 40px; }
+.section-head {
+  border-top: 1px solid var(--ink);
+}
 
-.section { padding: clamp(44px, 6vw, 80px) 0 0; }
-
-.section > .wrap > header {
+.section-head .wrap {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 20px;
-  border-top: 1px solid var(--ink);
-  padding-top: 13px;
-  margin-bottom: 32px;
+  padding-top: 16px;
 }
 
+/* 区块标题是「小字号 + 大字距」的标签，压得住下面的卡片名（19–24px），层级不打架。 */
 .section h2 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
 }
 
-.section header p {
+.section-head p {
   margin: 0;
   font-size: 12.5px;
   color: var(--ink-3);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
 }
 
-/* 一条连续 12 栏网格：桌面 3 列，窄屏 2 / 1 列，消除「某类别只剩 4 栏」的空档。 */
+.section-body {
+  padding: var(--block-pad) 0;
+}
+
+/* 一条连续 12 栏网格：工具一览默认一行 4 个（各占 3 栏），中屏 2 个，小屏 1 个。 */
 .cards {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: clamp(32px, 3.6vw, 56px) var(--gap);
+  column-gap: var(--gap);
+  row-gap: var(--row-gap);
 }
 
 /* ---------- card ---------- */
+/* 卡片只保留「封面 / 名称 / 分类 / 进入链接」，不再逐张复述说明文字。 */
 
 .card {
-  grid-column: span 4;
+  grid-column: span 3;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -256,7 +208,7 @@ main { padding-bottom: 40px; }
   overflow: hidden;
   background: var(--paper);
   border: 1px solid var(--rule);
-  margin-bottom: 18px;
+  margin-bottom: 26px;
 }
 
 .card .shot img {
@@ -309,8 +261,8 @@ main { padding-bottom: 40px; }
 }
 
 .card h3 {
-  margin: 0 0 7px;
-  font-size: clamp(19px, 1.7vw, 23px);
+  margin: 0 0 8px;
+  font-size: clamp(19px, 1.25vw, 24px);
   font-weight: 650;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -321,15 +273,7 @@ main { padding-bottom: 40px; }
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-3);
-  margin-bottom: 12px;
-}
-
-.card p {
-  margin: 0 0 16px;
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--ink-2);
-  max-width: 44ch;
+  margin-bottom: 20px;
 }
 
 .card .enter {
@@ -347,14 +291,7 @@ main { padding-bottom: 40px; }
 .card .enter:hover { border-bottom-color: var(--ink); }
 .card .enter s { text-decoration: none; color: var(--ink-3); }
 
-.card .note {
-  font-size: 12px;
-  color: var(--ink-3);
-  margin-top: 10px;
-}
-
 .empty {
-  grid-column: 1 / -1;
   padding: 60px 0;
   color: var(--ink-3);
   font-size: 14px;
@@ -365,8 +302,7 @@ main { padding-bottom: 40px; }
 
 footer {
   border-top: 1px solid var(--ink);
-  margin-top: clamp(56px, 7vw, 96px);
-  padding: 26px 0 60px;
+  padding: 32px 0 84px;
 }
 
 footer .wrap {
@@ -381,14 +317,14 @@ footer .wrap {
 footer a { border-bottom: 1px solid var(--rule-strong); }
 footer a:hover { border-bottom-color: var(--ink); color: var(--ink); }
 
+/* 中屏：工具一览收成一行 2 个（各占 6 栏）。 */
 @media (max-width: 1000px) {
   .card { grid-column: span 6; }
-  .hero-mark { grid-column: 1 / -1; }
-  .hero .lede { grid-column: 1 / -1; }
-  .hero .meta { grid-column: 1 / -1; margin-top: 26px; }
 }
 
+/* 小屏：一行 1 个；左右 padding 20px。 */
 @media (max-width: 660px) {
+  :root { --pad: 20px; }
   .card { grid-column: 1 / -1; }
   .toolbar { position: static; }
 }

@@ -22,6 +22,10 @@ const items = [
   [".tmp/upstream/a-psychos-gd-tool/public/fonts/OFL.txt", "JetBrainsMono-OFL-1.1.txt"]
 ];
 
+// 说明：third-party-licenses/basementstudio-shader-lab-LICENSE.txt（Apache-2.0，
+// 上游 pin 6f39a889db74978d93d882643e3cd2073b3666d6）由人工从上游 LICENSE.md 原样放入；
+// 仓库不克隆该 Next/React 工程，因此不列入上面的自动复制清单。
+
 let ok = 0;
 const missing = [];
 for (const [from, to] of items) {

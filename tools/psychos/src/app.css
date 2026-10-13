@@ -3,21 +3,21 @@
    panels; imageLAB recolors the upstream pink / royal-blue data accents to
    neutral grays so the tool chrome stays white / black / neutral. */
 :root {
-  --bg: #fafafa;
-  --panel: rgba(255, 255, 255, 0.85);
-  --panel-solid: #ffffff;
-  --panel-2: #f5f5f5;
-  --panel-3: #ebebeb;
-  --panel-active: #e0e0e0;
-  --border: #d4d4d4;
-  --border-strong: #a8a8a8;
-  --text: #222222;
-  --muted: #555555;
-  --muted-2: #888888;
-  --rule: #e5e5e5;
-  --accent: #141414; /* neutral dark */
-  --accent-2: #333333; /* neutral mid */
-  color-scheme: light;
+  --bg: #080808;
+  --panel: rgba(20, 20, 20, 0.94);
+  --panel-solid: #111111;
+  --panel-2: #191919;
+  --panel-3: #242424;
+  --panel-active: #303030;
+  --border: #383838;
+  --border-strong: #606060;
+  --text: #eeeeee;
+  --muted: #aaaaaa;
+  --muted-2: #858585;
+  --rule: #303030;
+  --accent: #eeeeee;
+  --accent-2: #aaaaaa;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; margin: 0; }

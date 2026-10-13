@@ -1,21 +1,18 @@
 /*
  * tools/ascii-motion · 动态字符画
  *
- * 用 three（MIT，仓库已锁定 0.186.1）搭真实的三维动画，再用 three 自带的
- * `addons/effects/AsciiEffect`（MIT）把渲染结果转成字符。没有自定义着色器、
+ * 用 three（MIT，仓库已锁定 0.186.1）搭真实的三维动画，再将有界低分辨率采样绘到
+ * 一张复用的 Canvas 2D 字符画画布。没有自定义着色器、
  * 没有外部模型 / 贴图 / 字体。
  *
  * 水母触手用 three 自带 `addons/lines`（Line2 + LineGeometry + LineMaterial，均 MIT）
  * 画原生宽线：1 像素的 LineBasicMaterial 在字符采样格里会碎成孤立短划，宽线能保持连续；
  * 每帧只原地改写 instanceStart / instanceEnd 共用的数据，不重建、不销毁几何体。
  *
- * 预览：AsciiEffect 生成的 DOM 表格（真实字符 + 行内颜色）。
- * 导出：读取当前这一帧表格里的「真实字符 + 行内颜色 + 背景」，用 Canvas 2D 重绘成 PNG，
- *       因此导出的是字符画本身，而不是原始三维网格，也不需要 html2canvas 之类的依赖。
+ * 预览与 PNG 导出使用同一张 Canvas，固定最多 160×100 字符格；暂停与隐藏页面停止 RAF。
  */
 
 import * as THREE from "three";
-import { AsciiEffect } from "three/addons/effects/AsciiEffect.js";
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
@@ -23,12 +20,16 @@ import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
+const DEFAULT_CHARSET = " .:-=+*#%@";
 const CHARSETS = [
-  { id: "standard", label: "经典 .:-=+*#%@", set: " .:-=+*#%@" },
+  { id: "standard", label: "经典 .:-=+*%@", set: DEFAULT_CHARSET },
   { id: "soft", label: "柔和 .·:*#@", set: " .·:*#@" },
   { id: "blocks", label: "方块 ░▒▓█", set: " ░▒▓█" },
   { id: "dense", label: "密集 .,:;i1tfLCG08@", set: " .,:;i1tfLCG08@" }
 ];
+let charset = DEFAULT_CHARSET, glyphPalette = Array.from(DEFAULT_CHARSET), glyphIndices = new Uint8Array(16000), glyphColors = new Uint32Array(16000);
+let customMode = "scene", motion = "wave", customText = "", customImage = null, customImageHasAlpha = false, imageHasAlpha = false, imageSampling = "auto", loadToken = 0, customPlane = null, customTexture = null, lastFrameAt = 0, accentRgb = 0xb8c6ff;
+const MAX_FILE = 10 * 1024 * 1024, MAX_SIDE = 4096;
 
 const PRESETS = {
   jellyfish: "水母：伞盖 + 摆动的触手（球面片段 + 线段）",
@@ -51,12 +52,16 @@ const state = {
   charsetId: "standard"
 };
 
-function charsetSet() {
-  const hit = CHARSETS.find((c) => c.id === state.charsetId);
-  return (hit || CHARSETS[0]).set;
-}
-function resolution() {
-  return 0.09 + state.density * 0.11;
+function resolution() { return 0.09 + state.density * 0.11; }
+function splitGlyphs(value) { const seg=typeof Intl.Segmenter==="function"?new Intl.Segmenter(undefined,{granularity:"grapheme"}):null; return (seg?[...seg.segment(value)].map(x=>x.segment):Array.from(value)); }
+function setCharset(value) {
+  const chars = splitGlyphs(value);
+  if (!chars.some((glyph) => glyph.trim())) return "empty";
+  if (chars.length > 64) return "limit";
+  charset = chars.join("");
+  glyphPalette = chars;
+  state.charsetId = "custom";
+  return "ok";
 }
 
 /* ------------------------------------------------------------------ three */
@@ -158,7 +163,7 @@ function buildRing() {
     const mesh = new THREE.Mesh(track(new THREE.TorusGeometry(s.r, s.t, 12, 60)), mat());
     mesh.rotation.set(s.rx, s.ry, 0);
     root.add(mesh);
-    rings.push({ mesh, speed: s.speed });
+    rings.push({ mesh, speed: s.speed, baseX: s.rx, baseY: s.ry, baseZ: 0 });
   }
 }
 
@@ -241,8 +246,8 @@ function updateScene(t) {
     camera.lookAt(0, -0.4, 0);
   } else if (state.preset === "ring") {
     for (const rr of rings) {
-      rr.mesh.rotation.z += 0.016 * rr.speed;
-      rr.mesh.rotation.y += 0.01 * rr.speed;
+      rr.mesh.rotation.z = rr.baseZ + t * 0.32 * rr.speed;
+      rr.mesh.rotation.y = rr.baseY + t * 0.2 * rr.speed;
     }
     root.rotation.y = t * 0.3;
     camera.position.x = Math.sin(t * 0.25) * 1.1;
@@ -272,241 +277,282 @@ function updateScene(t) {
   }
 }
 
-/* ------------------------------------------------------------- AsciiEffect */
-
+/* ----------------------------------------------- Canvas glyph renderer */
 let effect = null;
-
-function glowShadow() {
-  if (state.glow <= 0.02) return "none";
-  return `0 0 ${Math.round(state.glow * 7)}px rgba(190, 214, 255, ${(0.35 + state.glow * 0.5).toFixed(2)})`;
-}
-
-function buildEffect() {
-  if (effect) {
-    effect.domElement.remove();
-    effect = null;
-  }
-  effect = new AsciiEffect(renderer, charsetSet(), {
-    resolution: resolution(),
-    scale: 1,
-    color: true,
-    invert: false
-  });
-  effect.domElement.className = "il-ascii";
-  holder.textContent = "";
-  holder.appendChild(effect.domElement);
-  const table = effect.domElement.querySelector("table");
-  if (table) {
-    table.style.background = "transparent";
-    table.style.textShadow = glowShadow();
-  }
-  resize();
-}
-
+const outputCanvas = document.createElement("canvas");
+const outCtx = outputCanvas.getContext("2d");
+const sampleCanvas = document.createElement("canvas");
+const glowCanvas=document.createElement("canvas"),glowCtx=glowCanvas.getContext("2d");
+const crispCanvas=document.createElement("canvas"),crispCtx=crispCanvas.getContext("2d");
+const colorCache = Array.from({ length: 4096 }, (_, i) => {
+  const r = ((i >> 8) & 15) * 17;
+  const g = ((i >> 4) & 15) * 17;
+  const b = (i & 15) * 17;
+  return `rgb(${r},${g},${b})`;
+});
+const sampleCtx = sampleCanvas.getContext("2d",{willReadFrequently:true});
+let sampleCols=0,sampleRows=0,frameCount=0,lastRenderMs=0;
+function buildEffect(){ effect=true; holder.replaceChildren(outputCanvas); outputCanvas.className="il-ascii"; resize(); }
 function resize() {
-  const w = Math.max(280, stage.clientWidth || 900);
-  const h = Math.max(180, stage.clientHeight || Math.round(w * 0.625));
-  camera.aspect = w / h;
+  const width = Math.max(280, stage.clientWidth || 900);
+  const height = Math.max(180, stage.clientHeight || Math.round(width * 0.625));
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
-  if (effect) effect.setSize(w, h);
-  // 宽线着色器按 resolution 把线宽换算到屏幕像素，跟随画布尺寸同步。
-  for (const m of materials) if (m.isLineMaterial) m.resolution.set(w, h);
-  dirty = true;
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5, 1600 / width, 1600 / height);
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(width, height);
+  outputCanvas.width = Math.round(width * dpr);
+  outputCanvas.height = Math.round(height * dpr);
+  crispCanvas.width = outputCanvas.width;
+  crispCanvas.height = outputCanvas.height;
+  glowCanvas.width = Math.ceil(outputCanvas.width / 8);
+  glowCanvas.height = Math.ceil(outputCanvas.height / 8);
+  outputCanvas.style.width = "100%";
+  outputCanvas.style.height = "100%";
+  sampleCols = Math.min(160, Math.max(20, Math.floor(width / (16 - state.density * 5))));
+  sampleRows = Math.min(100, Math.max(12, Math.floor(height / (17 - state.density * 5))));
+  sampleCanvas.width = sampleCols;
+  sampleCanvas.height = sampleRows;
+  for (const material of materials) {
+    if (material.isLineMaterial) material.resolution.set(width, height);
+  }
+  schedule();
 }
+function renderFrame() {
+  const started = performance.now();
+  renderer.render(scene, camera);
+  sampleCtx.clearRect(0, 0, sampleCols, sampleRows);
+  sampleCtx.drawImage(renderer.domElement, 0, 0, sampleCols, sampleRows);
+  const pixels = sampleCtx.getImageData(0, 0, sampleCols, sampleRows).data;
+  const cellWidth = outputCanvas.width / sampleCols;
+  const cellHeight = outputCanvas.height / sampleRows;
+  crispCtx.clearRect(0, 0, crispCanvas.width, crispCanvas.height);
+  crispCtx.font = `${Math.max(7, Math.min(cellWidth, cellHeight) * 0.92)}px ui-monospace, Menlo, monospace`;
+  crispCtx.textAlign = "center";
+  crispCtx.textBaseline = "middle";
+  outCtx.fillStyle = BG;
+  outCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-/* ------------------------------------------------------ 字符快照 / 导出 */
-
-/** 从当前 AsciiEffect 表格读取真实字符与行内颜色（预览与导出共用这一份快照）。 */
-function readGlyphRows() {
-  const td = effect && effect.domElement ? effect.domElement.querySelector("td") : null;
-  if (!td) return null;
-  const rows = [];
-  let row = [];
-  const push = (ch, color) => {
-    row.push({ ch: ch === "\u00a0" ? " " : ch, color: color || FALLBACK_COLOR });
-  };
-  for (const node of td.childNodes) {
-    if (node.nodeType === 3) {
-      for (const ch of node.nodeValue || "") push(ch, null);
-    } else if (node.nodeName === "BR") {
-      rows.push(row);
-      row = [];
-    } else if (node.nodeType === 1) {
-      const color = (node.style && node.style.color) || null;
-      for (const ch of node.textContent || "") push(ch, color);
+  const alphaMode = customMode === "image" && (imageSampling === "alpha" || (imageSampling === "auto" && imageHasAlpha));
+  for (let y = 0; y < sampleRows; y += 1) {
+    for (let x = 0; x < sampleCols; x += 1) {
+      const cellIndex = y * sampleCols + x;
+      const pixelIndex = cellIndex * 4;
+      const alpha = pixels[pixelIndex + 3] / 255;
+      const red = pixels[pixelIndex];
+      const green = pixels[pixelIndex + 1];
+      const blue = pixels[pixelIndex + 2];
+      let brightness = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255 * alpha;
+      if (alphaMode) brightness = alpha;
+      else if (customMode === "image" && imageSampling === "invert") brightness = (1 - (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255) * alpha;
+      let glyphIndex = brightness < 0.025
+        ? 255
+        : Math.max(0, Math.min(glyphPalette.length - 1, Math.floor(brightness * (glyphPalette.length - 1))));
+      if (glyphIndex !== 255 && !glyphPalette[glyphIndex].trim()) glyphIndex = 255;
+      glyphIndices[cellIndex] = glyphIndex;
+      glyphColors[cellIndex] = alphaMode ? accentRgb : ((red << 16) | (green << 8) | blue);
+      if (glyphIndex === 255) continue;
+      const color = glyphColors[cellIndex];
+      crispCtx.fillStyle = alphaMode
+        ? state.color
+        : colorCache[(((color >> 16) & 240) << 4) | (((color >> 8) & 240)) | ((color & 240) >> 4)];
+      crispCtx.fillText(glyphPalette[glyphIndex], (x + 0.5) * cellWidth, (y + 0.5) * cellHeight);
     }
   }
-  if (row.length) rows.push(row);
-  return rows;
-}
 
+  if (state.glow > 0.02) {
+    glowCtx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+    glowCtx.drawImage(crispCanvas, 0, 0, glowCanvas.width, glowCanvas.height);
+    outCtx.fillStyle = BG;
+    outCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+    outCtx.save();
+    outCtx.globalCompositeOperation = "lighter";
+    outCtx.globalAlpha = state.glow * 0.5;
+    outCtx.filter = `blur(${2 + state.glow * 4}px)`;
+    outCtx.drawImage(glowCanvas, 0, 0, outputCanvas.width, outputCanvas.height);
+    outCtx.restore();
+    outCtx.drawImage(crispCanvas, 0, 0);
+  } else {
+    outCtx.drawImage(crispCanvas, 0, 0);
+  }
+  frameCount += 1;
+  lastRenderMs = performance.now() - started;
+}
 function glyphStats() {
-  const rows = readGlyphRows();
-  if (!rows) return { rows: 0, cols: 0, count: 0, colored: 0, colors: 0, chars: 0, signature: "0", colorSignature: "0", avgColor: [0, 0, 0] };
-  let cols = 0;
-  let count = 0;
   let colored = 0;
+  let count = sampleCols * sampleRows;
   let hash = 0;
   let colorHash = 0;
-  let sr = 0;
-  let sg = 0;
-  let sb = 0;
+  let redTotal = 0;
+  let greenTotal = 0;
+  let blueTotal = 0;
   let lit = 0;
-  const colorSet = new Set();
-  const charSet = new Set();
-  const rgb = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/;
-  for (const row of rows) {
-    if (row.length > cols) cols = row.length;
-    for (const cell of row) {
-      count++;
-      if (cell.ch !== " ") {
-        hash = (Math.imul(hash, 31) + cell.ch.charCodeAt(0)) >>> 0;
-        charSet.add(cell.ch);
-      }
-      if (cell.color) {
-        colored++;
-        colorSet.add(cell.color);
-        const m = rgb.exec(cell.color);
-        if (m && cell.ch !== " ") {
-          sr += Number(m[1]);
-          sg += Number(m[2]);
-          sb += Number(m[3]);
-          lit++;
-          colorHash = (Math.imul(colorHash, 31) + Number(m[1]) * 65536 + Number(m[2]) * 256 + Number(m[3])) >>> 0;
-        }
-      }
-    }
+  const chars = new Set();
+  const colors = new Set();
+  for (let i = 0; i < count; i += 1) {
+    const index = glyphIndices[i];
+    if (index === 255) continue;
+    const glyph = glyphPalette[index];
+    const rgb = glyphColors[i];
+    hash = (Math.imul(hash, 31) + glyph.codePointAt(0)) >>> 0;
+    chars.add(glyph);
+    colored += 1;
+    const red = (rgb >> 16) & 255;
+    const green = (rgb >> 8) & 255;
+    const blue = rgb & 255;
+    redTotal += red;
+    greenTotal += green;
+    blueTotal += blue;
+    lit += 1;
+    colors.add(rgb.toString(16));
+    colorHash = (Math.imul(colorHash, 31) + rgb) >>> 0;
   }
-  hash = (hash ^ Math.imul(rows.length, 73856093) ^ Math.imul(cols, 19349663) ^ count) >>> 0;
-  colorHash = (colorHash ^ Math.imul(colorSet.size, 2654435761)) >>> 0;
-  const avgColor = lit ? [Math.round(sr / lit), Math.round(sg / lit), Math.round(sb / lit)] : [0, 0, 0];
+  hash = (hash ^ Math.imul(sampleRows, 73856093) ^ Math.imul(sampleCols, 19349663) ^ count) >>> 0;
   return {
-    rows: rows.length,
-    cols,
+    rows: sampleRows,
+    cols: sampleCols,
     count,
     colored,
-    colors: colorSet.size,
-    chars: charSet.size,
+    colors: colors.size,
+    chars: chars.size,
     signature: hash.toString(36),
     colorSignature: colorHash.toString(36),
-    avgColor
+    avgColor: lit
+      ? [Math.round(redTotal / lit), Math.round(greenTotal / lit), Math.round(blueTotal / lit)]
+      : [0, 0, 0]
   };
 }
-
-const exportCanvas = document.createElement("canvas");
-
-/**
- * 紧凑视觉信号：从当前字符快照一次性算出
- * - 前景是否不止是横线（非横线字符种类 / 横线占比）；
- * - 前景包围盒四边留白（判断模型有没有被画面裁切，底部尤其关键）；
- * - 下半部前景字符数 / 覆盖行数 / 占列数（判断触手是连续成束还是零星短划）。
- */
-function visualSignal() {
-  const rows = readGlyphRows();
-  if (!rows || !rows.length) return null;
-  const dashChars = new Set(["-", "=", "_", "~", "\u2014", "\u2013"]);
-  let cols = 0;
-  let fg = 0;
-  let dash = 0;
-  let top = -1;
-  let bottom = -1;
-  let left = -1;
-  let right = -1;
-  const varied = new Set();
-  for (let r = 0; r < rows.length; r++) {
-    const row = rows[r];
-    if (row.length > cols) cols = row.length;
-    for (let c = 0; c < row.length; c++) {
-      const cell = row[c];
-      if (!cell || cell.ch === " ") continue;
-      fg++;
-      if (dashChars.has(cell.ch)) dash++;
-      else varied.add(cell.ch);
-      if (top < 0) top = r;
-      bottom = r;
-      if (left < 0 || c < left) left = c;
-      if (c > right) right = c;
-    }
+function visualSignal(){let fg=0,top=-1,bottom=-1,left=sampleCols,right=-1;const varied=new Set(),lowerCols=new Set();for(let y=0;y<sampleRows;y++)for(let x=0;x<sampleCols;x++){const i=y*sampleCols+x;if(glyphIndices[i]===255)continue;fg++;varied.add(glyphPalette[glyphIndices[i]]);if(top<0)top=y;bottom=y;left=Math.min(left,x);right=Math.max(right,x);}const mid=(top+bottom)/2;let lowerCells=0,lowerRows=0;for(let y=0;y<sampleRows;y++){if(y<=mid)continue;let hit=false;for(let x=0;x<sampleCols;x++)if(glyphIndices[y*sampleCols+x]!==255){lowerCells++;lowerCols.add(x);hit=true;}if(hit)lowerRows++;}return{rows:sampleRows,cols:sampleCols,fg,varied:varied.size,top,bottom,left,right,topMargin:top,bottomMargin:top<0?0:sampleRows-1-bottom,leftMargin:left,rightMargin:right<0?0:sampleCols-1-right,lowerCells,lowerRows,lowerCols:lowerCols.size,dashRatio:0};}
+const exportCanvas=outputCanvas;
+function buildExportCanvas(){return sampleCols&&sampleRows?outputCanvas:null;}
+function updateCustomTexture() {
+  if (!customPlane) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 512;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  if (customMode === "image" && customImage) {
+    const scale = Math.min(
+      canvas.width / customImage.naturalWidth,
+      canvas.height / customImage.naturalHeight
+    );
+    const width = customImage.naturalWidth * scale;
+    const height = customImage.naturalHeight * scale;
+    context.drawImage(customImage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+  } else {
+    context.fillStyle = "#fff";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.font = "bold 90px sans-serif";
+    const lines = customText.split("\n").slice(0, 5);
+    lines.forEach((line, index) => context.fillText(line, canvas.width / 2, canvas.height * (0.3 + index * 0.1), 900));
   }
-  const mid = top < 0 ? 0 : (top + bottom) / 2;
-  let lowerCells = 0;
-  let lowerRows = 0;
-  const lowerCols = new Set();
-  for (let r = 0; r < rows.length; r++) {
-    if (r <= mid) continue;
-    const row = rows[r];
-    let hitRow = false;
-    for (let c = 0; c < row.length; c++) {
-      const cell = row[c];
-      if (!cell || cell.ch === " ") continue;
-      lowerCells++;
-      lowerCols.add(c);
-      hitRow = true;
-    }
-    if (hitRow) lowerRows++;
+  if (customTexture) customTexture.dispose();
+  customTexture = new THREE.CanvasTexture(canvas);
+  customTexture.colorSpace = THREE.SRGBColorSpace;
+  customPlane.material.map = customTexture;
+  customPlane.material.needsUpdate = true;
+}
+
+function setCustomMode(mode) {
+  customMode = mode;
+  const presetSection = $("preset-chips").closest(".il-group");
+  presetSection.hidden = mode !== "scene";
+  $("custom-text").hidden = mode !== "text";
+  $("custom-image-label").hidden = mode !== "image";
+  if (customTexture) {
+    customTexture.dispose();
+    customTexture = null;
   }
-  return {
-    rows: rows.length,
-    cols,
-    fg,
-    dash,
-    dashRatio: fg ? +(dash / fg).toFixed(3) : 1,
-    varied: varied.size,
-    top,
-    bottom,
-    left,
-    right,
-    topMargin: top,
-    bottomMargin: top < 0 ? 0 : rows.length - 1 - bottom,
-    leftMargin: left,
-    rightMargin: right < 0 ? 0 : cols - 1 - right,
-    lowerCells,
-    lowerRows,
-    lowerCols: lowerCols.size
+  if (mode === "scene") {
+    imageHasAlpha = false;
+    customPlane = null;
+    buildPreset(state.preset);
+  } else {
+    imageHasAlpha = mode === "image" && customImageHasAlpha;
+    clearRoot();
+    root.position.set(0, 0, 0);
+    root.rotation.set(0, 0, 0);
+    camera.position.set(0, 0.5, 5.4);
+    camera.lookAt(0, 0, 0);
+    const geometry = track(new THREE.PlaneGeometry(4.7, 2.35, 20, 10));
+    const material = new THREE.MeshBasicMaterial({ transparent: true, map: null, side: THREE.DoubleSide });
+    materials.push(material);
+    customPlane = new THREE.Mesh(geometry, material);
+    root.add(customPlane);
+    updateCustomTexture();
+  }
+  schedule();
+}
+
+function loadCustomImage(file) {
+  if (!file) return;
+  const token = ++loadToken;
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > MAX_FILE) {
+    $("custom-image-name").textContent = "仅支持 10 MiB 内的 PNG / JPEG / WebP。";
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    URL.revokeObjectURL(url);
+    if (token !== loadToken) return;
+    if (image.naturalWidth > MAX_SIDE || image.naturalHeight > MAX_SIDE) {
+      $("custom-image-name").textContent = "图片单边超过 4096 像素，已保留当前图片。";
+      return;
+    }
+    customImage = image;
+    const probe = document.createElement("canvas");
+    if (image.naturalWidth >= image.naturalHeight) {
+      probe.width = 64;
+      probe.height = Math.max(1, Math.round(64 * image.naturalHeight / image.naturalWidth));
+    } else {
+      probe.height = 64;
+      probe.width = Math.max(1, Math.round(64 * image.naturalWidth / image.naturalHeight));
+    }
+    const probeContext = probe.getContext("2d", { willReadFrequently: true });
+    probeContext.drawImage(image, 0, 0, probe.width, probe.height);
+    const alphaPixels = probeContext.getImageData(0, 0, probe.width, probe.height).data;
+    customImageHasAlpha = false;
+    for (let i = 3; i < alphaPixels.length; i += 4) {
+      if (alphaPixels[i] < 250) {
+        customImageHasAlpha = true;
+        break;
+      }
+    }
+    imageHasAlpha = customMode === "image" && customImageHasAlpha;
+    $("custom-image-name").textContent = `已载入：${file.name}`;
+    if (customMode === "image") updateCustomTexture();
+    schedule();
   };
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    if (token === loadToken) $("custom-image-name").textContent = "图片解码失败，已保留当前图片。";
+  };
+  image.src = url;
 }
-
-/** 把当前字符快照真正画到 canvas（不是原始网格、不是页面截图）。 */
-function buildExportCanvas() {
-  const rows = readGlyphRows();
-  if (!rows || !rows.length) return null;
-  const table = effect.domElement.querySelector("table");
-  const cs = table ? getComputedStyle(table) : null;
-  const fontSize = cs ? parseFloat(cs.fontSize) || 12 : 12;
-  const lineHeight = cs ? parseFloat(cs.lineHeight) || fontSize : fontSize;
-  const letterSpacing = cs ? parseFloat(cs.letterSpacing) || 0 : 0;
-  const fontFamily = (cs && cs.fontFamily) || '"Courier New", monospace';
-  const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
-  const cellW = Math.max(1, fontSize * 0.6 + letterSpacing);
-  const W = Math.max(1, Math.round(cols * cellW));
-  const H = Math.max(1, Math.round(rows.length * lineHeight));
-  const scale = Math.min(1, 2400 / Math.max(W, H));
-  exportCanvas.width = Math.round(W * scale);
-  exportCanvas.height = Math.round(H * scale);
-
-  const x = exportCanvas.getContext("2d");
-  x.setTransform(scale, 0, 0, scale, 0, 0);
-  x.fillStyle = BG;
-  x.fillRect(0, 0, W, H);
-  x.font = `${fontSize}px ${fontFamily}`;
-  x.textAlign = "left";
-  x.textBaseline = "alphabetic";
-  const glow = state.glow;
-  if (glow > 0.02) x.shadowBlur = glow * fontSize * 1.1;
-  for (let r = 0; r < rows.length; r++) {
-    const row = rows[r];
-    const by = r * lineHeight + fontSize * 0.82;
-    for (let c = 0; c < row.length; c++) {
-      const cell = row[c];
-      if (cell.ch === " ") continue;
-      x.fillStyle = cell.color;
-      if (glow > 0.02) x.shadowColor = cell.color;
-      x.fillText(cell.ch, c * cellW, by);
+function updateCustomMotion(t) {
+  if (!customPlane) return;
+  const position = customPlane.geometry.attributes.position;
+  if (motion === "rotate") {
+    customPlane.rotation.z = t * 0.35;
+    customPlane.scale.set(1, 1, 1);
+  } else if (motion === "breathe") {
+    const scale = 1 + 0.08 * Math.sin(t * 1.5);
+    customPlane.scale.set(scale, scale, 1);
+    customPlane.rotation.z = 0;
+  } else {
+    customPlane.scale.set(1, 1, 1);
+    customPlane.rotation.z = 0;
+    for (let i = 0; i < position.count; i += 1) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      position.setZ(i, 0.11 * Math.sin(x * 2.1 + t * 1.5) * Math.cos(y * 1.7 - t));
     }
+    position.needsUpdate = true;
   }
-  return exportCanvas;
 }
-
 /* ---------------------------------------------------------------- 主循环 */
 
 let paused = false;
@@ -515,6 +561,8 @@ let lastTs = null;
 let lastHud = 0;
 let dirty = true;
 let raf = 0;
+
+function schedule(){dirty=true;if(document.hidden)return;if(paused){if(customMode==="scene")updateScene(time);else updateCustomMotion(time);if(effect){renderFrame();dirty=false;}return;}if(!raf)raf=requestAnimationFrame(loop);}
 
 function setStatus(message) {
   const el = $("status");
@@ -532,20 +580,24 @@ function updateHud(now) {
 }
 
 function loop(ts) {
-  raf = requestAnimationFrame(loop);
+  raf = 0;
+  if (document.hidden) return;
   if (lastTs == null) lastTs = ts;
+  if (!paused && ts-lastFrameAt < 33) { raf=requestAnimationFrame(loop); return; }
+  lastFrameAt=ts;
   const dt = Math.min(64, ts - lastTs) / 1000;
   lastTs = ts;
   if (!paused) {
     time += dt * state.speed;
-    updateScene(time);
+    if(customMode==="scene") updateScene(time); else updateCustomMotion(time);
     dirty = true;
   }
   if (dirty && effect) {
-    effect.render(scene, camera);
+    renderFrame();
     dirty = false;
   }
   updateHud(ts);
+  if(!paused) raf=requestAnimationFrame(loop);
 }
 
 /* ------------------------------------------------------------------ 控件 */
@@ -561,11 +613,7 @@ function bindRange(id, key) {
     range.value = String(v);
     number.value = String(v);
     if (key === "density") buildEffect();
-    if (key === "glow") {
-      const table = effect && effect.domElement.querySelector("table");
-      if (table) table.style.textShadow = glowShadow();
-    }
-    dirty = true;
+    schedule();
   };
   range.addEventListener("input", () => apply(range.value));
   number.addEventListener("input", () => apply(number.value));
@@ -584,71 +632,42 @@ function bindChips(containerId, attribute, onPick) {
 }
 
 function boot() {
-  const select = $("char-pattern");
-  for (const c of CHARSETS) {
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.label;
-    select.appendChild(opt);
+  const charsetSelect = $("char-pattern");
+  for (const preset of CHARSETS) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.label;
+    charsetSelect.appendChild(option);
   }
-  select.value = state.charsetId;
-  select.addEventListener("change", () => {
-    state.charsetId = select.value;
-    buildEffect();
+  const customOption = document.createElement("option");
+  customOption.value = "custom";
+  customOption.textContent = "自定义";
+  charsetSelect.appendChild(customOption);
+  charsetSelect.value = state.charsetId;
+  charsetSelect.addEventListener("change", () => {
+    const preset = CHARSETS.find((item) => item.id === charsetSelect.value);
+    if (!preset) return;
+    charset = preset.set;
+    glyphPalette = splitGlyphs(charset);
+    state.charsetId = preset.id;
+    $("charset-input").value = charset;
+    schedule();
   });
-
-  bindRange("density", "density");
-  bindRange("speed", "speed");
-  bindRange("glow", "glow");
-
-  bindChips("preset-chips", "preset", (value) => {
-    state.preset = value;
-    buildPreset(value);
-    $("preset-note").textContent = PRESETS[value] || "";
-    dirty = true;
-  });
-  bindChips("color-chips", "color", (value) => {
-    state.color = value;
-    applyColor();
-    dirty = true;
-  });
-
-  $("btn-pause").addEventListener("click", () => {
-    paused = true;
-  });
-  $("btn-play").addEventListener("click", () => {
-    paused = false;
-    lastTs = null;
-    dirty = true;
-  });
-  $("btn-export").addEventListener("click", () => {
-    const c = buildExportCanvas();
-    if (!c) return;
-    c.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ascii-motion-${state.preset}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-    }, "image/png");
-  });
-
-  buildPreset(state.preset);
-  $("preset-note").textContent = PRESETS[state.preset];
-  buildEffect();
-  updateScene(0);
-
-  if (typeof ResizeObserver === "function") {
-    const ro = new ResizeObserver(() => resize());
-    ro.observe(stage);
-  } else {
-    window.addEventListener("resize", () => resize());
-  }
-  raf = requestAnimationFrame(loop);
+  bindRange("density", "density"); bindRange("speed", "speed"); bindRange("glow", "glow");
+  bindChips("preset-chips", "preset", (value) => { state.preset=value; buildPreset(value); $("preset-note").textContent=PRESETS[value]||""; schedule(); });
+  bindChips("color-chips", "color", (value) => { state.color=value; accentRgb=parseInt(value.slice(1),16); applyColor(); schedule(); });
+  $("charset-input").addEventListener("input",e=>{const result=setCharset(e.target.value);if(result==="ok"){charsetSelect.value="custom";schedule();}else{e.target.value=charset;$("status").textContent=result==="limit"?"字符集最多 64 个字素，已保留上一次有效设置。":"字符集不能空白，已保留上一次有效设置。";}});
+  document.querySelectorAll("[data-custom-mode]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-custom-mode]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));setCustomMode(b.dataset.customMode);}));
+  document.querySelectorAll("[data-motion]").forEach(b=>b.addEventListener("click",()=>{motion=b.dataset.motion;if(customPlane&&motion!=="wave"){const pos=customPlane.geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setZ(i,0);pos.needsUpdate=true;}if(customMode!=="scene")updateCustomMotion(time);document.querySelectorAll("[data-motion]").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));schedule();}));
+  $("custom-text").addEventListener("input",e=>{customText=e.target.value.slice(0,160);if(customMode==="text")updateCustomTexture();schedule();});
+  $("custom-image-file").addEventListener("change",e=>loadCustomImage(e.target.files&&e.target.files[0]));
+  $("image-sampling").addEventListener("change",e=>{imageSampling=e.target.value;schedule();});
+  $("btn-pause").addEventListener("click",()=>{paused=true;if(raf)cancelAnimationFrame(raf);raf=0;});
+  $("btn-play").addEventListener("click",()=>{paused=false;lastTs=null;dirty=true;if(!raf)raf=requestAnimationFrame(loop);});
+  $("btn-export").addEventListener("click",()=>{if(dirty)renderFrame();const c=buildExportCanvas();if(!c)return;c.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="ascii-motion.png";a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);},"image/png");});
+  buildPreset(state.preset);$("preset-note").textContent=PRESETS[state.preset];buildEffect();updateScene(0);
+  if(typeof ResizeObserver==="function")new ResizeObserver(resize).observe(stage);else window.addEventListener("resize",resize);
+  document.addEventListener("visibilitychange",()=>{if(document.hidden){if(raf)cancelAnimationFrame(raf);raf=0;}else{lastTs=null;if(dirty||paused)schedule();else if(!raf)raf=requestAnimationFrame(loop);}});if(!raf)raf=requestAnimationFrame(loop);
 }
 
 /* 测试 / 验收钩子：只读状态 + 活跃查找，便于浏览器验收断言。 */
@@ -659,7 +678,13 @@ window.imagelab = {
   frame: () => time,
   resolution: () => resolution(),
   presetCount: () => Object.keys(PRESETS).length,
-  charsets: () => CHARSETS.map((c) => c.id),
+  charsets: () => CHARSETS.map((preset) => preset.id),
+  charsetGlyphs: () => glyphPalette.slice(),
+  setCharset: (v) => setCharset(v),
+  mode: () => customMode,
+  motion: () => motion,
+  diagnostics: () => ({cells:sampleCols*sampleRows,renderMs:lastRenderMs,renderCount:frameCount,alphaMode:customMode==="image"&&(imageSampling==="alpha"||(imageSampling==="auto"&&imageHasAlpha))}),
+  hasImage: () => !!customImage,
   stats: () => glyphStats(),
   signature: () => glyphStats().signature,
   visualSignal: () => visualSignal(),

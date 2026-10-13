@@ -24,36 +24,39 @@ npm run fixtures     # 重新生成测试素材
 macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动安装依赖、构建、并在
 `127.0.0.1` 上启动本地服务器后打开浏览器。
 
-> 首页视觉：纯白 + 纯黑 + 中性灰，hero 复用 `public/brand/ImageLAB-logo-preview.png` 字标（CSS 裁空白），
-> 全部视图为连续 12 栏网格。首页回归：12 个内置入口（原有 9 个保持真实封面，本批新增 3 个在 Codex
-> 抓取前显示中性占位）、全部内置入口 HTTP 200、bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白；
+> 首页视觉：纯白 + 纯黑 + 中性灰，只保留一处 `public/brand/ImageLAB-logo-preview.png` 主字标（CSS 裁空白），
+> 宽约 33vw、高 64–96px；顶部小 logo、说明导航均已删除。
+> 工具按陈列顺序展示：首行是 SVG 转 3D、标志材质、动态背景、半调网点；「纹理间」更名为「纹理生成器」。
+> 版式是「大留白 + 细线切割」：贯穿整视口的 1px 横线分段（顶栏 / 首屏 / 工具区标题 / 页脚）。
+> **首屏只有一个字标**，不放说明文字、按钮或数字徽标；留白是定量的——
+> 顶栏横线 → 字标 ≈ 96–120px，字标 → 工具栏横线 ≈ 84–100px，首屏整块 240–420px（不撑满视口、不空掉半个屏幕）。
+> 工具一览为连续 12 栏网格：**桌面一行 4 个**（各占 3 栏）→ 中屏（≤1000px）2 个 → 小屏（≤660px）1 个；
+> 卡片行距 56–88px，工具区上下留白 72–120px，区块标题是小字号 + 0.2em 字距的标签（压得住卡片名）。
+> 页面文案只保留必要信息：卡片只有「封面 / 名称 / 分类 / 入口」四段，
+> `assets/tools.js` 也据此不再登记 desc / note / span（keywords 只服务搜索）。
+> 首页回归：12 个内置入口（12 张真实封面）、全部内置入口 HTTP 200、
+> bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白、1440/1920/2560/390 四档每行个数、
+> 首屏「只有字标」+ 字标尺寸 + 上下留白定量（96–150 / 84–140px，首屏 240–420px）；
 > 外部入口只断言标注 / target-rel / 网址 / 关键词，不向外部发请求。
 
 ## 工具清单与状态
 
 | 入口 | 工具 | 站点内页面地址 | 主要能力 | 导出 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| `tools/texture/` | 纹理间 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
+| `tools/texture/` | 纹理生成器 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG立体 | `tools/extrude3d/index.html` | SVG 挤出、厚度 / 倒角 / 平滑度 / 材质 / 基础色表面贴图 / 背景图片（居中 cover，1×–3× 缩放） | PNG（可选透明背景） | 已通过浏览器验收（81 项） |
+| `tools/extrude3d/` | SVG 转 3D | `tools/extrude3d/index.html` | 原生真实立方体默认 + SVG 挤出（厚度 / 倒角按最大平面边长百分比）、透明玻璃折射（折射率 / 光学厚度 / 色散强度 0–20）、总光量增益灯光、材质 / 基础色表面贴图 / 背景图片（居中 cover，1×–3× 缩放、横向 / 纵向平移）、棚拍空间背景（真实地面反射） | PNG（可选透明背景） | 待 Codex 复验（本轮新增：默认真实立方体 / 总光量增益 / 强色散示例 / Reflector 法线修正） |
 | `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
 | `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
 | `tools/shaders-halftone/` | 半调网点 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
 | `tools/psychos/` | 图片拼贴 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
-| `tools/mixed-type/` | 文字混排 | `tools/mixed-type/index.html` | 中英文混排文字海报：字族池 / 字号 / 行高 / 字距 / 随机抖动 / 描边比例，固定种子可复现 | PNG | 待 Codex 浏览器验收 |
-| `tools/wave-grid/` | 波动点阵 | `tools/wave-grid/index.html` | 暗底发光点阵波浪；文字 / 本地图片采样、密度 / 波幅 / 速度 / 辉光 / 配色 | PNG（当前帧） | 待 Codex 浏览器验收 |
-| `tools/ascii-motion/` | 动态字符画 | `tools/ascii-motion/index.html` | 水母 / 圆环 / 隧道 / 波形四组三维预设，three `AsciiEffect` 真实字符化 | PNG（当前帧） | 待 Codex 浏览器验收 |
+| `tools/mixed-type/` | 文字混排 | `tools/mixed-type/index.html` | 中英文混排文字海报：字族池 / 字号 / 行高 / 字距 / 随机抖动 / 描边比例，固定种子可复现 | PNG | 已通过浏览器验收 |
+| `tools/wave-grid/` | 辉光点阵 | `tools/wave-grid/index.html` | 竖幅 4:5 宽厚分段色带（固定种子稳定构图）：密度真值 + 粗/中/细预设、辉光强度 / 长度（0–120px，默认 72px）/ 方向 / 色带宽度；字母与本地图片取样 | PNG（当前帧） | 待 Codex 复验（封面已就位，`coverQuery=20261013-glow3` 待重抓校验） |
+| `tools/ascii-motion/` | 动态字符画 | `tools/ascii-motion/index.html` | Three 预设 / 本地文字 / 图片以复用 Canvas 字符渲染；自定义字符集与动效 | PNG（当前帧） | 已通过浏览器验收（25 项） |
 
-首页按上表登记全部 12 个内置入口（含 `tools/psychos`）。Codex 已在构建产物（`dist/`）上独立复跑
-全部浏览器验收：**310/310 PASS、0 失败**——extrude3d 81、home 63、image-to-ascii 11、
-image-to-pixel 34、pixelit 9、psychos 20、shaders-bg 37、shaders-halftone 29、shaders-logo 19、
-texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGPU 真实可用）。
-另做独立计算样式审计：原有 9 个页面可见的 body / header / aside / 按钮 / select / h1 / h2 / 返回链接
-**0 个非中性 UI 色彩**；画布 / 素材 / 材质调色板与原有 9 张真实封面保留原有彩色。
-本批新增 3 个工具已随 `npm run check` / `npm test` / `npm run build` 通过静态与构建校验，
-**浏览器行为验收与真实封面抓取待 Codex 执行**（见 `tests/specs/`）。
+首页登记全部 12 个内置入口（含 `tools/psychos`）。此前的 **310/310 浏览器验收** 与 9 页主题审计是本轮改动前的历史基线；本批已由 Codex 独立复验通过：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过。画布、源图片、纹理图案、材质与封面保留各自的颜色。静态检查、单元测试与构建以本轮实际结果为准。
 
 > 名称 / 文案与基础色表面贴图：不新增渲染业务外功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
 > 不建高级入口、不接 vgpu / 路径追踪，不新增依赖 / 后端 / CDN。首页卡片只显示现有中文分类
@@ -77,9 +80,11 @@ texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGP
 外部入口只校验是合法的 HTTPS 地址且不声明封面；`tests/specs/home.mjs` 只对外部卡片断言标注 / target-rel /
 准确网址 / 关键词搜索，不向外部 fetch（避免 CORS 假失败）。
 
-`tools/extrude3d` 的本地 SVG 导入上限为 64 KB；单个 `<path>` 曲线过多时，会在挤出前按上游曲线细分
-采样轮廓点估算顶点数，超过顶点预算即拒绝并保留上一次成功模型（已由浏览器验收断言：复杂单 path
-400 曲线被拒绝且原模型保留）。
+`tools/extrude3d` 的本地 SVG 导入上限为 **1 MiB**；单个 `<path>` 曲线过多时，会按**本次真实使用的**
+`curveSegments` / `bevelSegments` / `bevelEnabled` 采样轮廓点估算挤出顶点数：超预算先按采样数把
+曲线 / 倒角细分降到合理下限（曲线 8 段、倒角 2 段），仍超出硬上限才拒绝并保留上一次成功模型。
+只数「图形元素个数」拦不住的单条超密集 path 由这条几何闸门兜住；`defs` / `metadata` 里未使用的
+普通定义不再被正则误判（可见元素上的 `filter=` / 文本 / 位图 / `<use>` 等仍明确拒绝）。
 
 `tools/extrude3d` 新增**基础色表面贴图**（用户专项授权）：在材质区上传本地 PNG / JPEG / WebP，
 经白名单 + 实际解码 + 体积 / 尺寸校验（≤10 MiB、单边 ≤4096 像素）后，用 three 自带的 `TextureLoader`
@@ -95,32 +100,33 @@ texture 7（真实上传、调参、下载 PNG；GPU 工具断言 WebGL2 / WebGP
 按视口与原图宽高比做居中 cover（`1×`–`3×` 缩放，默认 `1×`）；默认纯色背景改为纯白 `#ffffff`。
 透明背景时预览与导出都抑制背景图片，关闭后恢复；移除背景回到所选纯色。表面贴图与背景各自独立，
 切换材质 / SVG 背景保留；非法 / 解码失败 / 超限 / 最新一次无效选择都保留原背景，并释放 blob URL 与被替换贴图。
-不新增依赖 / 自定义着色器 / UV 算法。**本批之后 3D 扩展冻结**，保持可访问、不再新增 3D 功能。
+不新增依赖 / 自定义着色器 / UV 算法。此前「本批之后 3D 扩展冻结」的约定已由用户本轮专项授权解除，
+SVG立体按下文「本轮」条目继续迭代（玻璃折射 / 主光 / 百分比几何 / 上限与自适应）。
 对应浏览器断言（aspect / zoom 实际像素、导出 PNG、背景 + 表面独立、透明恢复、移除、竞态 / 错误）
 已由 Codex 本轮独立复跑通过（SVG立体 **81/81 PASS**）。
 
-> 未来 UI 规则（本批起）：全部工具界面与共享返回链接使用**白 / 黑 / 中性灰**，不再出现米色 / 奶油 / 棕 / 绿等
-> 彩色装饰；画布 / 素材 / 算法输出与材质调色板、真实封面不受此规则影响（不重绘为单色）。
-> `tools/texture` 的根原件不动，仅整合副本 `style.css` 改主题；`scripts/check.mjs` 仍逐字节校验 7 份非样式原件，
-> 并显式校验 `_source_snapshot` 的 8 份根原件哈希。
+> 工具页界面与共享返回入口使用**黑 / 白 / 中性灰**；首页维持原白色样式。画布 / 素材 / 算法输出 / 材质调色板与真实封面保留原有色彩。
+> `tools/texture` 只允许整合页 `index.html` 与 `style.css` 有 UI 差异；六份 JS 与 `_source_snapshot` 的 8 份原件继续逐字节 / 哈希校验。
 
 ### 本批新增的 3 个工具（视频效果复刻 · 独立实现）
 
 `tools/mixed-type` / `tools/wave-grid` / `tools/ascii-motion` 是依据用户提供的参考视频**新写的独立实现**：
-只使用仓库已锁定的 three 0.186.1（MIT，含 `examples/jsm/effects/AsciiEffect.js`）与浏览器原生
+只使用仓库已锁定的 three 0.186.1（MIT）与浏览器原生
 Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `window.queryLocalFonts`，不复制任何商业站点源码、品牌、
 素材或字体，也不把这些页面当作模板。参考来源「Mixweight」的网址在本机**不可达**，未能逐条核对原始开源许可；
 本批按用户对「按视频效果实现」的专项授权执行，实现与许可登记以本仓库（`THIRD_PARTY.md`）自身为准。
 字体一律使用访问者本机已安装的系统字体，仓库**不打包、不分发**任何字体文件；本机字体的许可由使用者在
-自己的机器上自行确认。三条封面路径已登记，Codex 抓取真实导出前的首页占位不伪造效果图。
+自己的机器上自行确认。三条封面路径已登记，并已由 Codex 用真实导出入库，占位图不伪造效果图。
 
-`public/assets/covers/*.png` 是 9 张真实工具 PNG 导出（互不相同，实际内容已核验），由
+`public/assets/covers/*.png` 是 12 张真实工具 PNG 导出（互不相同，实际内容已核验），由
 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
 优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；每个工具使用独立临时下载目录，
 只等待本次导出结果）。封面缺失时首页显示中性文字占位，不会破图、也不会用 AI 图或整页截图冒充效果图。
-本批新增的 `mixed-type` / `wave-grid` / `ascii-motion` 三条封面路径已登记进本脚本与首页清单，
-**待 Codex 用同一脚本抓取真实导出入库**；抓取前首页显示中性文字占位。
-`public/assets/covers/extrude3d.png` 已刷新为默认纯白背景下的真实 PNG 导出（1280×935，约 169 KB）。
+本批新增的 `mixed-type` / `wave-grid` / `ascii-motion` 三条封面已抓取真实导出入库；
+其中 `wave-grid` / `ascii-motion` 的最新真实导出已按 sha256 一致复制到 `dist/assets/covers/`，
+供 `npm run serve`（http://127.0.0.1:4890）首页直接使用。
+`public/assets/covers/extrude3d.png` 已刷新为最新真实 PNG 导出（玻璃材质场景，约 188 KB），首页用固定 query
+`20261013-glass1` 避免命中旧封面缓存。
 
 `tools/psychos` 不参与主站 Vite 多页打包，由 `scripts/build-psychos.mjs` 单独构建；它需要 WebGPU
 与安全上下文，因此请先 `npm run build`、再用 `npm run serve`（构建产物）打开，而不是 `npm run dev`。
@@ -169,7 +175,7 @@ CHANGELOG.md               变更记录
 ## 测试与验收
 
 本批次的**浏览器验收已完成**（用真实 Chrome 驱动交互：上传图片、调参、点导出并校验下载到的
-PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Codex 独立复跑 **81/81 PASS**（全套 310/310）。需要复跑时：
+PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Codex 独立复跑 **81/81 PASS**（全套 310/310 为改动前基线，本批结果见文末「本批验收结果」）。需要复跑时：
 
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke                      # 顺序跑全部工具，只启动一个 Chrome
@@ -192,6 +198,96 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
 
 第三方来源与许可见 [THIRD_PARTY.md](THIRD_PARTY.md)，许可原文见 [`third-party-licenses/`](third-party-licenses/)。
 
-`tools/texture` 为用户原创项目（含 `curve-fit.js`），已确认可公开；整合副本仅 `style.css` 改界面主题，
-其余 7 份非样式源码与上游原样逐字节一致，`_source_snapshot/` 的 8 份根原件哈希未改动、原样保留。
+`tools/texture` 为用户原创项目（含 `curve-fit.js`），已确认可公开；整合副本允许 `index.html` / `style.css` 的 UI 更新，
+六份 JS 仍应与上游逐字节一致，`_source_snapshot/` 的 8 份根原件哈希未改动、原样保留。
 本项目整体尚未选定对外许可证，在以权利人的决定为准之前视为保留所有权利。
+
+
+### 2026-10-13 · 首页宽排版重做 + SVG立体玻璃折射 / 主光 / 百分比几何（本轮）
+
+- **首页**（`index.html` / `assets/home.css` / `assets/home.js`）：纯白 / 黑 / 中性灰；去掉 1360px 上限改为全视口宽排版（左右 padding `clamp(24px,3vw,96px)`，移动 20px），保留 12 栏网格：桌面默认 2 列、`≥1800px` 3 列、中屏 2 列、小屏 1 列；顶栏 / hero / 工具区标题 / 页脚用贯穿整视口的横线切开大区块，工具区上下留白与卡片行距 80–120px，字标仍用已批准的 ImageLAB 图片（未新增 logo）。参考了 <https://superopc.app/> 的宽排版观感，未复制其代码 / 素材；`tests/specs/home.mjs` 把旧的 3 列断言改为 2 / 3 列，并新增 1920 / 2560 宽度与移动端无横向溢出检查。
+- **SVG立体 · 玻璃折射**：上游 `materialPresets.glass` 只有 `opacity=.35/transparent`、没有 `transmission`，因此此前看不到折射。本轮按 three 官方 `MeshPhysicalMaterial` 透射配置改为 `opacity 1 / transmission 1 / metalness 0 / 低 roughness / ior 1.5`，并新增「透明玻璃」专属的中文控件：折射率 1–2.4（默认 1.5）、光学厚度 0–2×（默认 1）、色散 0–1（默认 0.15）。three 0.186.1 的 `getVolumeTransmissionRay` 明确按**网格局部坐标**处理 `thickness` 并在着色器里乘 `modelScale`，所以材质 `thickness` 必须先由世界空间目标厚度除以等比缩放换算回局部坐标，避免被 `mesh.scale` 二次缩放：透明玻璃世界空间有效厚度 = 归一化后真实模型厚度 × 光学厚度倍数，其他透射材质保留各自预设的世界空间目标厚度；`getInfo().material.effectiveThickness`（= `thickness × scale`）只读可查。磨砂玻璃 / 钻石 / 树脂等其他透射材质保持各自预设，不用低 opacity 稀释折射；背景仍是 `scene.background`（不改成平面）。纯色背景没有可折射的细节，界面已如实写明「折射需要背景有细节，请上传背景图片；透明背景导出时没有可折射的背景」。不引入 vgpu 运行时，也不宣称与之等同。
+- **SVG立体 · 基础主光**：新增一盏 three 原生白色 `DirectionalLight`（强度 0–3、方向角 0–360°，固定仰角、不投影），与现有 `RoomEnvironment` + PMREM 环境反射同时作用；只暴露两个控件，改参数即时更新真实高光、不重建几何。
+- **SVG立体 · 几何参数**：厚度改为「最大平面边长」的 2–100%（默认 16%），边缘圆角 0–10%、倒角深度 0–10%（0 完全关闭）；复用上游 `buildExtrudeSettings` 的深度 / 细分 / 预算裁剪，倒角尺寸按百分比单独换算并沿用「不超过厚度一半」的保护上限，达到限制时状态栏写出实际值而不是静默钳制。只归一化一次到「平面最大边长 = 4 单位」（不再用 3D 最大边），厚度 / 倒角改动不会被缩放抵消；20 / 200 / 2000 同比例 SVG 归一化结果一致。
+- **SVG立体 · 导入闸门**：上限 64 KiB → **1 MiB**；几何估算改为使用本次真实的 `bevelEnabled` / `bevelSegments` / `curveSegments`，超预算先按采样数降低细分（曲线 8 段、倒角 2 段），仍超 600000 顶点才拒绝；解析后、`measureFlatMaxDim` 的 `ShapeGeometry` 三角化**之前**先按最低细分做下限估算，连下限都超预算的密集 path 直接拒绝（倒角关闭时按 0 段下限，避免误伤「关掉倒角才装得下」的输入），防止大 path 三角化卡住主线程。脚本 / 内联事件属性 / 内部 `ENTITY` / 外部 `href`·`src`·`url()`·`@import` 引用按**原始文本**拒绝（连 `defs` / `metadata` 里也拒绝），同时放行命名空间 URL、metadata 正文、本地 `#fragment` 引用与不含内部实体的普通 SVG 1.1 `DOCTYPE`。`defs` / `metadata` 里未使用的普通定义不再被正则误判，可见元素上的滤镜 / 文本 / 位图 / `<use>` 等仍明确拒绝。解析结果按 SVG 文本缓存、重建用 RAF 合并，拖动滑块不做逐帧 `parseSVG`；失败时保留上一次成功模型 / 贴图 / 背景 / 相机。
+- **测试与文档**：`tests/specs/extrude3d.mjs` 新增同比例归一化与玻璃世界空间有效厚度一致（20 / 200 / 2000）、厚度 2/16/70、倒角 0/2/6 的真实 bounds 与像素变化、达到上限时的实际值反馈、100 / 400 段平顺闭合轮廓自适应接受（原「400 曲线被拒」预期已废弃，实际顶点 ≤ 600000）、2200 条曲线的真正硬上限在三角化前被拒并保留旧模型、普通导出（DOCTYPE / 命名空间 / metadata 正文 / 未使用 defs / 本地 #fragment）可导入、脚本 / 内部实体 / 外部资源引用与可见滤镜仍拒绝、64 KiB–1 MiB 可导入 / >1 MiB 拒绝、玻璃 ior 1 / 1.5 / 2.0 在非周期背景下的多区域空间错位（不只是明暗或属性变化）、主光方向移动高光，以及 `getInfo()` 只读几何 / 材质 / 灯光诊断。本仓库不启动浏览器，以上待 Codex 独立复验。
+- **vgpu 只读参考**：官方 `transmission` 示例是屏幕空间做法（整帧 → 金字塔模糊 → Snell 折射 + 色散 + Fresnel 环境反射，`glass.wgsl` / `blur.wgs`），`glass-sculpture` 是程序化 SDF 光线步进，`tsl-exports` 是 WGSL → Three TSL；许可为 MIT（<https://github.com/vercel-labs/vgpu>）。本轮只参考思路，未移植代码、未引入运行时依赖，THIRD_PARTY 无需新增许可。
+- 验证：`npm run check` 48/48、`npm run build`、`git diff --check` 通过；**未启动浏览器**，Codex 浏览器验收待执行。
+
+### 2026-10-13 · 辉光点阵微调（默认辉光能量 / 构图 / 稳定种子）
+
+- **默认辉光能量**：`GLOW_GAIN=3.6` 在 1/8 bloom 与 1/4 光丝缓存的曝光阶段用原生 `brightness(3.6)` 施加一次（不新增控件，强度 0 仍严格跳过整段辉光）；最终合成 alpha 为 `glow^0.8`（默认 0.55 → α≈0.62、α(1)=1，严格递增无 clamp，修复旧 `clamp(glow*3.6*系数,0,1)` 在 glow≥0.56 的高段死区）；辉光层改用四条色带的**饱和主色**发光，清晰层继续保留白 / 浅色实心核；默认长度 48 → **72px**，控件上限仍 0–120。
+- **构图**：`BAND_SLOPE` 0.65 → 0.33、`BAND_CENTERS` 改 `[0.10, 0.34, 0.58, 0.82]`、`HALF_WIDTH` 0.125 → 0.105；蓝从左上约 y=0.10 平缓斜向右下，品红中上、红中下、绿最下（右端自然裁切），Node 复算默认亮格约 48%（40–55% 带内）、四色占比约 30 / 29 / 25 / 16%。
+- **稳定构图**：`SimplexNoise` 不再用默认 `Math.random` 建置换表，改用内置 mulberry32（等价 three `seededRandom` 的算法，不新增依赖）以 `state.seed` 固定初始化一次；每次 reload 构图一致，且不逐帧 / 不逐布局重随机，也不新增「重新随机」入口。
+- **测试**：`tests/specs/wave-grid.mjs` 的方向判据改为载入程序生成的透明白点画幅（非用户素材）自动 alpha 取样，按光斑 halo 的空间方差 / 范围验证长度 0 → 120、90° 纵向与 0° 横向；新增默认辉光 vs 强度 0 的 halo 亮度 / 覆盖显著增加、且黑色留白仍 >20% 的检查。UI 文案改为「强度 0 关闭辉光，保留清晰点阵」，长度 / 方向数字控件标注 px / °。
+- 验证：`npm run check` 48/48、`npm test` 35/35 + 48 项静态检查、`npm run build`、`git diff --check` 通过；**未启动浏览器**，wave-grid 浏览器规格与 `public/assets/covers/wave-grid.png` 重抓待 Codex 执行。
+
+### 2026-10-13 · 辉光点阵改版（密度真值 + 宽厚色带 + 方向辉光）
+
+- **密度 bug 修复**：不再用 `9-(density-.55)*2` 再靠 `while` 压到同一格数；改为 density → CSS 网格间距的单调映射（0 粗 ≈13.5px、1 细 ≈7.4px、默认 0.55 ≈9px），格数 / 间距与控件同步，粗 / 中 / 细三个预设共用同一密度参数。
+- **画面形态**：竖幅 4:5、最大 720 居中；四个斜向宽厚色带用 `three` 自带 SimplexNoise（布局时按格预计算）做不规则分段，亮核为连排实心 ■、过渡 □、边缘 × 与稀疏白色亮簇，保留大块黑留白。
+- **辉光**：强度与长度（0–120px）、方向（默认 90° 纵向）、色带宽度独立可调；按 shader-lab 的 `directional-blur-pass`（有限方向取样）与 `dual-filter-bloom`（多级缩放）做 Canvas 等效适配，1/4 块缓冲 8 次位移 + 1/8、1/16 两级柔光，整帧 `drawImage` ≤16 次，无逐格 filter。
+- **接口与测试**：PNG 仍是当前 canvas 帧；`tests/specs/wave-grid.mjs` 覆盖 1440 / 390 密度低中高、预设、glow0 / 长度 0–120 / 方向、黑留白与宽亮核、四色、暂停 / 隐藏 / 缩放、非法上传保留与导出 PNG 逐像素一致。
+- `npm run check` 48/48、`npm test` 35/35 + 48 项静态检查、`npm run build`、`git diff --check` 通过；视觉与性能已由 Codex 独立验收通过（见文末最新验收）。
+
+### 2026-10-13 · 字符点阵与工具界面更新
+
+- `wave-grid` 改为固定约 9 CSS px 字符格，默认四条窄色带，含填充 / 空心 / 叉号迟滞状态与全画面缓存辉光；增加字母图形与透明 PNG 轮廓取样。
+- `ascii-motion` 使用单张 Canvas 输出预览与 PNG，Three 采样上限 160×100 格、DPR 上限 1.5、30fps；增加自定义字素字符集、本地图片 / 文字平面与波动 / 呼吸 / 旋转。透明 PNG 默认按 alpha 轮廓显示。
+- 12 个工具页面统一使用深色中性色界面与左上返回首页链接；首页本身不变，纹理间只调整入口 / 主题文件，原始 8 文件快照保留。
+- 静态检查、测试与构建状态以本次实际运行结果为准；浏览器效果和性能已由 Codex 独立验收通过（见文末「本批验收结果」）。
+
+### 2026-10-13 · 点阵辉光合成修正
+
+- `wave-grid`：字形先绘到每帧清空的透明缓冲，主画布纯黑底；复用 1/4 分辨率透明 bloom 绘小点块提高光能，两档柔光以 `lighter` 叠加后再用 `source-over` 叠回锐利字形，修复此前用不透明黑底覆盖柔光的问题。`glow=0` 完全跳过柔光，`glow=0.55` 为宽柔光且字形锐利、远处黑底不抬亮。
+- 保持固定约 9 CSS px 格点、≤12000 格、画布边长 ≤1600、30fps；暂停与页面隐藏停止连续 RAF，暂停下改参数 / 缩放只重绘一次。字母 `a` 的字形高度调到约画面的 15–20%。
+- `tests/specs/wave-grid.mjs`：清除图片后断言字母 mask 真实生效（小写 a 约占画面 15–20% 高）；暂停下 `glow 0 / 1` 产生真实像素差异，且远离色带的画面角落仍为纯黑。
+- 本轮 `npm run check` 48/48、`npm test` 35/35 + 48 项静态检查、`npm run build` 通过；实现侧未启动浏览器，浏览器外观、上传、动效与性能已由 Codex 独立复验通过（见文末「本批验收结果」）。本轮为本地 demo，未提交、未推送。
+
+### 2026-10-13 · 本批验收结果（Codex 独立复验）
+
+- 浏览器规格全绿：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；实际 PNG 下载通过。
+- 首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过；两个点阵 / 字符画工具的 opaque JPEG 自动明暗与无效文件保留当前帧通过。
+- 性能（Chrome 同机 **浏览器主线程 TaskDuration**，非整机 CPU）：`ascii-motion` 1.3–1.6%、`wave-grid` **属旧实现的 1.2–1.4%**，30fps；暂停 renders 0，resize 只重绘一次，另开 tab `document.hidden=true` 后 renderCount 不变。当前 `wave-grid` 的新实现性能见下方最新验收。
+- `mixed-type` / `wave-grid` / `ascii-motion` 封面已抓取；`wave-grid` / `ascii-motion` 的最新导出已复制到 `dist/assets/covers/`（sha256 与 `public/` 一致）。
+- 本轮无功能代码变更；本地 demo **未提交、未推送**。
+
+### 2026-10-13 · 最新验收（首页 / SVG立体 / 辉光点阵 · Codex 独立复跑全绿）
+
+- 首页 **86/86**：1440 / 1920 / 2560 / 390 宽，白底、全宽横线、搜索、15 条目全部通过。
+- SVG立体 **115/115**：塑料直接光照最终用例通过；玻璃 ior 1→1.5 三区域位移约 (-6,+5)、1→2 约 (-8,+8)，0 错误。
+  默认玻璃 16% 配合上传图片实测 transmission 1 / opacity 1 / IOR 1.5 / effectiveThickness .8，玻璃有效 alpha 中位 4824、部分 1576、四角 0（80×80 采样）。
+- 辉光点阵 **51/51**：halo 颜色、glow 0 / .6 / .8 / 1、密度、方向长度与 PNG 通过；新实现约 30fps、7821–11737 格 / 15 drawcalls，暂停 delta 0，浏览器主线程 TaskDuration 14.7–19.3%（非整机 CPU）。
+  封面 `public/assets/covers/wave-grid.png` 与 `dist/` 副本 sha256 一致（`dd42c5cf...e481f5be`）。
+- 无新增运行时依赖、无 vgpu 引擎；当前 Three 0.186.1 支持背景折射，但不等同 vgpu raymarch / TIR。本地 demo：http://127.0.0.1:4890/（未提交、未推送）。
+
+### 2026-10-13 · SVG立体：棚拍空间背景 + 背景图片平移 + 玻璃双面 + 按需渲染（DSH 执行 · 待 Codex 浏览器验收）
+
+- **棚拍空间背景（第三种背景模式）**：`背景模式：纯色 / 棚拍空间 / 图片`，纯色仍为默认、旧行为不变。棚拍空间是真实 WebGL 场景：
+  一次性 PMREM 环境 + `three` 原生 `RectAreaLight`（暖主光 / 冷轮廓光，跟随现有主光强度与方向）+ 柔光箱加法发光板 +
+  上亮下暗天幕 + `three` 原生 `Reflector` 真实地面反射（目标上限 512×512）。地面跟随模型真实包围盒落在最低点下方小间隙，
+  地面反射用原生中性灰 `MeshPhysicalMaterial` 薄层压低，避免变成镜子。透明背景时棚拍可见几何全部隐藏、解除勾选恢复；
+  相机与 userZoom 不受切换影响。只读参考官方 vgpu `glass-sculpture` 的 STUDIO 灯光取值，**未移植 WGSL / SDF 光线步进**。
+- **背景图片平移**：新增「横向位置 / 纵向位置（-100–100%）」与「重置位置」；映射到 `Texture.offset`，始终落在 cover+缩放后的
+  剩余裁切窗口内（不会拉伸 / 平铺 / 露白边）。某轴没有裁切余量时只禁用该轴滑杆并提示「放大背景后可移动裁切位置」；
+  位置在材质 / SVG / resize / 透明开关间保持，重置或重新上传图片才回到 1× 居中。
+- **玻璃真实双面**：所有透射材质统一 `DoubleSide` + `forceSinglePass=false`，走 three 原生多趟背面透射，隔玻璃可见背面表面；
+  不透明材质仍 `FrontSide`，不新增重复半透明替身，局部厚度换算随几何变化保持不变。这是原生两趟透射，**不是** vgpu 多次弹射 TIR。
+- **性能**：改为按需渲染 —— `OrbitControls` 的 change 事件与 `update()` 返回值驱动脏标记，空闲 / 标签页隐藏时不再出图，
+  参数、上传、resize、导出都会重新出图；PMREM 与环境贴图只在进入棚拍时生成一次，镜像目标固定 512。
+- 验证：`node --check`、`npm run check` 48/48、`npm run build`、`git diff --check` 通过；**未启动浏览器**，新增规格
+  `tests/specs/extrude3d.mjs` 115 → 134 项待 Codex 独立浏览器复验。
+
+### 2026-10-13 · SVG立体：原生真实立方体默认 + 总光量增益 + 强色散（DSH 执行 · 待 Codex 浏览器验收）
+
+- **默认真实立方体**：内置样例首位新增「立方体」并设为默认，几何由 three 原生 `BoxGeometry` / addon `RoundedBoxGeometry`
+  生成（4×4×4，Z = 4 × 厚度%，圆角由现有「边缘圆角宽度%」换算），默认「透明玻璃」；没有 SVG 近似或自研建模。
+  切到 / 切回 SVG 时各自记住上次的几何滑杆（SVG 首次深度 16%），旧样例 / 上传 / 倒角预算 / 背景 / 贴图兼容不变。
+- **总光量增益**：「灯光强度」同时缩放原生主平行光、棚拍面光源、可见发光柔光箱与 `scene.environmentIntensity`；
+  「环境光」是叠加其上的独立倍数，0 时主光 / 环境反射 / 面板光熄灭而背景色 / 图片保留；不每帧重烘 PMREM。
+- **棚拍反射修正**：地面 `Reflector` 不再旋转几何数据，改为物体 `rotation.x = -PI/2`，世界法线回到 (0,1,0)；
+  中性灰地面层共用同一几何并同样转平，加径向 `alphaMap` 与雾 / 天幕调色，消掉斜切灰带与硬地平线。
+- **强色散**：色散强度 0–20（默认 6，步进 0.25），仍为 three 原生 3 通道物理色散；新增「强色散示例」一键填参数并用页面内
+  canvas 现画白底黑字 ImageLAB 背景（走既有本地图片校验管线，不联网、不用任何用户素材）。
+- 验证：`node --check`（main.js / 规格）、`npm run check`、`npm run build`、`git diff --check` 通过；**未启动浏览器**，
+  新用例待 Codex 独立复验。限制：原生透射是单次折射 + 屏幕空间色散，不等同多次内反射（TIR），不声称与参考图一致。

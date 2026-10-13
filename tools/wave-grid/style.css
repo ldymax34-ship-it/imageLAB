@@ -1,6 +1,6 @@
 /*
- * imageLAB · 波动点阵
- * 界面：中性白 / 黑 / 灰；预览画布里的深色底与彩色点阵是生成结果本身。
+ * imageLAB · 辉光点阵
+ * 界面：深色黑 / 白 / 中性灰；预览画布里的深色底与彩色点阵是生成结果本身。
  */
 
 :root {
@@ -200,11 +200,14 @@ input[type="range"] {
   overflow: hidden;
 }
 
-/* 预览区：深色底来自效果本身；画布按容器宽高填充，尺寸由脚本限制在 ~1k 级别。 */
+/* 预览区：竖幅 4:5，最大 720 CSS px 居中；窄屏自适应收窄。
+   深色底来自效果本身（内容色），界面其余部分保持白 / 黑 / 中性灰。 */
 .il-canvas {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  max-width: 720px;
+  margin: 0 auto;
+  aspect-ratio: 4 / 5;
   background: #05070c;
 }
 
@@ -228,3 +231,5 @@ input[type="range"] {
   color: var(--ink);
   font-weight: 600;
 }
+
+#image-sampling { width:100%; padding:4px 6px; border:1px solid var(--rule); background:#fff; color:inherit; font:inherit; }

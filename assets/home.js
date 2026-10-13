@@ -30,7 +30,6 @@
 
   function card(t) {
     var article = el("article", "card");
-    article.dataset.span = String(t.span || 4);
     article.dataset.tool = t.id;
 
     if (t.external) {
@@ -51,7 +50,6 @@
       article.appendChild(el("h3", null, t.name));
       // 类别行只显示现有中文分类；英文副标题 en 仅保留在数据里供来源记录与搜索用。
       article.appendChild(el("div", "cat", t.cat));
-      article.appendChild(el("p", null, t.desc));
 
       var extEnter = el("a", "enter");
       extEnter.href = t.href;
@@ -62,7 +60,6 @@
       extArrow.textContent = "↗";
       extEnter.appendChild(extArrow);
       article.appendChild(extEnter);
-      article.appendChild(el("div", "note", "外部网站 · 跳转官网"));
       return article;
     }
 
@@ -70,7 +67,8 @@
     shot.href = t.href;
     shot.setAttribute("aria-label", t.name + " 预览");
     var img = document.createElement("img");
-    img.src = t.cover;
+    // coverQuery 用于效果改版后强制刷新封面缓存（真实封面仍由验收方导出）。
+    img.src = t.coverQuery ? t.cover + "?" + t.coverQuery : t.cover;
     img.alt = t.name + " 实际运行效果封面";
     img.loading = "lazy";
     img.decoding = "async";
@@ -86,7 +84,6 @@
     article.appendChild(el("h3", null, t.name));
     // 类别行只显示现有中文分类；英文副标题 en 仅保留在数据里供来源记录与搜索用。
     article.appendChild(el("div", "cat", t.cat));
-    article.appendChild(el("p", null, t.desc));
 
     var enter = el("a", "enter");
     enter.href = t.href;
@@ -96,7 +93,8 @@
     enter.appendChild(arrow);
     article.appendChild(enter);
 
-    if (t.note) article.appendChild(el("div", "note", t.note));
+    // 内置卡片不再复述说明文字与逐卡注释：名称 / 分类 / 入口三段式，
+    // 首页只保留工具选择所需信息，不重复说明文字。
     return article;
   }
 
@@ -106,38 +104,35 @@
     host.textContent = "";
     countEl.textContent = list.length + " / " + tools.length + " 个入口";
 
-    var catTotal = new Set(tools.map(function (t) { return t.cat; })).size;
-    var builtinTotal = tools.filter(function (t) { return !t.external; }).length;
-    var externalTotal = tools.filter(function (t) { return !!t.external; }).length;
-    var builtinEl = document.getElementById("meta-builtin");
-    var externalEl = document.getElementById("meta-external");
-    var catsEl = document.getElementById("meta-cats");
-    if (builtinEl) builtinEl.textContent = String(builtinTotal);
-    if (externalEl) externalEl.textContent = String(externalTotal);
-    if (catsEl) catsEl.textContent = String(catTotal);
-
     if (!list.length) {
       var empty = el("div", "empty", "没有匹配的工具。清空搜索或切换分类试试。");
       var sec = el("section", "section");
+      var body = el("div", "section-body");
       var wrap = el("div", "wrap");
       wrap.appendChild(empty);
-      sec.appendChild(wrap);
+      body.appendChild(wrap);
+      sec.appendChild(body);
       host.appendChild(sec);
       return;
     }
 
-    // 全部视图与筛选结果都放进同一条连续 12 栏网格：桌面 3 列，
-    // 不会因为某个类别只有 1–2 个工具而空出一整块。
+    // 全部视图与筛选结果都放进同一条连续 12 栏网格：
+    // 桌面一行 4 个，中屏 2 个、小屏 1 个；标题线贯穿视口。
     var section = el("section", "section");
+    var head = el("header", "section-head");
+    var headWrap = el("div", "wrap");
+    headWrap.appendChild(el("h2", null, state.cat === "全部" ? "全部工具" : state.cat));
+    headWrap.appendChild(el("p", null, list.length + " 个入口"));
+    head.appendChild(headWrap);
+    section.appendChild(head);
+
+    var body = el("div", "section-body");
     var wrap = el("div", "wrap");
-    var header = document.createElement("header");
-    header.appendChild(el("h2", null, state.cat === "全部" ? "全部工具" : state.cat));
-    header.appendChild(el("p", null, list.length + " 个入口"));
-    wrap.appendChild(header);
     var grid = el("div", "cards");
     list.forEach(function (t) { grid.appendChild(card(t)); });
     wrap.appendChild(grid);
-    section.appendChild(wrap);
+    body.appendChild(wrap);
+    section.appendChild(body);
     host.appendChild(section);
   }
 
@@ -148,8 +143,10 @@
     return k == null ? "" : String(k);
   }
 
+  // 搜索只覆盖页面上与来源记录里真实存在的字段（名称 / 英文名 / 分类 / keywords），
+  // 不再引用任何未登记的说明文案。
   function haystack(t) {
-    return [t.name, t.en || "", t.cat, t.desc, keywordsText(t)]
+    return [t.name, t.en || "", t.cat, keywordsText(t)]
       .join(" ")
       .toLowerCase();
   }

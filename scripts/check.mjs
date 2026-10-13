@@ -53,6 +53,22 @@ for (const id of toolDirs) {
 }
 ok("工具目录数量", toolDirs.length > 0, `${toolDirs.length} 个：${toolDirs.join(", ")}`);
 
+/* ---------- 1b. 共享工具页外壳与返回入口 ---------- */
+const sharedShell = await read("public/assets/backlink.css");
+const shellIssues = [];
+for (const id of toolDirs) {
+  const html = await read(join("tools", id, "index.html"));
+  const homeLinks = [...html.matchAll(/<a\b[^>]*class="[^"]*il-back[^"]*"[^>]*>/g)];
+  const shellStyles = [...html.matchAll(/<link\b[^>]*href="\.\.\/\.\.\/assets\/backlink\.css"[^>]*>/g)];
+  if (homeLinks.length !== 1 || !/href="\.\.\/\.\.\/index\.html"/.test(homeLinks[0]?.[0] || "")) {
+    shellIssues.push(`${id}: 返回首页链接数量或目标不符`);
+  }
+  if (!html.includes("../../assets/backlink.css")) shellIssues.push(`${id}: 未载入共享工具样式`);
+  if (shellStyles.length !== 1) shellIssues.push(`${id}: 共享工具样式引用数量为 ${shellStyles.length}`);
+}
+ok("12 个工具都有唯一的共享返回首页入口", shellIssues.length === 0, shellIssues.join("；") || "href=../../index.html");
+ok("共享工具样式使用深色系统控件、变量和 26px 左上导航", /color-scheme:\s*dark/i.test(sharedShell) && /top:\s*8px/i.test(sharedShell) && /left:\s*12px/i.test(sharedShell) && /height:\s*26px/i.test(sharedShell) && /padding-top:\s*42px/i.test(sharedShell) && /--ink:#eee\s*!important/i.test(sharedShell));
+
 /* ---------- 2. 运行时远程资源 ---------- */
 console.log("\n[2] 运行时远程资源（禁止 CDN / 远程字体 / 远程图片 / 远程 API）");
 const REMOTE_PATTERNS = [
@@ -201,11 +217,11 @@ for (const id of toolDirs) {
 ok("规格引用的控件 id 都存在", specCtl.length === 0, specCtl.slice(0, 4).join(" | "));
 
 /* ---------- 4. 纹理间源码字节一致 ---------- */
-// 说明（本批次专项授权）：`tools/texture/style.css` 的界面主题由暖绿改为中性白/黑/灰，
-// 这是唯一允许与上游原件不一致的文件。其余 7 份源码必须逐字节保持上游原样；
+// 说明（本批次专项授权）：整合页 `index.html` 增加共享深色工具外壳和返回入口，`style.css`
+// 调整中性深色主题；这两份是 UI 例外。其余 6 份代码文件必须逐字节保持上游原样；
 // `_source_snapshot` 里的 8 份根原件本身也必须原样保留（用登记哈希显式校验，
 // 不允许通过改动快照来「凑」一致）。
-console.log("\n[4] tools/texture 与只读副本逐字节一致（仅 style.css 允许改主题）");
+console.log("\n[4] tools/texture 与只读副本逐字节一致（仅 UI 文件 index.html / style.css 允许差异）");
 const SNAP = "_source_snapshot";
 const TEXTURE_SOURCES = [
   "index.html",
@@ -247,8 +263,8 @@ if (!existsSync(resolve(ROOT, SNAP))) {
   );
 
   const files = (await readdir(resolve(ROOT, "tools/texture"))).sort();
-  const STYLE_ONLY = "style.css";
-  const nonStyle = TEXTURE_SOURCES.filter((f) => f !== STYLE_ONLY);
+  const UI_EXCEPTIONS = new Set(["index.html", "style.css"]);
+  const nonStyle = TEXTURE_SOURCES.filter((f) => !UI_EXCEPTIONS.has(f));
   const diff = [];
   for (const f of files) {
     const a = resolve(ROOT, "tools/texture", f);
@@ -260,15 +276,15 @@ if (!existsSync(resolve(ROOT, SNAP))) {
     if (sha256(a) !== sha256(b)) diff.push(f);
   }
   ok(
-    "7 份非样式源码与上游原件逐字节一致",
+    "六份非 UI 源码与上游原件逐字节一致",
     nonStyle.every((f) => !diff.includes(f)),
     nonStyle.some((f) => diff.includes(f))
       ? `不一致：${nonStyle.filter((f) => diff.includes(f)).join(",")}`
       : `${nonStyle.length} 份一致`
   );
   ok(
-    "仅 style.css 允许改主题（其余文件未注入导航或其他改动）",
-    diff.every((f) => f === STYLE_ONLY),
+    "仅 index.html / style.css 有 UI 差异（六份 JS 与其他文件未改）",
+    diff.every((f) => UI_EXCEPTIONS.has(f)),
     diff.length ? `差异文件：${diff.join(",")}` : "无差异"
   );
 }

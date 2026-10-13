@@ -165,7 +165,7 @@ code {
   font-size: 10px;
   color: var(--il-ink);
   border: 1px solid var(--il-line);
-  background: #fff;
+  background: var(--il-panel);
   padding: 1px 5px;
 }
 
@@ -217,7 +217,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
   margin-bottom: 10px;
   padding: 9px 11px;
   border: 1px solid var(--il-ink);
-  background: #fff;
+  background: var(--il-panel);
   color: var(--il-ink);
   font-size: 11px;
   line-height: 1.7;
