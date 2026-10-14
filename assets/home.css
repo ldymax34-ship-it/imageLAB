@@ -235,8 +235,9 @@ a { color: inherit; text-decoration: none; }
   padding: 6px 12px;
 }
 
-/* 外部网站入口：封面区域是明确的文字入口（不伪造效果图、也不是缺失封面）。
-   卡片不加载任何外部图片 / iframe，只在点击后跳转官网。 */
+/* 外部网站入口：只跳转，不 iframe、不请求第三方图片。
+   有本地官网缩略图时封面区显示本地 img，右下角叠层保留「外部网站」标识与主机名；
+   没有 / 加载失败时退回居中的纯文字入口。 */
 .card .shot.is-external-shot {
   display: flex;
   flex-direction: column;
@@ -245,6 +246,44 @@ a { color: inherit; text-decoration: none; }
   gap: 10px;
   padding: 20px;
   text-align: center;
+}
+
+/* 本地缩略图铺满封面区；叠层绝对定位在下方，图片仍来自 assets/covers/。 */
+.card .shot.is-external-shot.has-cover {
+  display: block;
+  padding: 0;
+}
+
+.card .shot.is-external-shot.has-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card .shot-external-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.74);
+  text-align: left;
+}
+
+.card .shot-external-overlay .shot-external {
+  color: #fff;
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+}
+
+.card .shot-external-overlay .shot-host {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
 }
 
 .card .shot-external {

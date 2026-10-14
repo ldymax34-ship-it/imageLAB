@@ -4,6 +4,60 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 2026-10-14 · 刷新全部工具缩略图 + 外链本地缩略图 + 品牌素材生成外链入口（DSH 执行实现；Codex 已完成实际抓图与独立验收）
+
+范围（用户本轮明确授权）：`assets/tools.js`、`assets/home.js`、`assets/home.css`、
+`scripts/capture-covers.mjs`、新增 `scripts/capture-external-covers.mjs`、`tests/specs/home.mjs`、
+`scripts/check.mjs`、`tests/harness.mjs`（新增可选 `profileDir`）、README / tests README / 变更日志。
+**未改**任何内置工具的算法、UI、默认参数与导出结果。DSH 实现阶段**未启动浏览器、未生成任何 PNG**
+（该阶段历史事实）；随后由 Codex 在真实浏览器完成 16 张封面的实际抓取与独立验收，本轮最终已本地
+commit、**未 push / 未部署**。
+
+- **首页清单（16 入口）**：新增外链入口 `brand-assets-generator`（中文「品牌素材生成」，英文来源名
+  Brand Assets Generator，类别「版式与切片」，官网 `https://brand-generator.stoyanov.works/`，
+  `external: true`，放在外链区末尾）；原来 3 个外链全部补上本地 cover。首页从 15（12 内置 + 3 外链）
+  变为 **16（12 内置 + 4 外链）**。16 个入口统一使用 `coverQuery: "20261014-refresh1"`，避免命中旧封面缓存；
+  工具排序逻辑不变。
+- **外链封面渲染**：外链卡片在有本地 cover 时于封面区显示本地 `img`（`assets/covers/<id>.png`），
+  右下角叠层保留「外部网站 · 跳转官网」标识与主机名；两处链接继续
+  `target="_blank" rel="noopener noreferrer"`。`img` 加载失败时退回原有纯文字外链块，不显示破图；
+  不新增远程请求、预取或 iframe，运行时首页只加载仓库本地图片。
+- **Brand Assets Generator 只作外链**：官网 HTML / 打包 bundle 没有 GitHub 或许可证链接，GitHub 公共搜索
+  没有对应仓库 → 未找到公开源码 / 许可证原文，**不能认定开源、不本地镜像源码 / 字体 / 素材**；
+  外链封面是验收方从公开官网当前页面截取的本地 PNG，**截图许可不等于代码开源许可**。
+- **内置封面刷新脚本**：`scripts/capture-covers.mjs` 更新为当前 12 个内置工具的真实 DOM / 分类结构：
+  `extrude3d` 的旧 `#view-canvas` / `#export-png` 已失效，改为「切 `#tab-render` → 等
+  `window.__extrude3d.getInfo().render.ready` 为真 → 切「输出」分类（`[data-cat="output"]`）→
+  点 `#render-export-png`」，退路只截 `#render-canvas`，WebGPU 未就绪即失败而不是产出空白；
+  shader 三工具 / `wave-grid` / `ascii-motion` 的导出按钮位于隐藏「输出」分类，点导出前先切该分类
+  （只切换显示，不复制控件、不绕过应用状态）。仍保持「优先真实导出，退路只截真实预览画布」。
+- **新增外链封面脚本** `scripts/capture-external-covers.mjs`：默认关闭，复用
+  `tests/browser-policy.mjs` 的 `IMAGELAB_BROWSER_TESTS=on` 显式 opt-in；只处理 4 个固定 HTTPS 官网，
+  **不接受任意 URL 参数**；使用独立 Chrome profile（`profileDir`，与工具 smoke 分开）、1440×900 视口、
+  等待页面稳定后截**当前视口**（非整页长图），缩到 ≤1280px 后保存到 `public/assets/covers/<id>.png`；
+  来源 URL 写入 `public/assets/covers/external-covers.json`；不抓源码、不下载站点资源进仓库、
+  不使用远程图作为运行时依赖；页面打不开 / 截图失败即失败退出，**不创建伪封面**。
+- **测试**：`tests/specs/home.mjs` 改为 16 入口（12 + 4），外链断言在标注 / target-rel / 网址 / 关键词之外，
+  新增「本地 cover img 加载成功」与「cover URL 是站内 `assets/covers`、不是远程 URL」；内置 12 张封面
+  改为必须齐备。`scripts/check.mjs` 改为 16 入口，所有入口统一禁止 http(s) 封面，外链封面路径必须位于
+  `assets/covers` 且 4 张文件存在。两处都**不 fetch 外链官网**（避免 CORS 假失败）。`tests/harness.mjs`
+  的 `launchBrowser` 新增可选 `profileDir`，默认行为不变。
+- **抓图（Codex 在真实浏览器实际执行）**：先 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs`
+  刷新 12 张内置封面，再 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs` 抓取 4 张外链
+  官网缩略图（均先 `npm run build`，脚本服务的是构建产物 `dist/`）。16 张封面全部存在并已目视确认：
+  `shaders-logo.png` **1280×803**，4 张外链封面（`space-type-generator` / `shader-lab` / `tooooools` /
+  `brand-assets-generator`）**均 1280×800**；来源 URL 记录在 `public/assets/covers/external-covers.json`。
+  未使用占位图。
+- **最终验收（Codex 独立执行）**：`npm run build` 通过；`npm test` **67/67**（含 **58 项**内部静态检查）；
+  `node scripts/check.mjs` **58/58**（实现阶段的「4 张外链封面文件齐备」失败项已消失）；
+  `IMAGELAB_BROWSER_TESTS=on npm run smoke -- home` **113/113**、**0 页面错误**；`git diff --check` 通过。
+- **封面产物**：`public/assets/covers/` 下共 16 张 PNG（12 张内置刷新 + 4 张外链新增），
+  以及新增 `public/assets/covers/external-covers.json`（4 条来源 URL）。
+- **改动文件**：`assets/tools.js`、`assets/home.js`、`assets/home.css`、
+  `scripts/capture-covers.mjs`、`scripts/capture-external-covers.mjs`（新增）、`tests/harness.mjs`、
+  `tests/specs/home.mjs`、`scripts/check.mjs`、`README.md`、`CHANGELOG.md`、`tests/README.md`、
+  `02_OUTPUT/docs/TOOL_INDEX.md`、`00_PROJECT_RULES/{TASKS.md,CHANGELOG.md}`、根 `README.md`。
+
 ### 2026-10-14 · 产品级工具工作台 UI 改版：紧凑顶栏 / 分类悬浮检查器 / 画布播放条 / 重置视图（DSH 执行；Codex 真实 Chrome 已验收通过）
 
 范围（用户本轮明确授权）：`tools/shaders-logo`、`tools/shaders-bg`、`tools/shaders-halftone`

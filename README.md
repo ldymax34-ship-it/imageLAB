@@ -6,8 +6,9 @@
 
 一个**纯静态、纯前端**的图像设计工具箱：首页 `index.html` + `tools/<id>/` 下的独立工具网页。
 内置工具只在本地浏览器里处理素材，不上传；没有数据库、没有账号、没有服务端渲染、也没有运行时远程模型或 API。
-首页另登记 **3 个外部网站入口，只做跳转**（外部网站内容由对方提供，本项目不部署、不复制源码、不下载封面、不 iframe、
-不引入运行时外部请求），因此「素材不上传」只适用于 12 个内置工具，不构成对第三方网站的保证。
+首页另登记 **4 个外部网站入口，只做跳转**（外部网站内容由对方提供，本项目不部署、不复制源码 / 字体 / 素材、
+不 iframe、不引入运行时外部请求；外链卡片上的缩略图是验收方从公开官网当前页面截取、保存进本仓库的本地 PNG，
+运行时只从 `assets/covers/` 加载），因此「素材不上传」只适用于 12 个内置工具，不构成对第三方网站的保证。
 
 ## 快速开始
 
@@ -34,10 +35,11 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 > 卡片行距 56–88px，工具区上下留白 72–120px，区块标题是小字号 + 0.2em 字距的标签（压得住卡片名）。
 > 页面文案只保留必要信息：卡片只有「封面 / 名称 / 分类 / 入口」四段，
 > `assets/tools.js` 也据此不再登记 desc / note / span（keywords 只服务搜索）。
-> 首页回归：12 个内置入口（12 张真实封面）、全部内置入口 HTTP 200、
+> 首页回归：16 个入口（12 个内置 + 4 个外部）、12 张内置真实封面、全部内置入口 HTTP 200、
+> 4 个外链卡片都有本地加载成功的官网缩略图（cover URL 必须是站内 `assets/covers`，不是远程 URL）、
 > bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白、1440/1920/2560/390 四档每行个数、
 > 首屏「只有字标」+ 字标尺寸 + 上下留白定量（96–150 / 84–140px，首屏 240–420px）；
-> 外部入口只断言标注 / target-rel / 网址 / 关键词，不向外部发请求。
+> 外部入口只断言标注 / target-rel / 网址 / 关键词 / 本地封面，不向外部发请求。
 
 ## 工具清单与状态
 
@@ -53,7 +55,7 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/shaders-halftone/` | 半调网点 | `tools/shaders-halftone/index.html` | CMYK 半调、网点半调、图片抖动 | PNG（单帧） | 已通过浏览器验收（28 项） |
 | `tools/psychos/` | 图片拼贴 | `tools/psychos/index.html`（需先 `npm run build` 再 `npm run serve` 打开） | 节点式生成式版式：Grid / Shuffle / Slice / Place | PNG 2048×2048 | 已通过浏览器验收（20 项，需 WebGPU） |
 | `tools/mixed-type/` | 文字混排 | `tools/mixed-type/index.html` | 中英文混排文字海报：字族池 / 字号 / 行高 / 字距 / 随机抖动 / 描边比例，固定种子可复现 | PNG | 已通过浏览器验收 |
-| `tools/wave-grid/` | 辉光点阵 | `tools/wave-grid/index.html` | 竖幅 4:5 宽厚分段色带（固定种子稳定构图）：密度真值 + 粗/中/细预设、辉光强度 / 长度（0–120px，默认 72px）/ 方向 / 色带宽度；字母与本地图片取样 | PNG（当前帧） | 待 Codex 复验（封面已就位，`coverQuery=20261013-glow3` 待重抓校验） |
+| `tools/wave-grid/` | 辉光点阵 | `tools/wave-grid/index.html` | 竖幅 4:5 宽厚分段色带（固定种子稳定构图）：密度真值 + 粗/中/细预设、辉光强度 / 长度（0–120px，默认 72px）/ 方向 / 色带宽度；字母与本地图片取样 | PNG（当前帧） | 已通过浏览器验收（51/51）；封面已随本批 `coverQuery=20261014-refresh1` 重抓（720×900，已目视确认） |
 | `tools/ascii-motion/` | 动态字符画 | `tools/ascii-motion/index.html` | Three 预设 / 本地文字 / 图片以复用 Canvas 字符渲染；自定义字符集与动效 | PNG（当前帧） | 已通过浏览器验收（25 项） |
 
 首页登记全部 12 个内置入口（含 `tools/psychos`）。此前的 **310/310 浏览器验收** 与 9 页主题审计是本轮改动前的历史基线；本批已由 Codex 独立复验通过：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过。画布、源图片、纹理图案、材质与封面保留各自的颜色。静态检查、单元测试与构建以本轮实际结果为准。
@@ -121,20 +123,28 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 
 ### 外部网站入口（仅跳转，不接入）
 
-首页另有 3 个已核实公开官网的外链卡片（`external: true`）：封面区域是明确的文字入口「外部网站 · 跳转官网」，
-按钮为「打开官网 ↗」，封面区与按钮均 `target="_blank" rel="noopener noreferrer"`。它们不是内置开源接入：
-不部署、不复制源码 / 字体 / 媒体、不下载封面、不 iframe、不引入运行时外部请求或依赖；第三方站点的 `free`
+首页另有 4 个已核实公开官网的外链卡片（`external: true`）：封面区显示**本仓库本地**的官网页面缩略图
+（右下角叠层保留「外部网站 · 跳转官网」标识与主机名），按钮为「打开官网 ↗」，封面区与按钮均
+`target="_blank" rel="noopener noreferrer"`。缩略图缺失 / 加载失败时退回纯文字外链块，不显示破图。
+它们不是内置开源接入：不部署、不复制源码 / 字体 / 媒体、不 iframe、不引入运行时外部请求或依赖；
+外链缩略图只是导航预览，运行时首页只从 `assets/covers/` 加载本地图片；第三方站点的 `free`
 声明不当作代码授权。
 
-| 入口 id | 名称 | 类别 | 官网地址 |
-| --- | --- | --- | --- |
-| `space-type-generator` | 动态文字（Space Type Generator） | 字符与文字 | https://spacetypegenerator.com/ |
-| `shader-lab` | 图片特效（Shader Lab） | 着色器效果 | https://eng.basement.studio/tools/shader-lab |
-| `tooooools` | 图像网点（Tooooools） | 像素与点阵 | https://www.tooooools.app/ |
+| 入口 id | 名称 | 类别 | 官网地址 | 本地缩略图 |
+| --- | --- | --- | --- | --- |
+| `space-type-generator` | 动态文字（Space Type Generator） | 字符与文字 | https://spacetypegenerator.com/ | `assets/covers/space-type-generator.png` |
+| `shader-lab` | 图片特效（Shader Lab） | 着色器效果 | https://eng.basement.studio/tools/shader-lab | `assets/covers/shader-lab.png` |
+| `tooooools` | 图像网点（Tooooools） | 像素与点阵 | https://www.tooooools.app/ | `assets/covers/tooooools.png` |
+| `brand-assets-generator` | 品牌素材生成（Brand Assets Generator） | 版式与切片 | https://brand-generator.stoyanov.works/ | `assets/covers/brand-assets-generator.png` |
+
+**Brand Assets Generator 未找到公开源码 / 许可证**：官网 HTML 与打包 bundle 没有 GitHub 或许可证链接，
+GitHub 公共搜索也没有对应仓库 → 不能认定开源，**不本地镜像源码 / 字体 / 素材**，只登记为外链入口；
+外链封面是验收方从公开官网当前页面截取的本地 PNG，**截图许可不等于代码开源许可**，也不代表获得再分发授权。
 
 搜索分类沿用现有系统（不新增 tab / filter 开关）。`scripts/check.mjs` 对内置入口校验本地文件 / spec / dist，
-外部入口只校验是合法的 HTTPS 地址且不声明封面；`tests/specs/home.mjs` 只对外部卡片断言标注 / target-rel /
-准确网址 / 关键词搜索，不向外部 fetch（避免 CORS 假失败）。
+并统一要求所有入口（含外链）的 cover 是本地相对路径、禁止 http(s) 封面；外链额外校验 4 张封面文件位于
+`public/assets/covers/`；`tests/specs/home.mjs` 对外链卡片断言标注 / target-rel / 准确网址 / 关键词搜索 /
+本地缩略图加载成功且 URL 是站内 `assets/covers`，不向外部 fetch（避免 CORS 假失败）。
 
 `tools/extrude3d` 的本地 SVG 导入上限为 **1 MiB**；单个 `<path>` 曲线过多时，会按**本次真实使用的**
 `curveSegments` / `bevelSegments` / `bevelEnabled` 采样轮廓点估算挤出顶点数：超预算先按采样数把
@@ -161,15 +171,24 @@ Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `window.queryLocalFonts`，不复
 字体一律使用访问者本机已安装的系统字体，仓库**不打包、不分发**任何字体文件；本机字体的许可由使用者在
 自己的机器上自行确认。三条封面路径已登记，并已由 Codex 用真实导出入库，占位图不伪造效果图。
 
-`public/assets/covers/*.png` 是 12 张真实工具 PNG 导出（互不相同，实际内容已核验），由
-`IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
-优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；每个工具使用独立临时下载目录，
-只等待本次导出结果）。封面缺失时首页显示中性文字占位，不会破图、也不会用 AI 图或整页截图冒充效果图。
-本批新增的 `mixed-type` / `wave-grid` / `ascii-motion` 三条封面已抓取真实导出入库；
-其中 `wave-grid` / `ascii-motion` 的最新真实导出已按 sha256 一致复制到 `dist/assets/covers/`，
-供 `npm run serve`（http://127.0.0.1:4890）首页直接使用。
-`public/assets/covers/extrude3d.png` 已刷新为最新真实 PNG 导出（玻璃材质场景，约 188 KB），首页用固定 query
-`20261013-glass1` 避免命中旧封面缓存。
+`public/assets/covers/*.png` 是首页运行时唯一加载的封面来源（**全部为仓库本地图片**，共 16 张，
+已全部由 Codex 在真实浏览器抓取完成并目视确认）：
+
+- **12 张内置工具封面**：真实工具 PNG 导出（互不相同，实际内容已核验），由
+  `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
+  优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；每个工具使用独立临时下载目录，
+  只等待本次导出结果）。本批已按当前 DOM / 分类结构刷新全部 12 张（含双页签 `extrude3d` 的
+  渲染页导出，以及导出按钮位于隐藏「输出」分类的 shader / wave-grid / ascii-motion）。
+- **4 张外链官网缩略图**：由
+  `IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs` 从 4 个固定公开官网的
+  当前视口截取（1440×900 视口、非整页长图，缩到 ≤1280px 宽），保存为
+  `assets/covers/<id>.png`，来源 URL 记录在 `public/assets/covers/external-covers.json`；
+  4 张均为 **1280×800**。
+  该脚本默认关闭、只接受固定 id（不接受任意 URL），页面打不开即失败退出、不创建伪封面。
+
+`assets/tools.js` 中 16 个入口统一使用 `coverQuery: "20261014-refresh1"`，强制换新缓存、避免首页命中旧封面。
+封面缺失时首页显示中性文字占位（内置）或退回纯文字外链块（外链），不会破图、也不会用 AI 图或整页截图冒充效果图。
+`public/` 会在 `npm run build` 时复制进 `dist/`，供首页直接使用。
 
 `tools/psychos` 不参与主站 Vite 多页打包，由 `scripts/build-psychos.mjs` 单独构建；它需要 WebGPU
 与安全上下文，因此请先 `npm run build`、再用 `npm run serve`（构建产物）打开，而不是 `npm run dev`。
@@ -224,7 +243,8 @@ PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Cod
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke                      # 顺序跑全部工具，只启动一个 Chrome
 IMAGELAB_BROWSER_TESTS=on npm run smoke -- texture home      # 只跑指定工具
-IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs    # 生成首页封面（真实导出画面 / 画布区域）
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs             # 刷新 12 张内置工具封面（真实导出画面 / 画布区域）
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs    # 抓取 4 张外链官网本地缩略图（固定官网、当前视口）
 IMAGELAB_BROWSER_TESTS=on SMOKE_HEADFUL=1 npm run smoke      # 需要看到窗口时
 CHROME_PATH=/path/to/chrome npm run smoke
 ```
@@ -363,3 +383,38 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
   `tests/specs/extrude3d.mjs` 已按最终职责重写（`gpu: webgpu`）。后续修复轮由 Codex 用真实 Chrome WebGPU 复跑
   `IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d` 得 **68/68 PASS**、0 页面错误；首次 7 项失败为
   `drawImage(WebGPU / WebGL canvas)` 取样透明位图误报，改用 `ElementHandle.screenshot` 后全部通过。
+
+### 2026-10-14 · 刷新全部工具缩略图 + 外链本地缩略图 + 品牌素材生成外链入口（DSH 执行实现；Codex 已完成抓图与独立验收）
+
+- **首页清单**：`assets/tools.js` 新增外链入口 `brand-assets-generator`（中文「品牌素材生成」，
+  英文来源名 Brand Assets Generator，类别「版式与切片」，官网 `https://brand-generator.stoyanov.works/`，
+  `external: true`，放入外链区末尾）。首页入口从 15（12 内置 + 3 外链）变为 **16（12 内置 + 4 外链）**。
+  16 个入口统一使用新的 `coverQuery: "20261014-refresh1"`；4 个外链都登记本地 cover。
+- **外链卡片**：`assets/home.js` / `home.css` 让外链卡片在封面区显示**本地**官网缩略图
+  （`assets/covers/<id>.png`），右下角叠层保留「外部网站 · 跳转官网」标识与主机名；两处链接仍
+  `target="_blank" rel="noopener noreferrer"`。缩略图加载失败时退回原有纯文字外链块，不显示破图；
+  不新增远程请求、预取或 iframe。
+- **品牌素材生成不本地镜像**：官网 HTML / 打包 bundle 没有 GitHub 或许可证链接，GitHub 公共搜索没有
+  对应仓库 → 未找到公开源码 / 许可证原文，不能认定开源；只作外链跳转，不复制代码 / 字体 / 素材。
+  外链封面是验收方从公开官网当前页面截取的本地 PNG，**截图许可不是代码开源许可**。
+- **抓封面脚本**：`scripts/capture-covers.mjs` 更新为当前 12 个内置工具的真实 DOM / 分类结构
+  （`extrude3d` 改用「切渲染页签 → 等 WebGPU ready → 切输出分类 → `#render-export-png`」，
+  退路只截 `#render-canvas`；shader / wave-grid / ascii-motion 点导出前先切「输出」分类）。
+  新增 `scripts/capture-external-covers.mjs`：默认关闭、复用 `tests/browser-policy.mjs` 的显式 opt-in，
+  只处理 4 个固定 HTTPS 官网、不接受任意 URL，使用独立 Chrome profile、1440×900 当前视口截图、
+  缩到 ≤1280px 后保存到 `public/assets/covers/<id>.png`，并把来源 URL 记录到
+  `public/assets/covers/external-covers.json`；页面打不开即失败退出、不创建伪封面。
+- **测试**：`tests/specs/home.mjs` 改为 16 入口（12 + 4），外链除标注 / target-rel / 网址 / 关键词外，
+  新增「本地 cover img 加载成功且 cover URL 是站内 `assets/covers`」断言，不 fetch 外链官网；
+  `scripts/check.mjs` 改为 16 入口，统一禁止 http(s) 封面，要求 4 张外链封面文件存在于
+  `public/assets/covers/`。内置 12 张封面改为必须齐备（不再有「待生成占位」豁免）。
+- **实际抓图与最终验收（Codex 在真实浏览器执行）**：先
+  `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 刷新 12 张内置封面，再
+  `IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs` 抓取 4 张外链缩略图
+  （均先 `npm run build`）。16 张封面全部存在并已目视确认：`shaders-logo.png` **1280×803**，
+  4 张外链封面**均 1280×800**，来源见 `public/assets/covers/external-covers.json`；未用占位图绕过。
+  最终验证：`npm run build` 通过；`npm test` **67/67**（含 **58 项**内部静态检查）；
+  `node scripts/check.mjs` **58/58**（原先「4 张外链封面文件齐备」失败项已消失）；
+  `IMAGELAB_BROWSER_TESTS=on npm run smoke -- home` **113/113**、**0 页面错误**；`git diff --check` 通过。
+  DSH 实现阶段未启动浏览器、未生成 PNG、未用占位图绕过（历史事实），以上数字为抓图后的最终结果；
+  本轮已本地 commit，未 push / 未部署。

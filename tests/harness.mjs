@@ -77,7 +77,7 @@ function trackServer(proc) {
   });
 }
 
-export async function launchBrowser({ headless = true, webgpu = false, gpu = false } = {}) {
+export async function launchBrowser({ headless = true, webgpu = false, gpu = false, profileDir = null } = {}) {
   if (!browserTestsEnabled()) {
     throw new Error(
       `${DISABLED_MESSAGE}\n（在 harness.launchBrowser 处被拦截；设置 ${OPT_IN_ENV}=on 才会真正启动浏览器）`
@@ -108,8 +108,9 @@ export async function launchBrowser({ headless = true, webgpu = false, gpu = fal
   const browser = await puppeteer.launch({
     executablePath: findChrome(),
     headless,
-    // 独立 profile，绝不使用用户自己的 Chrome 配置
-    userDataDir: resolve(ROOT, ".tmp", `chrome-profile-${process.pid}`),
+    // 独立 profile，绝不使用用户自己的 Chrome 配置；调用方可指定单独目录
+    // （例如外链封面抓取与工具 smoke 用不同身份运行，互不共享缓存 / 登录态）。
+    userDataDir: profileDir || resolve(ROOT, ".tmp", `chrome-profile-${process.pid}`),
     args,
     protocolTimeout: 180000
   });

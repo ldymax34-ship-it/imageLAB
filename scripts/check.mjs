@@ -374,8 +374,8 @@ const externalEntries = entries.filter((e) => e.external);
 
 ok("首页清单非空", entries.length > 0, `${entries.length} 个入口`);
 ok(
-  "入口总数为 15（12 内置 + 3 外部）",
-  entries.length === 15 && builtinEntries.length === 12 && externalEntries.length === 3,
+  "入口总数为 16（12 内置 + 4 外部）",
+  entries.length === 16 && builtinEntries.length === 12 && externalEntries.length === 4,
   `总 ${entries.length}：内置 ${builtinEntries.length}，外部 ${externalEntries.length}`
 );
 ok(
@@ -383,33 +383,33 @@ ok(
   new Set(entries.map((e) => e.id)).size === entries.length,
   entries.map((e) => e.id).join(", ")
 );
+// 所有入口（内置与外链）的 cover 都必须是本地相对路径，禁止把远程图片当封面。
+const remoteCover = entries.filter((e) => /^https?:/i.test(e.cover || ""));
+ok(
+  "所有入口封面均为本地路径（禁止 http(s) 封面）",
+  remoteCover.length === 0,
+  remoteCover.length ? remoteCover.map((e) => `${e.id}:${e.cover}`).join(", ") : "无远程封面"
+);
 
 // 内置入口：只校验仓库里的本地文件（入口页与封面）真实存在（封面经 public/ 复制进 dist 根）。
-// 本批次新增的 3 个工具封面由 Codex 用真实导出抓取；在抓取完成前登记为「待生成」，
-// 首页显示中性文字占位，绝不伪造效果图。待生成条目必须已经登记了预期封面路径。
-const PENDING_COVERS = new Set(["mixed-type", "wave-grid", "ascii-motion"]);
+// 本批已由验收方用真实导出刷新全部 12 张内置封面，因此内置封面必须齐备，无「待生成」豁免。
 const brokenHref = builtinEntries.filter((e) => !existsSync(resolve(ROOT, e.href)));
 ok("内置入口文件都存在", brokenHref.length === 0, brokenHref.map((e) => e.href).join(", "));
 const missingCoverPath = builtinEntries.filter((e) => !e.cover);
-const missingCoverFile = builtinEntries.filter((e) => e.cover && !existsSync(resolve(ROOT, "public", e.cover)));
-const unexpectedMissing = missingCoverFile.filter((e) => !PENDING_COVERS.has(e.id));
+const missingBuiltinCover = builtinEntries.filter((e) => e.cover && !existsSync(resolve(ROOT, "public", e.cover)));
 ok(
   "内置入口都登记了封面路径",
   missingCoverPath.length === 0,
   missingCoverPath.length ? missingCoverPath.map((e) => e.id).join(", ") : `${builtinEntries.length} 个`
 );
 ok(
-  "已有封面文件齐备（新增 3 个工具登记为待 Codex 抓取）",
-  unexpectedMissing.length === 0,
-  unexpectedMissing.length
-    ? unexpectedMissing.map((e) => e.id).join(", ")
-    : missingCoverFile.length
-      ? `待生成：${missingCoverFile.map((e) => e.id).join(", ")}`
-      : `${builtinEntries.length} 张`
+  "12 张内置封面文件齐备",
+  missingBuiltinCover.length === 0,
+  missingBuiltinCover.length ? `缺少：${missingBuiltinCover.map((e) => e.id).join(", ")}` : `${builtinEntries.length} 张`
 );
 
-// 外部网站：不做本地文件 / spec / dist 校验，只确认是明确合法的 HTTPS 地址，
-// 且不声明封面（首页对它们只渲染文字入口，不下载远程图片、不 iframe）。
+// 外部网站：确认是合法 HTTPS 地址，并允许声明**本地** cover（外链封面是验收方从公开官网当前页面
+// 截取后保存进仓库的页面缩略图，首页运行时只加载本地图片、不请求第三方站点）。
 const badExternal = externalEntries.filter((e) => {
   if (!/^https:\/\//.test(e.href)) return true;
   try {
@@ -420,10 +420,23 @@ const badExternal = externalEntries.filter((e) => {
   }
 });
 ok("外部入口都是合法的 HTTPS 地址", badExternal.length === 0, badExternal.map((e) => `${e.id}:${e.href}`).join(", "));
+const badExternalCoverPath = externalEntries.filter(
+  (e) => !e.cover || !/^assets\/covers\/[A-Za-z0-9._-]+\.png$/.test(e.cover)
+);
 ok(
-  "外部入口不声明本地封面",
-  externalEntries.every((e) => !e.cover),
-  externalEntries.filter((e) => e.cover).map((e) => e.id).join(", ") || "无封面字段"
+  "外部入口封面路径位于 assets/covers（.png）",
+  externalEntries.length === 4 && badExternalCoverPath.length === 0,
+  badExternalCoverPath.length
+    ? badExternalCoverPath.map((e) => `${e.id}:${e.cover || "无 cover"}`).join(", ")
+    : externalEntries.map((e) => e.cover).join(", ")
+);
+const missingExternalCover = externalEntries.filter((e) => !e.cover || !existsSync(resolve(ROOT, "public", e.cover)));
+ok(
+  "4 张外链封面文件齐备（Codex 抓取公开官网页面缩略图）",
+  externalEntries.length === 4 && missingExternalCover.length === 0,
+  missingExternalCover.length
+    ? `待生成：${missingExternalCover.map((e) => e.id).join(", ")}`
+    : externalEntries.map((e) => e.cover).join(", ")
 );
 
 const specFiles = (await readdir(resolve(ROOT, "tests/specs")).catch(() => [])).filter((f) => f.endsWith(".mjs"));

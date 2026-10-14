@@ -33,8 +33,9 @@
     article.dataset.tool = t.id;
 
     if (t.external) {
-      // 外部网站入口：封面区域是明确的文字入口，不伪造效果图、也不是缺失封面。
-      // 两处链接都在新窗口打开，且不向外部发起任何运行时请求（不 iframe、不预取）。
+      // 外部网站入口：封面区域优先显示**仓库本地**的官网页面缩略图（不是远程图片、不是 iframe、不是预取），
+      // 并始终保留「外部网站 · 跳转官网」标识与主机名；缩略图加载失败时退回纯文字块，不显示破图。
+      // 两处链接都在新窗口打开，且不向外部发起任何运行时请求。
       article.classList.add("is-external");
       article.dataset.external = "true";
 
@@ -43,8 +44,35 @@
       extShot.target = "_blank";
       extShot.rel = "noopener noreferrer";
       extShot.setAttribute("aria-label", t.name + " 外部网站，打开官网");
-      extShot.appendChild(el("span", "shot-external", "外部网站 · 跳转官网"));
-      extShot.appendChild(el("span", "shot-host", hostOf(t.href)));
+
+      var extText = function () {
+        extShot.appendChild(el("span", "shot-external", "外部网站 · 跳转官网"));
+        extShot.appendChild(el("span", "shot-host", hostOf(t.href)));
+      };
+
+      if (t.cover) {
+        extShot.classList.add("has-cover");
+        var extImg = document.createElement("img");
+        // coverQuery 用于效果改版后强制刷新本地封面缓存（图片仍来自 assets/covers/）。
+        extImg.src = t.coverQuery ? t.cover + "?" + t.coverQuery : t.cover;
+        extImg.alt = t.name + " 官网页面本地缩略图";
+        extImg.loading = "lazy";
+        extImg.decoding = "async";
+        var extOverlay = el("span", "shot-external-overlay");
+        extOverlay.appendChild(el("span", "shot-external", "外部网站 · 跳转官网"));
+        extOverlay.appendChild(el("span", "shot-host", hostOf(t.href)));
+        extImg.addEventListener("error", function () {
+          // 本地缩略图缺失 / 损坏：退回原有纯文字外链块，不显示破图。
+          extImg.remove();
+          extOverlay.remove();
+          extShot.classList.remove("has-cover");
+          extText();
+        });
+        extShot.appendChild(extImg);
+        extShot.appendChild(extOverlay);
+      } else {
+        extText();
+      }
       article.appendChild(extShot);
 
       article.appendChild(el("h3", null, t.name));

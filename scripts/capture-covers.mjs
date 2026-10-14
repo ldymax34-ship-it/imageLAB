@@ -87,10 +87,12 @@ async function shrink(page, bytes, maxW = 1280) {
 
 /**
  * 每个工具：
- *  - prepare: 导航前注入（psychos 需要先写 boot 文档）
- *  - setup:   让页面进入「有内容的默认状态」
- *  - export:  真实导出按钮选择器（首选）
- *  - canvas:  退路：只截真实预览画布，绝不截节点编辑器 UI
+ *  - prepare:   导航前注入（psychos 需要先写 boot 文档）
+ *  - setup:     让页面进入「有内容的默认状态」
+ *  - exportCat: 导出按钮所在的工作台分类；点导出前必须先切到该分类
+ *               （统一工作台把导出放进隐藏的「输出」分类，直接点隐藏按钮会失败）
+ *  - export:    真实导出按钮选择器（首选）
+ *  - canvas:    退路：只截真实预览画布，绝不截节点编辑器 UI
  */
 const TARGETS = {
   texture: {
@@ -134,7 +136,13 @@ const TARGETS = {
     path: "/tools/shaders-logo/index.html",
     async setup(page) {
       // 不上传图片：先用页面内置示例 Logo，再暂停到确定单帧。
-      await page.waitForSelector("#btn-sample-logo", { timeout: 30000 });
+      // 「载入内置示例 Logo」在「素材」分类面板里，而页面默认停在「效果」分类（该面板 hidden），
+      // 直接点会因为元素不可见而失败：先用 DOM click 切到素材分类（与下面导出前切「输出」同一套做法）。
+      const mediaCat = '[data-cat="media"]';
+      const mediaTab = await page.$(mediaCat);
+      if (!mediaTab) throw new Error(`找不到工作台分类 ${mediaCat}`);
+      await page.$eval(mediaCat, (node) => node.click());
+      await page.waitForSelector("#btn-sample-logo", { visible: true, timeout: 30000 });
       await page.click("#btn-sample-logo");
       await page
         .waitForFunction(() => window.imagelab && window.imagelab.hasImage && window.imagelab.hasImage() === true, { timeout: 30000 })
@@ -143,6 +151,7 @@ const TARGETS = {
       await page.click("#btn-pause").catch(() => {});
       await sleep(500);
     },
+    exportCat: "output",
     export: "#btn-export",
     canvas: "canvas"
   },
@@ -153,6 +162,7 @@ const TARGETS = {
       await page.click("#btn-pause").catch(() => {});
       await sleep(400);
     },
+    exportCat: "output",
     export: "#btn-export",
     canvas: "canvas"
   },
@@ -164,26 +174,36 @@ const TARGETS = {
       await page.click("#btn-pause").catch(() => {});
       await sleep(400);
     },
+    exportCat: "output",
     export: "#btn-export",
     canvas: "canvas"
   },
   extrude3d: {
     path: "/tools/extrude3d/index.html",
     async setup(page) {
-      await page.waitForSelector("#view-canvas", { timeout: 30000 });
+      // 当前是实现「建模（Three）/ 渲染（vgpu + WebGPU）」双页签的工具：
+      // 切到渲染页签，等 WebGPU 真正就绪后再抓封面（旧 #view-canvas / #export-png 已不存在）。
+      await page.waitForSelector("#tab-render", { timeout: 30000 });
+      await page.click("#tab-render");
       await page
         .waitForFunction(
           () => {
-            const el = document.getElementById("status");
-            return el && el.textContent.includes("已建模");
+            const info = window.__extrude3d && window.__extrude3d.getInfo();
+            return !!info && (info.render.ready === true || !!info.render.failed);
           },
-          { timeout: 30000 }
+          { timeout: 60000 }
         )
         .catch(() => {});
-      await sleep(1200);
+      const ready = await page.evaluate(() => {
+        const info = window.__extrude3d && window.__extrude3d.getInfo();
+        return !!(info && info.render.ready === true);
+      });
+      if (!ready) throw new Error("渲染页签 WebGPU 未就绪，无法生成真实封面");
+      await sleep(1500);
     },
-    export: "#export-png",
-    canvas: "#view-canvas"
+    exportCat: "output",
+    export: "#render-export-png",
+    canvas: "#render-canvas"
   },
   "mixed-type": {
     path: "/tools/mixed-type/index.html",
@@ -205,6 +225,7 @@ const TARGETS = {
       await page.click("#btn-pause").catch(() => {});
       await sleep(300);
     },
+    exportCat: "output",
     export: "#btn-export",
     canvas: "#wave-canvas"
   },
@@ -216,6 +237,7 @@ const TARGETS = {
       await page.click("#btn-pause").catch(() => {});
       await sleep(300);
     },
+    exportCat: "output",
     export: "#btn-export",
     // 退路：只截真实字符画预览区（不是整页，也不含任何参数面板 UI）。
     canvas: "#ascii-holder"
@@ -288,6 +310,15 @@ try {
       let bytes = null;
       let how = "";
       if (target.export) {
+        // 导出按钮在隐藏的「输出」分类里：先切分类（只切换显示，不重置素材 / 参数 / 当前帧），再点导出。
+        if (target.exportCat) {
+          const catSelector = `[data-cat="${target.exportCat}"]`;
+          const cat = await page.$(catSelector);
+          if (!cat) throw new Error(`找不到工作台分类 ${catSelector}`);
+          // 与 tests/specs/*.mjs 同样用 DOM click 切换分类（只改显示，不重置素材 / 参数 / 当前帧）。
+          await page.$eval(catSelector, (node) => node.click());
+          await sleep(200);
+        }
         const btn = await page.$(target.export);
         if (!btn) throw new Error(`找不到导出控件 ${target.export}`);
         await btn.click();

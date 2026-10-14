@@ -33,6 +33,26 @@ npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/
 > 视口、检查器 overflow auto；窄屏自然滚动、画布在前、面板在后、无横向溢出）。
 >
 
+> 2026-10-14 首页封面批次（刷新全部缩略图 + 外链本地缩略图 + 品牌素材生成外链）：
+> `assets/tools.js` 变为 16 入口（12 内置 + 4 外链，新增 `brand-assets-generator`「品牌素材生成」），
+> 16 个入口统一换新 `coverQuery`；外链卡片改为显示本地官网缩略图 + 「外部网站 / 主机名」叠层，加载失败退回文字块。
+> `tests/specs/home.mjs` 相应改为 16 入口，外链新增「本地 cover img 加载成功、cover URL 是站内
+> `assets/covers`、不是远程 URL」断言（**不 fetch 外链官网**）；内置 12 张封面改为必须齐备。
+> `scripts/check.mjs` 统一禁止 http(s) 封面，并要求 4 张外链封面文件位于 `public/assets/covers/`。
+> `scripts/capture-covers.mjs` 更新为当前 DOM / 分类结构（`extrude3d` 切渲染页 + 输出分类 +
+> `#render-export-png`；shader / wave-grid / ascii-motion 先切「输出」分类再导出）。
+> 新增 `scripts/capture-external-covers.mjs`：默认关闭、仅固定 4 个 HTTPS 官网、独立 profile、
+> 1440×900 当前视口截图、缩到 ≤1280px 后存 `public/assets/covers/<id>.png` 并记录来源 URL，
+> 页面打不开即失败退出、不创建伪封面。**Codex 已在真实浏览器执行这两条抓取命令**：先
+> `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs`（刷新 12 张内置封面），再
+> `IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs`（抓取 4 张外链缩略图）
+> （均需先 `npm run build`，因为首页封面脚本服务的是构建产物 `dist/`）。
+> 结果：16 张封面全部存在并已目视确认（`shaders-logo.png` **1280×803**，4 张外链封面**均 1280×800**，
+> 来源 URL 记入 `public/assets/covers/external-covers.json`）。最终验证：`npm run build` 通过、
+> `npm test` **67/67**（含 **58 项**静态检查）、`node scripts/check.mjs` **58/58**、
+> `IMAGELAB_BROWSER_TESTS=on npm run smoke -- home` **113/113**（**0 页面错误**）、`git diff --check` 通过。
+>
+
 > 2026-10-14 修复轮（背景发白 / 玻璃背面 / 色散 / 黑白预设）：
 > `tools/extrude3d` 的四处根因与回归见根 `CHANGELOG.md`。新增 `tests/extrude3d-color.test.cjs`（3 项）：把
 > `common.wgsl` 的 `srgb_to_linear` 数学在 Node 里逐位复现，与 IEC 61966-2-1 参考值和 three 0.186.1 的
@@ -68,7 +88,8 @@ npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke              # 全部工具，顺序执行，只启动一个 Chrome
 IMAGELAB_BROWSER_TESTS=on npm run smoke -- texture   # 只跑指定工具
-IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs   # 生成首页封面
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs   # 刷新 12 张内置工具封面（真实导出画面）
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs   # 抓取 4 张外链官网本地缩略图
 
 SMOKE_HEADFUL=1        # 需要看到窗口时
 SMOKE_PORT=5199        # dev server 端口（默认 5199）
@@ -114,14 +135,17 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 **已并入 Codex 本轮 SVG立体 81/81 PASS**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
 实现侧只跑 `npm run check` / `npm test` / `npm run build`。
 
-首页现有 15 个入口：12 个内置（原有 9 个封面 / 进入链接可达断言不变；本批新增 3 个在真实封面
-抓取前允许中性占位）+ 3 个外部网站（仅校验标注、两处链接 `target="_blank" rel="noopener noreferrer"`、
-准确网址与关键词搜索；**不向外部 fetch**，避免 CORS 假失败）。
+首页现有 16 个入口：12 个内置（12 张真实封面齐备；进入链接可达断言不变）+ 4 个外部网站
+（校验标注、两处链接 `target="_blank" rel="noopener noreferrer"`、准确网址、关键词搜索，以及
+**本地加载成功的 cover img 且 cover URL 是站内 `assets/covers` 路径、不是远程 URL**；
+**不向外部 fetch**，避免 CORS 假失败）。外链本地封面由
+`IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs` 从 4 个固定公开官网
+当前视口截取，脚本不接受任意 URL、页面打不开即失败退出、不创建伪封面。
 
 本批新增 3 份规格：`tests/specs/mixed-type.mjs`（默认可渲染 / 固定种子可复现 / 重新随机 / 描边 /
 本地字体降级 / 空文本空态 / 导出 PNG）、`tests/specs/wave-grid.mjs`（固定字符网格 / 发光条带与字母图形 / 暂停帧 / 当前帧 PNG）、`tests/specs/ascii-motion.mjs`
 （WebGL2 / Canvas 字符输出 / 自定义字素字符集 / 自定义文字与图片模式 / motion / 暂停与同画布 PNG）。三份规格都断言**0 外部网络请求**与无 console 错误。
-`home.mjs` 同步为 12 内置 + 3 外部 = 15。以上浏览器断言与真实封面已由 Codex 执行通过（见文末「本批验收结果」），
+`home.mjs` 当时同步为 12 内置 + 3 外部 = 15（2026-10-14 已更新为 12 + 4 = 16，见上）。以上浏览器断言与真实封面已由 Codex 执行通过（见文末「本批验收结果」），
 实现侧不启动浏览器。
 
 `extrude3d` 背景图片（第六轮，用户专项授权）新增断言：上传真实 PNG 后 `scene.background` 是真实贴图且

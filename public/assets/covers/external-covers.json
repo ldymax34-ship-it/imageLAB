@@ -1,0 +1,18 @@
+{
+  "space-type-generator": {
+    "source": "https://spacetypegenerator.com/",
+    "file": "public/assets/covers/space-type-generator.png"
+  },
+  "shader-lab": {
+    "source": "https://eng.basement.studio/tools/shader-lab",
+    "file": "public/assets/covers/shader-lab.png"
+  },
+  "tooooools": {
+    "source": "https://www.tooooools.app/",
+    "file": "public/assets/covers/tooooools.png"
+  },
+  "brand-assets-generator": {
+    "source": "https://brand-generator.stoyanov.works/",
+    "file": "public/assets/covers/brand-assets-generator.png"
+  }
+}
