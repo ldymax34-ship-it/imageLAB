@@ -299,7 +299,8 @@ const REQUIRED_LICENSES = [
   "pixelit-LICENSE.txt",
   "tezumie-image-to-pixel-LICENSE-library.txt",
   "nitch193-image-to-ascii-LICENSE.txt",
-  "blakeshao-a-psychos-gd-tool-LICENSE.txt"
+  "blakeshao-a-psychos-gd-tool-LICENSE.txt",
+  "vgpu-LICENSE.txt"
 ];
 const missingLic = REQUIRED_LICENSES.filter((f) => !existsSync(resolve(ROOT, "third-party-licenses", f)));
 ok("third-party-licenses 齐备", missingLic.length === 0, missingLic.length ? `缺少 ${missingLic.join(", ")}` : `${REQUIRED_LICENSES.length} 个文件`);
@@ -314,6 +315,43 @@ const pkg = JSON.parse(await read("package.json"));
 ok("three 精确锁定 0.186.1", pkg.dependencies.three === "0.186.1", String(pkg.dependencies.three));
 ok("@paper-design/shaders 精确锁定 0.0.81", pkg.dependencies["@paper-design/shaders"] === "0.0.81", String(pkg.dependencies["@paper-design/shaders"]));
 ok("@visant/extrude3d 精确锁定 0.1.0", pkg.dependencies["@visant/extrude3d"] === "0.1.0", String(pkg.dependencies["@visant/extrude3d"]));
+ok("vgpu 精确锁定 0.6.0", pkg.dependencies.vgpu === "0.6.0", String(pkg.dependencies.vgpu));
+
+/* ---------- 5b. SVG 转 3D 双页签架构约束 ---------- */
+console.log("\n[5b] SVG 转 3D 双页签（建模 Three / 渲染 vgpu）");
+const extrudeHtml = await read("tools/extrude3d/index.html");
+const extrudeRender = await read("tools/extrude3d/render-vgpu.js");
+const extrudeModeling = await read("tools/extrude3d/modeling.js");
+ok(
+  "建模 / 渲染双页签存在",
+  ["tab-model", "tab-render", "panel-model", "panel-render", "stage-model", "stage-render"].every((id) => extrudeHtml.includes(`id="${id}"`)),
+  "tab-model / tab-render + 两个面板与画布"
+);
+const legacyIds = ["material", "texture-file", "env-intensity", "light-intensity", "bg-mode", "glass-ior"];
+ok(
+  "38 个 Three 材质预设与 Three 最终渲染控件已移除",
+  legacyIds.every((id) => !extrudeHtml.includes(`id="${id}"`)) &&
+    !/materialPresets|MATERIAL_UI|MATERIAL_LIB|resolveMaterial|MeshPhysicalMaterial/.test(extrudeRender + extrudeModeling),
+  "UI 与运行分支均无旧材质预设"
+);
+const zhPresets = ["透明玻璃", "磨砂玻璃", "彩色亚克力", "塑料", "陶瓷", "金属", "镀铬"];
+const presetCount = (extrudeRender.match(/\{ id: "[^"]+", label: "[^"]+", kind: "/g) || []).length;
+ok("渲染页签正好 7 个中文材质预设", presetCount === 7 && zhPresets.every((z) => extrudeRender.includes(z)), `${presetCount} 个`);
+ok(
+  "渲染页签含 WebGPU 不可用中文提示",
+  /navigator\.gpu/.test(extrudeRender) && /不支持 WebGPU/.test(extrudeRender) && /建模页签仍可正常使用/.test(extrudeRender)
+);
+ok(
+  "网格交接为 position / normal / uv / index 且 stride 32",
+  /stride: 32/.test(extrudeRender) && /positions/.test(extrudeModeling) && /indices/.test(extrudeModeling)
+);
+ok(
+  "玻璃使用通用背面预通道而非写死立方体",
+  (await read("tools/extrude3d/shaders/glass-back.wgsl")).includes("world_position") &&
+    (await read("tools/extrude3d/shaders/glass.wgsl")).includes("refract(") &&
+    !/fn trace_cube_exit/.test(extrudeRender)
+);
+ok("vite 配置启用 WGSL 加载插件", (await read("vite.config.mjs")).includes("wgslVitePlugin"));
 
 /* ---------- 6. 首页清单与测试规格 ---------- */
 console.log("\n[6] 首页清单与测试规格对齐（内置入口 / 外部网站分开校验）");

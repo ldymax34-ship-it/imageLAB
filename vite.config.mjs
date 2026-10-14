@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { wgslVitePlugin } from "vgpu/client";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 
@@ -27,6 +28,7 @@ export default defineConfig({
   root,
   base: "./",
   publicDir: resolve(root, "public"),
+  plugins: [wgslVitePlugin({ minify: false })],
   server: {
     host: "127.0.0.1",
     port: 5177,
@@ -50,6 +52,7 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes("node_modules/three")) return "three";
           if (id.includes("node_modules/@paper-design")) return "paper-shaders";
+          if (id.includes("node_modules/vgpu") || id.includes("node_modules/@vgpu")) return "vgpu";
           if (id.includes("node_modules/@visant")) return "extrude3d";
           return undefined;
         }

@@ -12,11 +12,11 @@
 ## 快速开始
 
 ```bash
-npm install          # 安装依赖（three / @visant/extrude3d / @paper-design/shaders / vite）
+npm install          # 安装依赖（three / @visant/extrude3d / @paper-design/shaders / vgpu / vite）
 npm run dev          # 开发服务器 http://127.0.0.1:5177
 npm run build        # 构建完整静态产物到 dist/
 npm run serve        # 本地静态服务器打开 dist（http://127.0.0.1:4890）
-npm test             # 纯 Node：纹理间 4 套测试（34 项）+ 本地服务器自检 + 静态自检
+npm test             # 纯 Node：纹理间 4 套测试（34 项）+ 本地服务器自检 + 双页签静态自检 + scripts/check.mjs
 npm run check        # 纯 Node 静态自检（入口、远程资源、字节一致性、许可、清单对齐）
 npm run fixtures     # 重新生成测试素材
 ```
@@ -46,7 +46,7 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/texture/` | 纹理生成器 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG 转 3D | `tools/extrude3d/index.html` | 原生真实立方体默认 + SVG 挤出（厚度 / 倒角按最大平面边长百分比）、透明玻璃折射（折射率 / 光学厚度 / 色散强度 0–20）、总光量增益灯光、材质 / 基础色表面贴图 / 背景图片（居中 cover，1×–3× 缩放、横向 / 纵向平移）、棚拍空间背景（真实地面反射） | PNG（可选透明背景） | 待 Codex 复验（本轮新增：默认真实立方体 / 总光量增益 / 强色散示例 / Reflector 法线修正） |
+| `tools/extrude3d/` | SVG 转 3D | `tools/extrude3d/index.html` | **建模 / 渲染双页签**：建模页签用 Three.js 做 SVG 挤出（厚度 / 倒角按最大平面边长百分比、平滑度、原生圆角立方体默认）与中性灰诊断预览；渲染页签用 vgpu / WebGPU 接收同一份 position / normal / uv / index 网格，提供 7 个中文材质预设（透明玻璃 / 磨砂玻璃 / 彩色亚克力 / 塑料 / 陶瓷 / 金属 / 镀铬）、棚拍灯光与环境、纯色（黑 / 白快速预设 + 自定义颜色，默认白）/ 棚拍渐变 / 背景图片（居中 cover、1×–3× 缩放、横向 / 纵向平移）、独立镜头 | PNG（渲染页签当前帧，可选透明背景） | 上一批 68/68 已由 Codex 真实 Chrome WebGPU 验收；本轮背景颜色空间 / 玻璃背面 / 色散默认值 / 黑白预设修复待 Codex 视觉复验 |
 | `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
 | `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
@@ -58,10 +58,38 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 
 首页登记全部 12 个内置入口（含 `tools/psychos`）。此前的 **310/310 浏览器验收** 与 9 页主题审计是本轮改动前的历史基线；本批已由 Codex 独立复验通过：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过。画布、源图片、纹理图案、材质与封面保留各自的颜色。静态检查、单元测试与构建以本轮实际结果为准。
 
-> 名称 / 文案与基础色表面贴图：不新增渲染业务外功能，只保留现有 SVG 立体工具（`tools/extrude3d`），
-> 不建高级入口、不接 vgpu / 路径追踪，不新增依赖 / 后端 / CDN。首页卡片只显示现有中文分类
-> （`en` 仅留数据字段供来源与搜索）；`tools/extrude3d` 的 38 个材质预设统一中文名，石材 / 木材等只提供
-> **基础光泽**，需要表面图案可在材质区**上传本地图片**作为基础色贴图（素材只本地读取、不上传）。
+> **SVG 转 3D 双页签（2026-10-14，用户专项授权）**：`tools/extrude3d` 分为「建模」与「渲染」两个页签。
+> 建模页签用 Three.js 只做 SVG 导入与安全校验、`ExtrudeGeometry` / 原生圆角立方体、厚度 / 倒角 / 平滑度，
+> 以及**固定中性灰**诊断预览；它把同一份 `position / normal / uv / index` 网格在内存中交给渲染页签。
+> 渲染页签用 `vgpu@0.6.0`（MIT，WebGPU）负责材质、灯光、背景、镜头与当前帧 PNG 导出，首批只有
+> **7 个中文材质预设**（透明玻璃 / 磨砂玻璃 / 彩色亚克力 / 塑料 / 陶瓷 / 金属 / 镀铬），不再有 38 个
+> Three.js 材质预设、表面贴图或 Three 棚拍 / 环境光控件。WebGPU 不可用时渲染页签显示中文提示，建模页签仍可用。
+> 玻璃按「背面世界坐标预通道 + 正面透射通道」估算任意闭合挤出网格的厚度与出射，支持明显折射、Fresnel、
+> 有限色散与有限 TIR；不承诺复杂非流形模型的多次内反射。依赖精确锁定、许可见 `THIRD_PARTY.md`；
+> 浏览器视觉 / 像素 / 导出已由 Codex 用真实 Chrome WebGPU 验收 **68/68**。
+>
+> **2026-10-14 首轮阻塞修复（DSH 执行；Codex 真实 Chrome WebGPU 已验收 68/68）**：`background.wgsl` 是 fragment-only，
+> 原先却用 `draw()`（默认查找 `vs_main`）创建背景，真实 Chrome WebGPU 报入口点缺失。现背景改用 vgpu 0.6.0
+> 官方 `effect()`，由库注入内置全屏顶点通道（不自写顶点 shader）；`present.wgsl` 把模型合成到不带深度的
+> 背景之上，背景不再写入 `sceneTarget` 深度，模型自遮挡成立。`setMesh(snapshot)` 收到合法快照即保存
+> `meshSummary`，即使 WebGPU 尚未初始化或失败，实际 GPU 上传仍只在设备可用时进行。厚度测试改为比较
+> mesh bounds Z / `thickness`，不再用顶点数判断。Codex 最终复跑 `IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`
+> 得 **68/68 PASS**、0 页面错误、0 跨源请求；首次 7 项失败是页面内 `drawImage(WebGPU / WebGL canvas)` 取样
+> 得到透明位图的误报，改用 `ElementHandle.screenshot` 捕获浏览器合成结果后全部通过，功能阈值不放松。
+>
+> **2026-10-14 第二轮修复（DSH 执行；待 Codex 真实 Chrome WebGPU 视觉验收）**：
+> ① **背景图片发白**：图片经 `copyExternalImageToTexture` 进 `rgba8unorm` 的字节是 sRGB 编码值，而管线按线性光
+> 运算、最后由 `present.wgsl` 做 ACES + sRGB，等于把图片二次提亮。现 `common.wgsl` 提供 `srgb_to_linear`
+> （与 `linear_to_srgb` 互逆），只在 `background.wgsl` 的图片分支线性化；纯色 / 基色经
+> `Color.setStyle(hex, SRGBColorSpace)` 取线性值。上传后的 `bg_tex` 绑定不会回退到 1×1 白色 fallback。
+> ② **玻璃没有背面**：`glassDraw` 原本 `cull: "back"`，最终画面只有正面片元、`backTarget` 只作厚度辅助纹理。
+> 现背面同一趟既写 `backTarget`（仍供正面估厚度 / 出射）又按背面着色写进 `sceneTarget`（法线朝向、菲涅耳、
+> 棚拍环境反射与吸收都复用官方 `transmission/glass.wgsl` 结构，不引入 raymarch / SDF），闭合模型的前后两个
+> 界面都能辨认。③ **色散默认增强**：`dispersion` 直接作为官方 `dispersion_spread`，谱采样 11、金色角、
+> 官方谱权重；默认值 0.09（透明玻璃）、0.06（彩色亚克力）、0（磨砂玻璃），滑杆仍 0–0.2、0 表示关闭。
+> ④ **纯色黑白预设**：新增「黑色 / 白色」两个快速预设（默认白色），保留自定义颜色与棚拍渐变 / 图片模式。
+> 新增 `tests/extrude3d-color.test.cjs`；`npm test` **57 项通过**、`npm run check` **56/56**、`npm run build`、
+> `git diff --check` 通过；浏览器观感仍待 Codex 独立验收。
 
 ### 外部网站入口（仅跳转，不接入）
 
@@ -86,24 +114,11 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 只数「图形元素个数」拦不住的单条超密集 path 由这条几何闸门兜住；`defs` / `metadata` 里未使用的
 普通定义不再被正则误判（可见元素上的 `filter=` / 文本 / 位图 / `<use>` 等仍明确拒绝）。
 
-`tools/extrude3d` 新增**基础色表面贴图**（用户专项授权）：在材质区上传本地 PNG / JPEG / WebP，
-经白名单 + 实际解码 + 体积 / 尺寸校验（≤10 MiB、单边 ≤4096 像素）后，用 three 自带的 `TextureLoader`
-（blob URL）与上游三平面 UV 接到 `MeshPhysicalMaterial.map`；未自定义颜色时基色纯白以显示贴图原色，
-勾选自定义颜色可染色，移除后恢复材质预设颜色。不打包贴图素材，不加法线 / 粗糙度 / 置换编辑器，
-不新增着色器 / UV 算法 / 依赖 / 后端 / CDN；无效文件给中文原因并保留当前贴图与模型。
-`tests/specs/extrude3d.mjs` 相应断言（真实贴图改变像素与导出 PNG、随材质 / 几何保留、移除恢复无贴图、
-无效文件保留好贴图等）已并入 Codex 本轮 SVG立体 **81/81 PASS**（第五轮表面贴图 + 第六轮背景图片
-同属该规格），本仓库不自行启动浏览器。
-
-`tools/extrude3d` 新增**背景图片 + 基础缩放**（用户专项授权，第六轮）：上传本地 PNG / JPEG / WebP
-（≤10 MiB、单边 ≤4096 像素）后挂到 three 原生 `scene.background` 贴图，用贴图的 `repeat` / `offset`
-按视口与原图宽高比做居中 cover（`1×`–`3×` 缩放，默认 `1×`）；默认纯色背景改为纯白 `#ffffff`。
-透明背景时预览与导出都抑制背景图片，关闭后恢复；移除背景回到所选纯色。表面贴图与背景各自独立，
-切换材质 / SVG 背景保留；非法 / 解码失败 / 超限 / 最新一次无效选择都保留原背景，并释放 blob URL 与被替换贴图。
-不新增依赖 / 自定义着色器 / UV 算法。此前「本批之后 3D 扩展冻结」的约定已由用户本轮专项授权解除，
-SVG立体按下文「本轮」条目继续迭代（玻璃折射 / 主光 / 百分比几何 / 上限与自适应）。
-对应浏览器断言（aspect / zoom 实际像素、导出 PNG、背景 + 表面独立、透明恢复、移除、竞态 / 错误）
-已由 Codex 本轮独立复跑通过（SVG立体 **81/81 PASS**）。
+`tools/extrude3d` 的**基础色表面贴图**与 Three 棚拍 / 环境光 / 主光控件已在双页签迁移中移除；
+材质与灯光改由渲染页签的 vgpu 管线负责（首批 7 个中文预设，不含贴图）。背景图片能力保留并迁移到渲染页签：
+上传本地 PNG / JPEG / WebP（≤10 MiB、单边 ≤4096 像素）后由 WebGPU 背景全屏效果按「居中 cover + 缩放 + 平移」采样，
+透明背景时预览与导出都不显示背景，移除后回到所选纯色；同样的校验与「无效选择保留原背景」规则不变。
+不打包贴图素材，不加法线 / 粗糙度 / 置换编辑器，不新增后端 / CDN。对应浏览器断言由 Codex 独立复验。
 
 > 工具页界面与共享返回入口使用**黑 / 白 / 中性灰**；首页维持原白色样式。画布 / 素材 / 算法输出 / 材质调色板与真实封面保留原有色彩。
 > `tools/texture` 只允许整合页 `index.html` 与 `style.css` 有 UI 差异；六份 JS 与 `_source_snapshot` 的 8 份原件继续逐字节 / 哈希校验。
@@ -171,6 +186,7 @@ CHANGELOG.md               变更记录
 | 大部分工具 | 任意现代浏览器 |
 | 着色器工具（WebGL2） | Chrome / Edge / Firefox / Safari 支持 WebGL2 的版本 |
 | `tools/psychos`（图片拼贴） | 需要 **WebGPU**，且必须在 `http://127.0.0.1` 或 HTTPS 这类安全上下文下打开 |
+| `tools/extrude3d`（SVG 转 3D） | 建模页签任意现代浏览器；**渲染页签**需要 **WebGPU** 与安全上下文（`http://127.0.0.1` / HTTPS）。WebGPU 不可用时渲染页签显示中文提示，建模页签仍可用 |
 
 ## 测试与验收
 
@@ -291,3 +307,31 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
   canvas 现画白底黑字 ImageLAB 背景（走既有本地图片校验管线，不联网、不用任何用户素材）。
 - 验证：`node --check`（main.js / 规格）、`npm run check`、`npm run build`、`git diff --check` 通过；**未启动浏览器**，
   新用例待 Codex 独立复验。限制：原生透射是单次折射 + 屏幕空间色散，不等同多次内反射（TIR），不声称与参考图一致。
+
+### 2026-10-14 · SVG 转 3D 双页签（建模 Three / 渲染 vgpu，DSH 执行；Codex 真实 Chrome WebGPU 已验收 68/68）
+
+- **双页签**：同一 `tools/extrude3d/index.html` 分为「建模」「渲染」两个页签，切换不丢 SVG / 几何参数；
+  建模参数变更会把同一份内存网格同步给渲染页签。新增 `modeling.js`（Three 几何 + 中性灰诊断预览）与
+  `render-vgpu.js`（vgpu 渲染）；`main.js` 只做页签编排与调试快照。
+- **建模页签**：保留 SVG 样例 / 上传、1 MiB 闸门、曲线自适应细分与 600000 顶点硬上限、厚度 / 倒角 / 平滑度、
+  原生圆角立方体默认；材质固定为中性灰 `MeshStandardMaterial` + 半球光 / 方向光诊断。**不再**承担产品材质、
+  最终灯光、背景与导出。
+- **渲染页签（vgpu 0.6.0，MIT）**：`geometry(gpu, ...)` 上传交接网格（position / normal / uv / index，stride 32），
+  7 个中文材质预设（透明玻璃 / 磨砂玻璃 / 彩色亚克力 / 塑料 / 陶瓷 / 金属 / 镀铬）；不透明走官方
+  `hero-fractal-ceramic.wgsl` 的 GGX PBR 最小扩展（metallic + 程序化棚拍环境），玻璃走官方
+  `transmission/glass.wgsl` 的结构，但把写死立方体的 `trace_cube_exit` 换成**背面世界坐标预通道 + 正面透射通道**，
+  按同一屏幕像素估算厚度与出射，支持明显折射、Fresnel、有限色散与有限 TIR。背景支持纯色 / 棚拍渐变 /
+  本地图片（居中 cover、1×–3×、横向 / 纵向平移），透明背景输出 alpha。
+- **移除旧材质**：38 个 Three.js 材质预设、表面贴图、Three 环境光 / 棚拍空间 / 主光 / 强色散示例控件与运行分支已删除；
+  构建产物确认不含 `materialPresets` / `MATERIAL_UI` / `MeshPhysicalMaterial` 运行分支。
+- **导出**：渲染页签按导出倍率重渲染整条 WebGPU 管线到 `rgba8unorm` 目标，`color.read` 后反预乘并由 2D canvas 编码 PNG，
+  不读取建模画布。WebGPU 不可用时渲染页签显示中文提示、建模页签仍可用。
+- **依赖与许可**：新增 `vgpu@0.6.0`（MIT，精确锁定），许可原文 `third-party-licenses/vgpu-LICENSE.txt`；
+  Vite 接入 `wgslVitePlugin`（`vgpu/client`）；Node 端 Dawn 适配器不被浏览器构建引用。
+- **验证**：`node --check`、`npm run check` **56/56**、`npm run build`、`git diff --check` 通过；
+  新增 `tests/extrude3d-tabs.test.cjs`（9 项）覆盖双页签、旧材质移除、7 预设、WebGPU 中文提示、网格交接、
+  依赖 / 许可与构建产物，并用 vgpu 官方 mock adapter 新增 `tests/extrude3d-pipeline.test.mjs`（1 项）在 Node 里
+  跑通自定义网格 + 不透明 / 玻璃多趟管线与导出目标 resize / read 的 API 合约（不验证像素）。实现侧本轮**未启动浏览器**：
+  `tests/specs/extrude3d.mjs` 已按最终职责重写（`gpu: webgpu`）。后续修复轮由 Codex 用真实 Chrome WebGPU 复跑
+  `IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d` 得 **68/68 PASS**、0 页面错误；首次 7 项失败为
+  `drawImage(WebGPU / WebGL canvas)` 取样透明位图误报，改用 `ElementHandle.screenshot` 后全部通过。

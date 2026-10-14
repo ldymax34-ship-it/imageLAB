@@ -69,6 +69,26 @@ code {
 .il-head-title b { font-size: 15px; font-weight: 600; letter-spacing: .04em; }
 .il-head-title span { font-size: 9px; letter-spacing: .18em; color: var(--il-faint); }
 .il-head-meta { font-size: 11px; color: var(--il-muted); }
+
+/* ---------- 页签：建模 / 渲染 ---------- */
+[hidden] { display: none !important; }
+
+.il-tabs { display: flex; gap: 6px; }
+.il-tab {
+  padding: 5px 16px;
+  border: 1px solid var(--il-line);
+  background: #fff;
+  color: var(--il-muted);
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+.il-tab:hover { background: #f0f0f0; }
+.il-tab[aria-selected="true"] {
+  background: var(--il-ink);
+  border-color: var(--il-ink);
+  color: #fff;
+}
 .il-head-meta i {
   display: inline-block;
   width: 5px; height: 5px;
@@ -129,6 +149,24 @@ code {
   cursor: pointer;
 }
 .il-color input[type="color"]:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 纯色背景的黑 / 白快速预设：中性灰分段按钮，不改动自定义颜色输入。 */
+.il-quick {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.il-quick button {
+  flex: 1 1 0;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: var(--il-muted);
+}
+.il-quick button[aria-pressed="true"] {
+  background: var(--il-ink);
+  border-color: var(--il-ink);
+  color: #fff;
+}
 
 .il-file {
   display: block;

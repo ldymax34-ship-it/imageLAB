@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SVG 转 3D · 图像实验室 imageLAB</title>
-<meta name="description" content="本地把 SVG 轮廓挤出成三维：厚度、倒角、平滑度可调，多种材质预设，可导出透明背景 PNG。素材不上传。">
+<meta name="description" content="本地把 SVG 轮廓挤出成三维：建模页签负责厚度、倒角、平滑度与诊断预览，渲染页签用 WebGPU 调材质、灯光与背景并导出 PNG。素材不上传。">
 <!-- imagelab:entry -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../assets/backlink.css">
@@ -18,6 +18,10 @@
   <div class="il-head-title">
     <b>SVG 转 3D</b>
   </div>
+  <div class="il-tabs" role="tablist" aria-label="工具页签">
+    <button id="tab-model" class="il-tab" role="tab" aria-selected="true" type="button">建模</button>
+    <button id="tab-render" class="il-tab" role="tab" aria-selected="false" type="button">渲染</button>
+  </div>
   <div class="il-head-meta">
     <i></i>本地处理 · 素材不上传
   </div>
@@ -25,7 +29,7 @@
 
 <main class="il-main">
 
-  <aside class="il-panel" aria-label="立体设置">
+  <aside class="il-panel" id="panel-model" aria-label="建模设置">
 
     <section class="il-sec">
       <h2><b>01</b>SVG 导入</h2>
@@ -68,7 +72,7 @@
 
       <p class="il-help">
         立方体是 three 原生真实模型：宽高固定 4，厚度 2–100% 即 Z 轴占最大边的比例（默认 100% = 4×4×4），
-        边缘圆角宽度映射原生 RoundedBoxGeometry 的圆角半径。
+        边缘圆角宽度映射原生圆角盒的圆角半径。
         SVG 样例 / 上传仍是挤出模型：厚度 2–100%（首次 16%）、边缘圆角 0–10%、倒角深度 0–10%，0 即关闭；
         厚度与倒角按<b>最大平面边长</b>的百分比，倒角只圆立体模型的边缘，深度不超过厚度的一半，
         达到几何限制时状态栏会写出实际值。
@@ -76,127 +80,136 @@
     </section>
 
     <section class="il-sec">
-      <h2><b>03</b>材质</h2>
-      <label class="il-field" for="material">材质
-        <select id="material"></select>
-      </label>
-      <label class="il-check"><input id="color-override" type="checkbox">自定义颜色</label>
-      <label class="il-field il-color" for="color">颜色
-        <input id="color" type="color" value="#c9c4bd" disabled>
-      </label>
-      <label class="il-check"><input id="roughness-override" type="checkbox">自定义粗糙度</label>
-      <label class="il-slider" for="roughness">粗糙度 <output id="roughness-out">0.30</output></label>
-      <input id="roughness" type="range" min="0" max="1" step="0.02" value="0.3" disabled>
-
-      <label class="il-slider" for="glass-ior">折射率（玻璃） <output id="glass-ior-out">1.50</output></label>
-      <input id="glass-ior" type="range" min="1" max="2.4" step="0.01" value="1.5" disabled>
-
-      <label class="il-slider" for="glass-thickness">光学厚度（玻璃） <output id="glass-thickness-out">×1.00</output></label>
-      <input id="glass-thickness" type="range" min="0" max="2" step="0.05" value="1" disabled>
-
-      <label class="il-slider" for="glass-dispersion">色散强度（玻璃） <output id="glass-dispersion-out">6.00</output></label>
-      <input id="glass-dispersion" type="range" min="0" max="20" step="0.25" value="6" disabled>
-      <p class="il-help" id="glass-note">当前材质使用它自己的预设折射参数；切到「透明玻璃」可调折射率 / 光学厚度 / 色散强度。</p>
-      <button id="dispersion-demo" class="il-wide" type="button">强色散示例（立方体 + 玻璃 + 白底黑字）</button>
-      <p class="il-help">
-        强色散示例会一次填好：原生立方体、透明玻璃、折射率 1.50、色散强度 10，并用页面内 canvas
-        现画一张白底大号黑字 ImageLAB 图作为背景（本地生成、不联网、不使用任何用户素材）。
-      </p>
-
-      <label class="il-file" for="texture-file">上传表面贴图
-        <input id="texture-file" type="file" accept="image/png,image/jpeg,image/webp">
-      </label>
-      <p class="il-name" id="texture-name" title="当前使用的表面贴图" aria-live="polite">未使用贴图</p>
-      <button id="texture-remove" class="il-wide" type="button">移除贴图</button>
-      <p class="il-help">
-        材质预设只提供基础光泽；上传图片可作为表面图案贴在模型上。
-        支持 PNG / JPEG / WebP，文件不超过 10 MiB、单边不超过 4096 像素。
-        未勾选自定义颜色时贴图按原色显示，勾选后可用颜色给贴图染色。
-      </p>
-    </section>
-
-    <section class="il-sec">
-      <h2><b>04</b>环境与背景</h2>
-      <label class="il-slider" for="env-intensity">环境光 <output id="env-intensity-out">1.00</output></label>
-      <input id="env-intensity" type="range" min="0" max="3" step="0.05" value="1">
-
-      <label class="il-slider" for="light-intensity">灯光强度 <output id="light-intensity-out">1.20</output></label>
-      <input id="light-intensity" type="range" min="0" max="3" step="0.05" value="1.2">
-
-      <label class="il-slider" for="light-angle">主光方向 <output id="light-angle-out">40°</output></label>
-      <input id="light-angle" type="range" min="0" max="360" step="1" value="40">
-      <p class="il-help">
-        灯光强度是总光量增益：同时缩放白色主平行光、棚拍面光源、可见柔光箱与静态环境反射强度
-        （环境光滑杆是叠加其上的独立倍数），默认 1.20 为标称；0 时主光与环境反射熄灭、背景色 / 图片保留。
-        主光是白色平行光、不投影，方向角控制主光与棚拍面光源方位，调参数立即改变真实高光。
-      </p>
-
-      <label class="il-slider" for="exposure">曝光 <output id="exposure-out">1.00</output></label>
-      <input id="exposure" type="range" min="0.2" max="2" step="0.05" value="1">
-
-      <label class="il-field il-color" for="bg">背景色
-        <input id="bg" type="color" value="#ffffff">
-      </label>
-
-      <label class="il-field" for="bg-mode">背景模式
-        <select id="bg-mode">
-          <option value="pure">纯色</option>
-          <option value="studio">棚拍空间</option>
-          <option value="image">图片</option>
-        </select>
-      </label>
-
-      <label class="il-file" for="bg-file">上传背景图片
-        <input id="bg-file" type="file" accept="image/png,image/jpeg,image/webp">
-      </label>
-      <p class="il-name" id="bg-name" title="当前使用的背景图片" aria-live="polite">未使用背景图片</p>
-      <button id="bg-remove" class="il-wide" type="button">移除背景</button>
-      <label class="il-slider" for="bg-zoom">背景缩放 <output id="bg-zoom-out">1.00</output></label>
-      <input id="bg-zoom" type="range" min="1" max="3" step="0.05" value="1">
-      <label class="il-slider" for="bg-pan-x">横向位置 <output id="bg-pan-x-out">0%</output></label>
-      <input id="bg-pan-x" type="range" min="-100" max="100" step="1" value="0">
-      <label class="il-slider" for="bg-pan-y">纵向位置 <output id="bg-pan-y-out">0%</output></label>
-      <input id="bg-pan-y" type="range" min="-100" max="100" step="1" value="0">
-      <button id="bg-pan-reset" class="il-wide" type="button">重置背景位置</button>
-      <p class="il-help" id="bg-pan-note">上传背景图片后可移动裁切位置。</p>
-      <p class="il-help">
-        三种背景模式：纯色为默认；棚拍空间是页面内实时生成的真实三维背景（中性灰地面、柔光与地面淡反射）；
-        图片按「居中铺满（cover）」贴在三维视图里，保持原图宽高比、不拉伸，缩放 1×–3× 放大画面，
-        横向 / 纵向位置在裁切余量内平移，不会拉伸、平铺或露出空白边。
-        上传图片会自动切到图片模式，移除后回到纯色；切到棚拍空间时已上传的图片会保留。
-        支持 PNG / JPEG / WebP，文件不超过 10 MiB、单边不超过 4096 像素。
-        勾选透明背景时预览与导出都不显示任何背景，取消勾选会恢复原选择。
-      </p>
-
-      <label class="il-check"><input id="transparent-bg" type="checkbox">透明背景（导出带透明通道的 PNG）</label>
-      <p class="il-help">环境反射由本页实时生成，不联网加载贴图。</p>
-    </section>
-
-    <section class="il-sec">
-      <h2><b>05</b>视图与导出</h2>
+      <h2><b>03</b>诊断预览</h2>
       <div class="il-row">
-        <button id="reset-view" type="button">重置视角</button>
-        <button id="export-png" class="il-primary" type="button">导出 PNG</button>
+        <button id="model-reset-view" type="button">重置视角</button>
       </div>
-      <label class="il-field" for="export-scale">导出尺寸
-        <select id="export-scale">
-          <option value="1">1× · 视图尺寸</option>
-          <option value="2" selected>2× · 高清</option>
-        </select>
-      </label>
-      <p class="il-help">拖拽旋转 · 滚轮缩放 · 右键（或双指）平移。导出为 PNG 图片。</p>
+      <p class="il-help">
+        建模预览是<b>中性灰</b>诊断材质，只用来确认轮廓、厚度与倒角；它不是产品材质，也不导出图片。
+        拖拽旋转 · 滚轮缩放 · 右键（或双指）平移。材质、灯光、背景与 PNG 导出都在「渲染」页签，
+        几何参数变更会同步到渲染页签。
+      </p>
     </section>
 
   </aside>
 
-  <section class="il-stage">
-    <div class="il-alert" id="error" role="alert" hidden></div>
-    <div class="il-view" id="view">
-      <canvas id="view-canvas" aria-label="SVG 转 3D实时预览：可旋转、缩放、平移"></canvas>
+  <aside class="il-panel" id="panel-render" aria-label="渲染设置" hidden>
+
+    <section class="il-sec">
+      <h2><b>01</b>材质</h2>
+      <label class="il-field" for="render-material">材质预设
+        <select id="render-material"></select>
+      </label>
+      <label class="il-field il-color" for="render-color">基色
+        <input id="render-color" type="color" value="#ffffff">
+      </label>
+      <label class="il-slider" for="render-roughness">粗糙度 <output id="render-roughness-out">0.03</output></label>
+      <input id="render-roughness" type="range" min="0" max="1" step="0.01" value="0.03">
+      <label class="il-slider" for="render-metallic">金属度 <output id="render-metallic-out">0.00</output></label>
+      <input id="render-metallic" type="range" min="0" max="1" step="0.01" value="0">
+
+      <label class="il-slider" for="render-ior">折射率（玻璃） <output id="render-ior-out">1.50</output></label>
+      <input id="render-ior" type="range" min="1" max="2.4" step="0.01" value="1.5">
+      <label class="il-slider" for="render-optical">光学厚度倍数（玻璃） <output id="render-optical-out">×1.00</output></label>
+      <input id="render-optical" type="range" min="0" max="2" step="0.05" value="1">
+      <label class="il-slider" for="render-dispersion">色散强度（玻璃） <output id="render-dispersion-out">0.090</output></label>
+      <input id="render-dispersion" type="range" min="0" max="0.2" step="0.001" value="0.09">
+      <p class="il-help" id="render-glass-note">透明玻璃按背面世界坐标预通道估算真实厚度，支持折射、菲涅耳、色散与有限全反射；折射需要背景有细节。</p>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>02</b>灯光与曝光</h2>
+      <label class="il-slider" for="render-light-intensity">灯光强度 <output id="render-light-intensity-out">1.20</output></label>
+      <input id="render-light-intensity" type="range" min="0" max="3" step="0.05" value="1.2">
+      <label class="il-slider" for="render-light-angle">主光方向 <output id="render-light-angle-out">40°</output></label>
+      <input id="render-light-angle" type="range" min="0" max="360" step="1" value="40">
+      <label class="il-slider" for="render-env-intensity">环境反射 <output id="render-env-intensity-out">1.00</output></label>
+      <input id="render-env-intensity" type="range" min="0" max="3" step="0.05" value="1">
+      <label class="il-slider" for="render-exposure">曝光 <output id="render-exposure-out">1.00</output></label>
+      <input id="render-exposure" type="range" min="0.2" max="2" step="0.05" value="1">
+      <p class="il-help">
+        灯光是白色主光 + 页面内实时生成的程序化棚拍环境（上亮下暗墙面与两盏柔光箱），不联网加载任何贴图；
+        环境反射控制金属 / 塑料的反射强度，曝光在合成阶段统一施加。
+      </p>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>03</b>背景</h2>
+      <label class="il-field il-color" for="render-bg">背景色
+        <input id="render-bg" type="color" value="#ffffff">
+      </label>
+      <div class="il-quick" role="group" aria-label="背景色快速预设">
+        <button id="render-bg-black" type="button" aria-pressed="false">黑色</button>
+        <button id="render-bg-white" type="button" aria-pressed="true">白色</button>
+      </div>
+      <label class="il-field" for="render-bg-mode">背景模式
+        <select id="render-bg-mode">
+          <option value="pure">纯色</option>
+          <option value="studio">棚拍渐变</option>
+          <option value="image">图片</option>
+        </select>
+      </label>
+      <label class="il-file" for="render-bg-file">上传背景图片
+        <input id="render-bg-file" type="file" accept="image/png,image/jpeg,image/webp">
+      </label>
+      <p class="il-name" id="render-bg-name" title="当前使用的背景图片" aria-live="polite">未使用背景图片</p>
+      <button id="render-bg-remove" class="il-wide" type="button">移除背景</button>
+      <label class="il-slider" for="render-bg-zoom">背景缩放 <output id="render-bg-zoom-out">1.00</output></label>
+      <input id="render-bg-zoom" type="range" min="1" max="3" step="0.05" value="1">
+      <label class="il-slider" for="render-bg-pan-x">横向位置 <output id="render-bg-pan-x-out">0%</output></label>
+      <input id="render-bg-pan-x" type="range" min="-100" max="100" step="1" value="0">
+      <label class="il-slider" for="render-bg-pan-y">纵向位置 <output id="render-bg-pan-y-out">0%</output></label>
+      <input id="render-bg-pan-y" type="range" min="-100" max="100" step="1" value="0">
+      <button id="render-bg-pan-reset" class="il-wide" type="button">重置背景位置</button>
+      <p class="il-help" id="render-bg-pan-note">上传背景图片后可移动裁切位置。</p>
+      <p class="il-help">
+        三种背景：纯色（可选黑 / 白快速预设，或自定义颜色）；棚拍渐变（中性墙面 + 柔光，程序化生成）；
+        图片按「居中铺满（cover）」贴在视图里，
+        保持原图宽高比、不拉伸，缩放 1×–3× 放大画面，横向 / 纵向位置在裁切余量内平移，不会拉伸、平铺或露出空白边。
+        上传图片会自动切到图片模式，移除后回到纯色。支持 PNG / JPEG / WebP，文件不超过 10 MiB、单边不超过 4096 像素。
+      </p>
+      <label class="il-check"><input id="render-transparent" type="checkbox">透明背景（导出带透明通道的 PNG）</label>
+    </section>
+
+    <section class="il-sec">
+      <h2><b>04</b>镜头与导出</h2>
+      <div class="il-row">
+        <button id="render-reset-view" type="button">重置镜头</button>
+        <button id="render-export-png" class="il-primary" type="button">导出 PNG</button>
+      </div>
+      <label class="il-field" for="render-export-scale">导出尺寸
+        <select id="render-export-scale">
+          <option value="1">1× · 视图尺寸</option>
+          <option value="2" selected>2× · 高清</option>
+        </select>
+      </label>
+      <p class="il-help">
+        导出的是渲染页签当前帧：先按导出倍率重渲染整条 WebGPU 管线，再从渲染结果编码 PNG，
+        不是截图或建模预览。透明背景时 PNG 带 alpha。
+      </p>
+    </section>
+
+  </aside>
+
+  <section class="il-stage" id="stage-model">
+    <div class="il-alert" id="model-error" role="alert" hidden></div>
+    <div class="il-view" id="model-view">
+      <canvas id="model-canvas" aria-label="建模诊断预览：可旋转、缩放、平移"></canvas>
     </div>
     <div class="il-status">
-      <span id="status" aria-live="polite">正在载入样例…</span>
-      <span id="stats">—</span>
+      <span id="model-status" aria-live="polite">正在载入样例…</span>
+      <span id="model-stats">—</span>
+    </div>
+  </section>
+
+  <section class="il-stage" id="stage-render" hidden>
+    <div class="il-alert" id="render-hint" role="alert" hidden></div>
+    <div class="il-view" id="render-view">
+      <canvas id="render-canvas" aria-label="WebGPU 渲染预览：可旋转、缩放、平移"></canvas>
+    </div>
+    <div class="il-status">
+      <span id="render-status" aria-live="polite">切到渲染页签后初始化 WebGPU…</span>
+      <span id="render-stats">—</span>
     </div>
   </section>
 

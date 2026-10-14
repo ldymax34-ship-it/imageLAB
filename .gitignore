@@ -10,3 +10,7 @@ dist/
 # 安全副本：只在本机作为只读参考，不进入公开仓库
 _source_snapshot/
 *.tsbuildinfo
+
+# 第三方镜像：Yordan Stoyanov 的 Brand Assets Generator，版权归原作者，仅本机参考
+# 见 _external_mirror/brand-generator-stoyanov/SOURCE-ATTRIBUTION.md
+_external_mirror/

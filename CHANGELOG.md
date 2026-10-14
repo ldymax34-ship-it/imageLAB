@@ -4,6 +4,92 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 2026-10-14 · 修复：背景图片发白 / 玻璃背面 / 色散默认值 / 黑白纯色预设（DSH 执行；待 Codex 真实 Chrome WebGPU 验收）
+
+范围：`tools/extrude3d`（渲染页签）、其已有测试与状态文档。保持「建模 / 渲染」双页签、7 个中文材质与
+Three.js 只做几何 / 灰模诊断的架构，不引入 raymarch / SDF、Three 最终材质、第二套引擎或新依赖。
+
+- **根因 1 · 背景上传后发白（颜色空间）**：本地 PNG / JPEG / WebP 经 `createImageBitmap` +
+  `copyExternalImageToTexture` 进入 `rgba8unorm`，字节是 **sRGB 编码值**；整条 vgpu 管线按线性光运算，
+  `present.wgsl` 最后才做 ACES + `linear_to_srgb`，于是图片被当成线性值再提亮一遍（128/255 灰 ≈ 显示成
+  176/255），中间调与彩色整体发白。修复：`common.wgsl` 新增 `srgb_to_linear`（IEC 61966-2-1，常数与
+  `linear_to_srgb` 互逆），**只**在 `background.wgsl` 的图片分支线性化；`render-vgpu.js` 的纯色背景 /
+  玻璃 / PBR 基色改经 `Color.setStyle(hex, SRGBColorSpace)` 取线性值（不再用 `new THREE.Color(hex)` 裸值，
+  也**不**二次 `convertSRGBToLinear()`）。上传 / 绑定链路复核后未发现第二处 root cause：`bindBackground(next)`
+  之后 `bg_tex` 取 `bgTextureGpu || fallbackTexture`，图片模式不会落回 1×1 白色 fallback；移除图片才回退。
+- **根因 2 · 透明玻璃「没有背面」**：`glassDraw` 用 `cull: "back"`，最终 `sceneTarget` 只有正面片元；
+  `backTarget` 只是辅助纹理（世界坐标 + 命中标记），从不进入最终成像，闭合模型看起来是单层空心壳。
+  修复：`glass-back.wgsl` 的同一趟背面片元既写 `backTarget`（正面通道仍按 `back_tex.a > 0.5` 估厚度 / 出射），
+  又按背面着色写进 `sceneTarget`；渲染顺序为背（较远）→ 正面（较近，透过深度测试）。背面着色复用官方
+  `transmission/glass.wgsl` 的同一套结构：法线朝向 `select(-geometric_normal, geometric_normal, dot(..., view) > 0)`、
+  菲涅耳、`studio_env` 环境反射与 `exp(-absorption × path)` 吸收；alpha 记 `(1 - Fresnel)`，与官方的
+  `mix(transmitted, reflection, fresnel)` 能量关系一致；透明背景模式整体清零。不引入 raymarch / SDF。
+- **根因 3 · 色散几乎看不出**：默认 `dispersion: 0.015` 只有官方 `GLASS.dispersion_spread = 0.09` 的 1/6，
+  且旧谱权重与采样数不同。修复：`glass.wgsl` 对齐官方——`TRANSMISSION_SAMPLES = 11`、`GOLDEN_ANGLE = 2.39996323`、
+  谱权重 `(0.05 / 0.50 / 0.95)`、宽度 `(0.45 / 0.38 / 0.45)`，`dispersion` 直接作为 `dispersion_spread`
+  （谱折射率 `ior ± dispersion / 2`），不加自造增益。预设默认：透明玻璃 `0.09`、彩色亚克力 `0.06`、
+  磨砂玻璃 `0`；控件初始值 `0.090`，范围仍 `0–0.2`，`0` 仍表示关闭，整段滑杆连续。
+- **根因 4 · 纯色缺少快速预设**：新增「黑色 / 白色」两个快速预设（`BACKGROUND_PRESETS`，中文名直接写
+  「黑色」「白色」），默认白色；点击切回纯色并同步颜色输入与 `aria-pressed`，手动改色视为自定义不再点亮预设。
+  保留自定义颜色输入与棚拍渐变 / 图片模式，不扩展更多预设。
+- **测试**：新增 `tests/extrude3d-color.test.cjs`（3 项，纯 Node）把 `srgb_to_linear` 在 Node 复现，与
+  IEC 61966-2-1 参考值及 three 0.186.1 的 `SRGBToLinear` 常数逐项对照；`tests/extrude3d-tabs.test.cjs`
+  增加背景绑定不回退白色 fallback、图片线性化、黑白预设映射 / 默认白色、背面写进 `sceneTarget`、
+  背面 uniform 结构、色散默认值与官方映射断言；`tests/extrude3d-pipeline.test.mjs` 改为背面 draw 同时
+  进 `backTarget` 与 `sceneTarget`；`tests/specs/extrude3d.mjs` 增加默认白 / 黑预设亮度、上传马赛克外圈彩色、
+  色散默认值与 0、玻璃前后界面亮度结构的浏览器断言。
+- **已跑检查**：`npm test` **57 项通过 / 0 失败**（含 56 项静态自检）、`node scripts/check.mjs` **56/56**、
+  `npm run build`、`git diff --check` 均通过。**未启动浏览器**；上传图片观感、玻璃前后界面、色散彩边、
+  黑 / 白预设与透明 PNG 仍必须由 Codex 用真实 Chrome WebGPU 视觉验收，本轮不自行宣称视觉通过。
+
+### 2026-10-14 · 修复：背景 `effect()` 全屏通道 / present 深度合成 / GPU 前网格状态同步（DSH 执行；Codex 真实 Chrome WebGPU 已验收 68/68）
+
+- **根因**：`background.wgsl` 是 fragment-only，`render-vgpu.js` 却用 `draw(gpu, { vertices: 3, ... })` 创建背景；
+  vgpu `draw()` 默认查找 `vs_main`，真实 Chrome WebGPU 报 `Entry point "vs_main" doesn't exist in shader module draw.shader`。
+- **修复（vgpu 0.6.0 官方 API，最小接线）**：背景改用 `effect(gpu, backgroundWgsl)`，由库注入官方内置全屏顶点通道，
+  **不自写顶点 shader**。`present.wgsl` 增加 `bg_tex` / `bg_samp`，把模型（带深度的 `sceneTarget`）合成到不带深度的
+  `backgroundTarget` 之上；背景不再写入场景深度，模型自遮挡成立。present / PBR / glass / glass-back 的目标格式、
+  深度与绑定已复核：`sceneTarget` / `backTarget` 保留深度，`backgroundTarget` / `exportTarget` 无深度。
+- **状态同步**：`setMesh(snapshot)` 对合法 snapshot 先保存 `meshSummary`，再判断 GPU 是否可用；即使 WebGPU 尚未初始化
+  或初始化失败也能验证建模结果已交接；实际 GPU 上传仍只在设备可用时进行。
+- **测试**：`tests/specs/extrude3d.mjs` 厚度断言改为比较 mesh bounds Z / `thickness`，不再用顶点数判断；并恢复适配后的
+  关键回归（普通 SVG 上传 / 未使用 defs·metadata 放行 / text·script·内部实体·外部资源·可见滤镜拒绝 / 1 MiB 上限 /
+  复杂曲线拒绝与平顺曲线自适应 / 厚度·倒角·比例归一化 / SVG 切换状态保持 / 背景校验·缩放·平移 / WebGPU 7 种真实材质 /
+  透明 PNG / 1×·2× 导出尺寸）。旧 Three 材质 / 表面贴图断言随职责迁移删除。新增 `tests/extrude3d-tabs.test.cjs`
+  背景 `effect()` 回归与本轮状态同步断言，`tests/extrude3d-pipeline.test.mjs` 改为 `effect()` 背景 + present 合成接线。
+- **验证**：`node --check`、`npm run check` **56/56**、`npm test` **47/47 + 56 静态项**、`npm run build`、`git diff --check`
+  通过。**Codex 真实 Chrome WebGPU 验收**：`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d` 最终
+  **68/68 PASS**、0 页面错误、0 跨源请求。首次 smoke 为 61 通过 / 7 失败，7 项均因页面内
+  `drawImage(WebGPU / WebGL canvas)` 在本机 Chrome 返回透明位图而误报；只修正 `tests/specs/extrude3d.mjs` 取样，
+  改用 Puppeteer `ElementHandle.screenshot` 捕获浏览器合成结果，PNG 解码失败即判失败，功能阈值不放松。
+  玻璃折射 / 7 材质观感 / 透明 alpha / 1×·2× 尺寸 / 真实 WebGPU 就绪均已真实覆盖。
+
+### 2026-10-14 · SVG 转 3D 双页签：建模（Three）+ 渲染（vgpu / WebGPU）（DSH 执行；Codex 真实 Chrome WebGPU 已验收 68/68）
+
+- **架构**：`tools/extrude3d` 分为「建模」「渲染」两个页签，切换不丢 SVG / 几何参数；建模页签每次几何变更把同一份
+  in-memory `position / normal / uv / index` 网格交接给渲染页签。新增 `modeling.js` / `render-vgpu.js` 与
+  `shaders/{common,pbr,glass,glass-back,background,present}.wgsl`；`main.js` 改为页签编排与只读调试快照。
+- **建模页签（Three.js）**：只负责 SVG 导入与安全校验、`ExtrudeGeometry` / 原生圆角立方体、厚度 / 倒角 / 平滑度，
+  预览固定中性灰 `MeshStandardMaterial` + 半球光 / 方向光；不再使用 `RoomEnvironment` / `PMREM` / `Reflector` /
+  `RectAreaLight` / `MeshPhysicalMaterial`，也不承担产品材质、最终灯光、背景或导出。
+- **渲染页签（vgpu 0.6.0，MIT）**：用 `geometry(gpu, ...)` 上传任意闭合挤出网格（非固定 cube）；首批 7 个中文预设
+  （透明玻璃 / 磨砂玻璃 / 彩色亚克力 / 塑料 / 陶瓷 / 金属 / 镀铬）；不透明走官方 `hero-fractal-ceramic.wgsl` 的 GGX PBR
+  最小扩展（metallic + 程序化棚拍环境）；玻璃走官方 `transmission/glass.wgsl` 结构，但把写死立方体的 `trace_cube_exit`
+  换成「背面世界坐标预通道 + 正面透射通道」估算厚度 / 出射，支持明显折射、Fresnel、有限色散与有限 TIR。
+- **移除**：38 个 Three.js 材质预设、表面贴图、Three 环境光 / 棚拍空间 / 主光 / 强色散示例控件与运行分支删除；
+  构建产物确认不含 `materialPresets` / `MATERIAL_UI` / `MeshPhysicalMaterial` 运行分支。
+- **背景 / 导出**：纯色 / 棚拍渐变 / 本地图片（居中 cover、1×–3× 缩放、横向 / 纵向平移、透明背景）迁移到渲染页签；
+  导出按倍率重渲染 WebGPU 管线到 `rgba8unorm`，`color.read` 反预乘后编码 PNG，不读取建模画布。
+  WebGPU 不可用时渲染页签显示中文提示，建模页签仍可用。
+- **依赖 / 许可**：新增 `vgpu@0.6.0`（精确锁定，MIT，许可原文 `third-party-licenses/vgpu-LICENSE.txt`）；
+  `vite.config.mjs` 接入 `wgslVitePlugin`（`vgpu/client`）；THIRD_PARTY / README / TASKS 同步。
+- **验证**：`node --check`、`npm run check` **56/56**、`npm run build`、`git diff --check` 通过；
+  新增 `tests/extrude3d-tabs.test.cjs`（9 项）与 `tests/extrude3d-pipeline.test.mjs`（1 项，vgpu 官方 mock adapter
+  验证自定义网格 + 多趟管线 + 导出 target resize / read 的 API 合约，不验证像素）；
+  `tests/specs/extrude3d.mjs` 按最终职责重写（`gpu: webgpu`）。
+  实现侧本轮**未启动浏览器**（历史事实）；玻璃观感 / PNG 像素 / 透明 alpha / 导出分辨率已由 Codex 在后续修复轮
+  用真实 Chrome WebGPU 验收 **68/68 PASS**（见上一条）。
+
 ### 首页收尾：去掉重复顶栏、成熟工具优先、直观命名
 - 删除首页顶部小 logo 和「全部工具 / 使用说明」导航，清理对应样式与旧测试；仅保留主字标、筛选搜索、四列工具一览。
 - 首页首行调整为「SVG 转 3D / 标志材质 / 动态背景 / 半调网点」，图片拼贴等内置工具随后展示，外部网站仍放在末尾。

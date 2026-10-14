@@ -10,8 +10,38 @@ Node 单测与构建不受影响：
 
 ```bash
 npm run build     # 正常
-npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/serve.test.cjs 服务器自检 + scripts/check.mjs 静态自检）
+npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/serve.test.cjs 服务器自检 + tests/extrude3d-tabs.test.cjs 双页签静态自检 + tests/extrude3d-color.test.cjs 颜色空间自检 + tests/extrude3d-pipeline.test.mjs（vgpu 官方 mock adapter 的 API 合约）+ scripts/check.mjs 静态自检）
 ```
+
+> 2026-10-14 修复轮（背景发白 / 玻璃背面 / 色散 / 黑白预设）：
+> `tools/extrude3d` 的四处根因与回归见根 `CHANGELOG.md`。新增 `tests/extrude3d-color.test.cjs`（3 项）：把
+> `common.wgsl` 的 `srgb_to_linear` 数学在 Node 里逐位复现，与 IEC 61966-2-1 参考值和 three 0.186.1 的
+> `Color.setStyle(hex, SRGBColorSpace)`（同一组 0.04045 / 12.92 / 1.055 / 0.055 / 2.4 常数）对照；
+> `tests/extrude3d-tabs.test.cjs` 增加背景绑定不回退白色 fallback、图片 sRGB→线性、黑 / 白预设映射与默认白色、
+> 玻璃背面写进 `sceneTarget`、背面 uniform 结构、色散默认值 / 映射对齐官方 `dispersion_spread` 的断言；
+> `tests/extrude3d-pipeline.test.mjs` 的 mock 管线同步改成「背面 draw 同时进 backTarget 与 sceneTarget」。
+> `tests/specs/extrude3d.mjs` 增加：默认白色 / 点击黑 · 白预设后的背景亮度、上传马赛克后外圈彩色与亮度、
+> 色散默认值与 0 关闭、透明玻璃模型区域的前后界面亮度结构。实现侧本轮仍未运行浏览器；这些浏览器断言
+> 待 Codex 用真实 Chrome WebGPU 复核。
+
+> 2026-10-14：`tools/extrude3d` 改为「建模（Three）/ 渲染（vgpu + WebGPU）」双页签后，`tests/specs/extrude3d.mjs` 已按最终职责重写
+> （`gpu: webgpu`，覆盖双页签、旧 Three 材质控件移除、7 个中文预设、网格交接、WebGPU 中文提示与 PNG 导出）。实现侧当时未运行浏览器
+> （历史事实）；已由 Codex 用真实 Chrome WebGPU 复跑 `IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`
+> 验收 **68/68 PASS**、0 页面错误。旧规格里的表面贴图 / 38 预设 / Three 棚拍断言已随职责迁移删除。
+>
+> 2026-10-14 修复轮：`background.wgsl` 是 fragment-only，原先用 `draw()` 会找不存在的 `vs_main`；现背景改用 vgpu 官方
+> `effect()` 的内置全屏顶点通道，`present.wgsl` 改为把模型（带深度 `sceneTarget`）合成到不带深度的 `backgroundTarget` 之上。
+> `tests/specs/extrude3d.mjs` 的厚度断言改为比较 mesh bounds Z / `thickness`（不再用顶点数），并恢复适配后的关键回归：
+> 普通 SVG / 未使用 defs·metadata / text·script·内部实体·外部资源·可见滤镜拒绝 / 1 MiB 上限 / 复杂曲线拒绝与平顺曲线自适应 /
+> 厚度·倒角·比例归一化 / SVG 切换状态保持 / 背景校验·缩放·平移 / WebGPU 7 种材质 / 透明 PNG / 1×·2× 导出尺寸。
+> `tests/extrude3d-tabs.test.cjs` 与 `tests/extrude3d-pipeline.test.mjs` 同步覆盖 `effect()` 背景与 present 合成。实现侧当时未运行浏览器（历史事实）；
+> Codex 复跑 `IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d` 最终 **68/68 PASS**、0 页面错误、0 跨源请求。
+>
+> 2026-10-14 取样修正：`tests/specs/extrude3d.mjs` 的「拒绝后建模画布」「7 种材质非空 / 差异」「背景缩放 / 平移」
+> 不再在页面内把 WebGPU / WebGL canvas `drawImage` 到 2D canvas（本机 Chrome 会得到透明位图），改为用
+> `ElementHandle.screenshot({ type: "png" })` 捕获浏览器合成结果后回页面用 `Image` 解码到固定小尺寸；元素缺失、
+> 不可见或截图失败即取样失败（不伪造非空像素），原有阈值含义不变。修正后 Codex 用真实 Chrome WebGPU 复跑
+> **68/68 PASS**、0 页面错误；首次 7 项失败全部是 drawImage 取样误报，不是应用空白或渲染失败。
 
 ## Codex 如何跑
 

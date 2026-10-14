@@ -9,9 +9,14 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 
 | 包 | 版本 | 许可 | 用途 | 上游 |
 | --- | --- | --- | --- | --- |
-| `three` | 0.186.1（锁定） | MIT | 3D 渲染、SVG 加载、挤出几何、OrbitControls、RoomEnvironment、`addons/effects/AsciiEffect` 字符化 | https://github.com/mrdoob/three.js |
-| `@visant/extrude3d` | 0.1.0（锁定） | MIT | SVG → 挤出几何、材质预设库 | https://github.com/pedrojaques99/visantlabs-os （子包 `packages/extrude3d`） |
+| `three` | 0.186.1（锁定） | MIT | 3D 诊断预览、SVG 加载、挤出几何、`OrbitControls`、`RoundedBoxGeometry`、`mergeGeometries`；以及 `addons/effects/AsciiEffect` 字符化 | https://github.com/mrdoob/three.js |
+| `@visant/extrude3d` | 0.1.0（锁定） | MIT | SVG → 挤出几何（解析 / 尺寸 / 挤出参数 / 平滑法线 / 三平面 UV）；**不再使用其材质预设库** | https://github.com/pedrojaques99/visantlabs-os （子包 `packages/extrude3d`） |
 | `@paper-design/shaders` | 0.0.81（锁定） | Apache-2.0 + NOTICE | WebGL2 着色器（液态金属、动态背景、半调等） | https://github.com/paper-design/shaders |
+| `vgpu` | 0.6.0（锁定） | MIT | SVG 转 3D「渲染」页签的 WebGPU 渲染：`init` / `surface` / `target` / `draw` / `effect` / `frame` / `sampler` / `texture` / `geometry`；PBR 与透射 WGSL 由官方 MIT 示例最小改写 | https://github.com/vercel-labs/vgpu |
+
+> `vgpu@0.6.0` 是官方 npm 主包（MIT），其 `@vgpu/adapter-node` 会传递引入 Node 端 Dawn 绑定
+> `webgpu@0.4.0`（仅用于 `vgpu/node` 无头渲染）。本工具**只使用浏览器入口** `import ... from "vgpu"`，
+> 该 Node 适配器不会被浏览器构建引用；许可原文见 [`third-party-licenses/vgpu-LICENSE.txt`](third-party-licenses/vgpu-LICENSE.txt)。
 
 > `@paper-design/shaders` 要求保留 NOTICE，原文见 [`third-party-licenses/paper-design-shaders-NOTICE.txt`](third-party-licenses/paper-design-shaders-NOTICE.txt)。
 > 该包处于 `0.0.x`，官方声明会有破坏性变更，因此**锁定 0.0.81**，不使用 `^` 范围。
@@ -60,31 +65,39 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 - `strength` 采用库内真实的 **0–100**（库第 85 行 `strength / 100`，上游界面滑块即 `min=0 max=100`）。
 
 ### tools/extrude3d
-- `three@0.186.1`（MIT）只用官方现成件：`OrbitControls`、`RoomEnvironment` + `PMREMGenerator`（程序化环境，无远程 HDRI）、
-  `MeshPhysicalMaterial`、`ACESFilmicToneMapping`、`RectAreaLight` + `RectAreaLightUniformsLib`（面光源）、
-  `Reflector`（`objects/Reflector.js`，真实单趟平面反射）、`Fog`。均为随 `three@0.186.1` 分发的 MIT 官方 addon，
-  不新增依赖、不写自定义着色器。
-- `@visant/extrude3d@0.1.0`（MIT）：`parseShapesFromSVG` / `buildExtrudeSettings` / `measureFlatMaxDim` /
-  `smoothCreaseNormals` / `recomputeTriplanarUVs` / `MATERIAL_UI` / `materialPresets` / `resolveMaterial` /
-  `getSimpleMaterialProps` 全部直调上游；`vertexBudget: 600000` 也传给上游做细分裁剪。
-  几何构建改为 three 原生 `ExtrudeGeometry` + `BufferGeometryUtils.mergeGeometries`（MIT），
-  玻璃 / 主光的材质与灯光同样只用 three 原生 `MeshPhysicalMaterial` / `DirectionalLight`。
-  **本工具不写任何 PBR 公式、不自研几何算法、不新增许可。**
-- **棚拍空间（背景模式之一）的观感对齐**：只读观察官方 vgpu `glass-sculpture` 示例
-  （MIT，<https://github.com/vercel-labs/vgpu>，`apps/docs/examples/glass-sculpture/scene.ts` + `sculpture.wgsl`）
-  的 STUDIO 灯光取值（暖色主光、冷色轮廓光、上亮下暗天幕），用 `three` 原生 `RectAreaLight` + 一次性 PMREM
-  环境 + `Reflector` 地面在真实 WebGL 场景里尽力还原；**未移植**其 WGSL / SDF 光线步进，也不声称能复现多次弹射的
-  全内反射。逐帧观感（地面亮度 / 反射强度）待 Codex 浏览器复核。
-- 危险 / 复杂 SVG 在解析前被拒绝（`tools/extrude3d/svg-guard.js`，纯函数）：文本（`<text>`/`<tspan>`）、
-  `<image>`、滤镜元素与属性、渐变描边、`<use>`、非 SVG、空文件、>1 MiB、>500 条图形，
-  以及按真实细分估算仍超 600000 顶点的密集曲线，一律拒绝并显示中文原因，
-  同时保留上一次成功的模型，不渲染半成品。界面提示为「文字请先转曲」。
-- **关于陶瓷（ceramic）**：上游 0.1.0 的界面精选列表 `MATERIAL_UI`（28 项）里**没有** `ceramic`，
-  但完整预设表 `materialPresets`（38 项）中**确实存在**。本工具的处理是：
-  - 主下拉按 `MATERIAL_UI` 分 5 组列出 28 项；
-  - 其余 10 项（含 `ceramic`）归入单独的「更多材质」分组，不隐藏、不编造；
-  - 下拉里显示中文短名（如 铬 / 玻璃 / 拉丝钢 / 陶瓷），`value` 始终是上游 preset id，原样交给材质库。
-  这一段说明只写在本文件，工具页面不再展开。
+
+**双页签架构（2026-10-14，用户专项授权）**：工具分为「建模」与「渲染」两个页签，职责按 Blender 式分离但只做轻量工具。
+
+- **建模页签（Three.js）**：只用官方现成件 `OrbitControls`、`ExtrudeGeometry`、`RoundedBoxGeometry`、
+  `BufferGeometryUtils.mergeGeometries`、`MeshStandardMaterial`（固定中性灰诊断材质）、`HemisphereLight` /
+  `DirectionalLight`。**不再**使用 `RoomEnvironment` / `PMREMGenerator` / `Reflector` / `RectAreaLight` /
+  `MeshPhysicalMaterial`，也不承担产品材质、最终灯光、背景或最终导出。
+- **渲染页签（vgpu 0.6.0 + WebGPU，MIT）**：接收建模页签在内存中交接的同一份 position / normal / uv / index 网格，
+  用 `geometry(gpu, ...)` 上传任意闭合挤出网格（不是固定立方体），负责 7 个中文材质预设、灯光、背景、镜头与当前帧 PNG 导出。
+- **不透明材质**：`tools/extrude3d/shaders/pbr.wgsl` 的 Cook-Torrance GGX 结构改写自 vgpu 官方 MIT 示例
+  [`apps/docs/examples/glass-fractal/hero-fractal-ceramic.wgsl`](https://github.com/vercel-labs/vgpu/blob/main/apps/docs/examples/glass-fractal/hero-fractal-ceramic.wgsl)，
+  最小增加 metallic（金属度）与程序化棚拍环境项，供塑料 / 陶瓷 / 金属 / 镀铬共用。
+- **玻璃 / 透射**：`tools/extrude3d/shaders/glass.wgsl` 的 Fresnel、色散谱权重、粗糙度锥形采样、吸收结构参考官方
+  [`apps/docs/examples/transmission/glass.wgsl`](https://github.com/vercel-labs/vgpu/blob/main/apps/docs/examples/transmission/glass.wgsl)（MIT）；
+  官方 `trace_cube_exit` 写死立方体，不能用于任意 SVG，因此本工具改为
+  [`glass-back.wgsl`](tools/extrude3d/shaders/glass-back.wgsl) 的**背面通道** + 正面透射通道：
+  按同一屏幕像素取回背面世界坐标估算厚度与出射点，再投影回屏幕采样背景，支持明显折射、Fresnel、有限色散与
+  有限 TIR（`refract` 失败按反射处理）。背面通道同一趟也把背面片元写进 `sceneTarget`（法线朝向、Schlick 菲涅耳、
+  `studio_env` 环境反射、吸收），因此最终成像同时有前、后两个界面；`dispersion` 直接作为官方 `dispersion_spread`，
+  谱采样 11 与谱权重按官方取值。**不承诺**任意非流形 / 高度凹陷模型的多次内反射，也不移植官方 SDF 光线步进。
+- **背景 / 合成 / 导出**：`background.wgsl`（纯色 / 棚拍渐变 / 本地图片 cover + 缩放 + 平移）与 `present.wgsl`
+  （线性 HDR → 曝光 → ACES → sRGB，输出预乘 alpha）为本项目按上述官方示例的最小接线；本地图片按
+  `common.wgsl` 的 `srgb_to_linear`（IEC 61966-2-1，与 `linear_to_srgb` 互逆）在线性化后进入管线，纯色 / 基色
+  经 `Color.setStyle(hex, SRGBColorSpace)` 取线性值，避免把 sRGB 当线性导致发白。导出走 `exportTarget.color.read`
+  后由 2D canvas 编码 PNG，**不是** canvas 截图、也不读取建模画布。
+- **移除旧材质库**：不再调用 `@visant/extrude3d` 的 `MATERIAL_UI` / `materialPresets` / `resolveMaterial` /
+  `getSimpleMaterialProps`，也不再使用 `MeshPhysicalMaterial`；构建产物中已确认不含这些符号（`tests/extrude3d-tabs.test.cjs`）。
+- **SVG 安全闸门**（`tools/extrude3d/svg-guard.js`，纯函数）：文本（`<text>`/`<tspan>`）、`<image>`、
+  滤镜元素与属性、渐变描边、`<use>`、非 SVG、空文件、>1 MiB、>500 条图形，以及按真实细分估算仍超
+  600000 顶点的密集曲线，一律拒绝并显示中文原因，同时保留上一次成功的模型。界面提示为「文字请先转曲」。
+- **几何参数映射**：厚度 / 倒角按最大平面边长百分比换算；`buildExtrudeSettings` 与 `vertexBudget: 600000`
+  仍直调上游，倒角尺寸单独按百分比换算并沿用「不超过厚度一半」保护。
+- 渲染页签源码与着色器（`render-vgpu.js`、`shaders/*.wgsl`）为本项目的**最小整合适配**，许可随本体（尚未选定，见文末）。
 
 ### tools/psychos
 - 补丁清单见 `tools/psychos/PATCHES.md`。摘要：切除远程 AI 抠图节点（`removeBackground.ts` 及
@@ -135,7 +148,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 | lumamontes/app-asset-generator | README 称 MIT 但 LICENSE 404 → 许可不明 |
 | fredeerock/imageCutter | README 称 MIT 但 LICENSE 原文 404 → 许可不明 |
 | @visant/logo-trace | 依赖 `sharp` 原生模块，浏览器端可行性未证实 |
-| vgpu | 示例是 React/TS + WGSL 工程，不能直接当 Three.js 材质使用（提取成本高）；官方 `transmission` / `glass-sculpture` / `tsl-exports`（MIT，<https://github.com/vercel-labs/vgpu>）只做只读思路参考，未搬运 WGSL / TSL 源码、未接入运行时。`glass-sculpture` 的 STUDIO 灯光取值仅用于校准本工具「棚拍空间」的原生 `RectAreaLight` / PMREM 环境 / `Reflector` 地面（见上），属观感参考不构成代码移植 |
+| vgpu（旧的「不接入」结论已作废） | 2026-10-14 用户专项授权后接入 `vgpu@0.6.0`（MIT）：渲染页签只使用浏览器主入口，PBR / 透射 WGSL 由官方 MIT 示例最小改写；Node 端 Dawn 适配器不被浏览器构建引用 |
 | danielpetho/cmyk-halftone-emulator | 派生 shader 的上游（Shadertoy `fdjyR1`）许可未证实 |
 
 ## 本项目自身的代码
