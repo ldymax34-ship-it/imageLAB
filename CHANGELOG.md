@@ -4,6 +4,91 @@
 
 ## [未发布] integration/first-batch · 第一轮批量整合
 
+### 2026-10-14 · 产品级工具工作台 UI 改版：紧凑顶栏 / 分类悬浮检查器 / 画布播放条 / 重置视图（DSH 执行；Codex 真实 Chrome 已验收通过）
+
+范围（用户本轮明确授权）：`tools/shaders-logo`、`tools/shaders-bg`、`tools/shaders-halftone`
+（带播放控制的 5 个自建工具）、`tools/wave-grid`、`tools/ascii-motion`，以及 `tools/extrude3d`
+的工具工作台布局与渲染页「重置视图」入口；必要测试与状态文档。
+**未改** shader、渲染算法、动画算法、现有参数默认值、上传校验、导出结果；未改
+`tools/texture`、`tools/pixelit`、`tools/image-to-ascii`、`tools/psychos`、`tools/image-to-pixel`、
+`tools/mixed-type` 与首页。
+
+- **根因（为什么改）**：5 个动画工具把效果 / 参数 / 播放控件全部堆在一列侧栏里，桌面 1440×900
+  下画布与播放控件会被长参数区挤出视口；播放 / 暂停 / 速度 / 帧散落在参数分组中，导出又埋在末尾；
+  extrude3d 的「重置镜头」埋在渲染面板第 04 节长列表底部，用户找不到。本轮只做 UI 组织与
+  已有控制能力重排，不新增任何算法或业务能力。
+- **桌面工作台骨架（≥1000px）**：`body.il-workspace`（shader 三工具 / wave-grid / ascii-motion）
+  与 `tools/extrude3d` 都改为 `100dvh` + `overflow:hidden`，body 不产生纵向页面滚动；紧凑顶栏放
+  返回首页、工具名、必要状态（长说明单行省略，小屏恢复换行）；主画布用 `flex/min-height:0` 占据
+  剩余工作区，shader / ascii 画布填满剩余区域，wave-grid 竖向画布按可用高度保持 4:5 且宽度 ≤720。
+  `tools/extrude3d` 的建模 / 渲染两个主页签保留，改为悬浮检查器 + 视图网格。
+- **分类悬浮检查器（300–330px，距工作区边缘 16px，仅内部滚动）**：新增共享组件
+  `assets/workspace.css`（骨架 / 分类导航 / 播放条 / 画布工具栏）与 `assets/workspace.js`
+  （`mountCategoryTabs`，只切换 `hidden`，不重建控件、不重置参数 / 素材 / 当前帧 / 相机）。
+  分类按钮带 `role="tab"` / `aria-selected` / `aria-controls`，面板带 `role="tabpanel"`，
+  支持 ←→↑↓ / Home / End 键盘导航。分类：
+  shader 三工具统一「素材 / 效果 / 构图 / 输出」（动态背景无素材输入，运行时隐藏空的「素材」）；
+  wave-grid「图形（密度 / 图形 / 文字 / 图片）/ 外观（辉光）/ 动效（亮度变化）/ 输出」；
+  ascii-motion「图形（预设 / 字符 / 自定义画面）/ 外观（辉光 / 颜色）/ 动效（动作选择）/ 输出」；
+  extrude3d 建模「导入 / 几何」、渲染「材质 / 灯光 / 背景 / 输出」。
+  所有原有控件 id、值、事件与状态同步保持不变（含 `param-*` 动态容器）。
+- **画布下方独立播放条**：shader 三工具把暂停 / 播放、速度、帧（毫秒）滑杆与数值、定格取帧移到
+  播放条，PNG 导出仍在「输出」分类；wave-grid 把暂停 / 播放、速度与运行状态移到播放条；
+  ascii-motion 把暂停 / 播放、速度与 `frame-info` 移到播放条。播放条在主画面正下方、桌面始终可见，
+  一行紧凑布局、窄屏换行；无时间轴效果自动停更逻辑、暂停 / 播放 / 定格行为均未改。
+- **extrude3d 重置视图**：`#render-reset-view` 从渲染面板第 04 节移到渲染画布右上角
+  `#stage-render .il-canvas-toolbar`，中文名改为「重置视图」，`title` 写明恢复摄像机位置、
+  观察中心与模型默认构图；仍复用同一 id 与 `render-vgpu.js` 的 `VIEW_DIR` / `VIEW_DISTANCE` /
+  `controls.target` 逻辑，点击调用 `controls.update()`、置脏重绘并反馈「摄像机与模型构图已重置」。
+  建模页 `#model-reset-view` 同样移到 `#stage-model` 画布工具栏，保留「重置视角」名称与行为。
+  模型没有独立用户变换，未新增对象变换系统。
+- **小屏回退（<1000px）**：回到自然文档流，允许页面纵向滚动，画布在前、面板在后，不横向溢出；
+  长说明与状态恢复换行，播放条可换行。
+- **测试**：新增 `tests/workspace-ui.test.cjs`（10 项纯 Node，内置最小 HTML 解析器）验证 6 个工具的
+  分类导航语义与面板对应、分类面板只含各自原有控件、5 个动画工具播放控件只存在一份且都位于
+  `[data-playbar]`、播放条在画布之后、`assets/workspace.css` 的 100dvh / 内部滚动 / 小屏回退、
+  导航辅助模块不重建或重置控件、extrude3d 主页签与重置视图位置 / 复用 `render-reset-view` /
+  桌面不产生页面滚动；并逐工具核对改版前后全部控件 id 仍存在且唯一。
+  浏览器规格同步：需要点击隐藏分类里的控件（各工具导出、ascii 颜色 / 动效、extrude3d 背景 / 导出）
+  前先切换到对应分类；`tests/specs/extrude3d.mjs` 新增渲染画布工具栏重置视图入口、中文反馈与
+  默认机位断言。`package.json` 的 `npm test` 纳入新测试。
+- **已跑检查**：`node --check`（改动 JS）、`npm test` **67 项通过 / 0 失败**（含 56 项静态自检）、
+  `npm run check` **56/56**、`npm run build`、`git diff --check` 均通过。
+  实现侧当时**未启动浏览器**（历史事实）；Codex 随后已完成真实 Chrome 浏览器验收并通过：
+  `ascii-motion` **25/25**、`extrude3d` **79/79**、`shaders-bg` **37/37**、`shaders-halftone` **29/29**、
+  `shaders-logo` **19/19**、`wave-grid` **51/51**，全部 **0 页面错误**；1440×900 与 390×844 的六工具布局
+  验收全部通过（桌面 body 不滚动、画布 / 播放条在视口、检查器 overflow auto；窄屏自然滚动、画布在前、
+  面板在后、无横向溢出）。
+- **未做**：未改首页、未改未授权工具、未改任何算法或导出结果。**提交状态**：已本地提交
+  （最终 SHA 由 amend 后生成）；未 push / 未部署。
+- **阻塞（上层文档同步）**：本轮 ACP 工作区（session workspace）只允许写入本仓库
+  `02_OUTPUT/code/imageLAB`；尝试同步 `00_PROJECT_RULES/TASKS.md` 时被沙箱以
+  `[sandbox: file access denied under workspace-write mode]` 拒绝。按用户指令**不绕过权限、不提权**，
+  故上层 `00_PROJECT_RULES/CHANGELOG.md` 与 `TASKS.md` 本轮未写入；待 Codex / 用户在有权限时同步。
+  （后续修复轮工作区已可写，根 `00_PROJECT_RULES/CHANGELOG.md` 与 `TASKS.md` 已同步本轮摘要，见下方条目。）
+
+### 2026-10-14 · 修复：统一工作台 UI 造成的 wave-grid 辉光 / 黑留白回归（DSH 执行；Codex 真实 Chrome 复验 51/51）
+
+范围：只改 `tools/wave-grid/main.js` 的画布尺寸适配层与本文档；**未改**共享
+`assets/workspace.css` / `assets/workspace.js`，未改其他工具、首页或任何算法。
+
+- **根因（最小因果）**：`layoutCanvas()` 直接拿 `#stage.clientWidth` 当排点 / 渲染基准宽度。统一工作台把
+  桌面画布从改版前的 720×900 改为按 `100dvh` 可用高度定宽，1440×960 下 `#stage` 只有约 580×725；
+  而辉光长度是固定 72 CSS px，画布缩小时 72px 辉光相对占比变大，黑留白由 20.6% 降到 16.4%，
+  旧断言「存在大块黑留白（黑占比 >20%）」与其后的「默认辉光下黑色留白仍 >20%」两项失败。
+- **最小修正**：桌面（断点与 `assets/workspace.css` 的 1000px 一致，用 `matchMedia` 判定）固定按
+  **720 宽内部渲染基准**排点 / 渲染（720×900），再由 workspace.css 的 ratio 模式等比缩到实际显示尺寸
+  580×725，恢复改版前的辉光 / 黑留白比例；小屏（<1000px）仍按真实 `#stage.clientWidth` 渲染。
+  即「桌面显示尺寸」与「内部渲染基准」解耦。未改效果算法、色带 / 辉光参数与默认值、用户控件值、
+  导出流程、性能预算，也未放宽任何旧视觉断言。
+- **验证**：`node --check tools/wave-grid/main.js`、`npm test` **67/67 + 56 静态项**、
+  `node scripts/check.mjs` **56/56**、`npm run build`、`git diff --check` 通过；
+  `IMAGELAB_BROWSER_TESTS=on npm run smoke -- wave-grid` **51/51 PASS**、0 页面错误
+  （黑占比 16.4% → 20.8%，关辉光 90.0% → 开 20.8%；画布像素 720×900、显示 580×725，4:5 与
+  播放条在画布下方 / body 不滚动均保持）。
+- **未做**：未改其他工具与未授权范围。**提交状态**：已本地提交（最终 SHA 由 amend 后生成）；
+  未 push / 未部署。
+
 ### 2026-10-14 · 修复：背景图片发白 / 玻璃背面 / 色散默认值 / 黑白纯色预设（DSH 执行；待 Codex 真实 Chrome WebGPU 验收）
 
 范围：`tools/extrude3d`（渲染页签）、其已有测试与状态文档。保持「建模 / 渲染」双页签、7 个中文材质与

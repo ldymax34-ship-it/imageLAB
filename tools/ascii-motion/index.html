@@ -9,120 +9,147 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../assets/backlink.css">
 <link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="../../assets/workspace.css">
 
 <script type="module" src="./main.js"></script>
 </head>
-<body>
+<body class="il-workspace" data-canvas="fill">
 <a class="il-back" href="../../index.html">← 返回首页</a>
 
 <header class="il-head">
   <h1>动态字符画</h1>
-  <p>
+  <p class="il-head-desc">
     用水母、圆环、隧道、波形四组预设生成真实的三维动画，再用字符重新拼出来：字符、颜色与明暗都来自当前这一帧。
     调密度、字符集、速度、颜色与辉光；暂停后导出的就是屏幕上的这一帧字符画。全部在浏览器本地渲染。
   </p>
+  <div class="il-head-status"><span id="status">初始化中…</span></div>
 </header>
 
 <main class="il-main">
-  <aside class="il-panel">
+  <!-- 悬浮检查器按「图形 / 外观 / 动效 / 输出」分类；播放、速度与帧信息在画布下方播放条。 -->
+  <aside class="il-panel" id="panel" data-catscope aria-label="参数分类">
 
-    <section class="il-group">
-      <h2>预设</h2>
-      <div class="il-chips" id="preset-chips">
-        <button type="button" id="preset-jellyfish" data-preset="jellyfish" aria-pressed="true">水母</button>
-        <button type="button" id="preset-ring" data-preset="ring" aria-pressed="false">圆环</button>
-        <button type="button" id="preset-tunnel" data-preset="tunnel" aria-pressed="false">隧道</button>
-        <button type="button" id="preset-wave" data-preset="wave" aria-pressed="false">波形</button>
-      </div>
-      <p class="il-note" id="preset-note"></p>
+    <div class="il-catnav" data-catnav role="tablist" aria-label="参数分类">
+      <button type="button" class="il-cat" data-cat="shape" id="cat-shape" role="tab" aria-selected="true" aria-controls="panel-shape">图形</button>
+      <button type="button" class="il-cat" data-cat="look" id="cat-look" role="tab" aria-selected="false" aria-controls="panel-look" tabindex="-1">外观</button>
+      <button type="button" class="il-cat" data-cat="motion" id="cat-motion" role="tab" aria-selected="false" aria-controls="panel-motion" tabindex="-1">动效</button>
+      <button type="button" class="il-cat" data-cat="output" id="cat-output" role="tab" aria-selected="false" aria-controls="panel-output" tabindex="-1">输出</button>
+    </div>
+
+    <section class="il-catpanel" data-catpanel="shape" id="panel-shape" role="tabpanel" aria-labelledby="cat-shape">
+
+      <section class="il-group">
+        <h2>预设</h2>
+        <div class="il-chips" id="preset-chips">
+          <button type="button" id="preset-jellyfish" data-preset="jellyfish" aria-pressed="true">水母</button>
+          <button type="button" id="preset-ring" data-preset="ring" aria-pressed="false">圆环</button>
+          <button type="button" id="preset-tunnel" data-preset="tunnel" aria-pressed="false">隧道</button>
+          <button type="button" id="preset-wave" data-preset="wave" aria-pressed="false">波形</button>
+        </div>
+        <p class="il-note" id="preset-note"></p>
+      </section>
+
+      <section class="il-group">
+        <h2>字符</h2>
+        <div class="il-row">
+          <label for="char-pattern">字符集</label>
+          <select id="char-pattern"></select>
+        </div>
+        <div class="il-range">
+          <label for="p-density">密度</label>
+          <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.55">
+          <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.55">
+        </div>
+        <label class="il-note" for="charset-input">自定义字符集（最多 64 个字符，按明暗排序）</label>
+        <input id="charset-input" type="text" maxlength="256" value=" .:-=+*#%@" aria-label="自定义字符集">
+      </section>
+
+      <section class="il-group">
+        <h2>自定义画面</h2>
+        <div class="il-chips" id="custom-mode-chips">
+          <button type="button" data-custom-mode="scene" aria-pressed="true">三维预设</button>
+          <button type="button" data-custom-mode="text" aria-pressed="false">自定义文字</button>
+          <button type="button" data-custom-mode="image" aria-pressed="false">本地图片</button>
+        </div>
+        <textarea id="custom-text" rows="3" maxlength="160" placeholder="输入要转换成字符画的文字" hidden></textarea>
+        <label class="il-file" for="custom-image-file" id="custom-image-label" hidden>选择本地 PNG / JPEG / WebP
+          <input id="custom-image-file" type="file" accept="image/png,image/jpeg,image/webp">
+        </label>
+        <p class="il-note" id="custom-image-name">素材只在本地解码，最大 10 MiB、单边 4096 像素。</p>
+        <label class="il-row" for="image-sampling">图片取样
+          <select id="image-sampling"><option value="auto">自动（透明图按轮廓）</option><option value="brightness">明暗</option><option value="alpha">透明轮廓</option><option value="invert">反相明暗</option></select>
+        </label>
+      </section>
+
     </section>
 
-    <section class="il-group">
-      <h2>字符</h2>
-      <div class="il-row">
-        <label for="char-pattern">字符集</label>
-        <select id="char-pattern"></select>
-      </div>
-      <div class="il-range">
-        <label for="p-density">密度</label>
-        <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.55">
-        <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.55">
-      </div>
-      <label class="il-note" for="charset-input">自定义字符集（最多 64 个字符，按明暗排序）</label>
-      <input id="charset-input" type="text" maxlength="256" value=" .:-=+*#%@" aria-label="自定义字符集">
+    <section class="il-catpanel" data-catpanel="look" id="panel-look" role="tabpanel" aria-labelledby="cat-look" hidden>
+
+      <section class="il-group">
+        <h2>辉光</h2>
+        <div class="il-range">
+          <label for="p-glow">辉光</label>
+          <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.65">
+          <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.65">
+        </div>
+      </section>
+
+      <section class="il-group">
+        <h2>颜色</h2>
+        <div class="il-chips" id="color-chips">
+          <button type="button" id="color-blue" data-color="#6ea8ff" aria-pressed="false">蓝</button>
+          <button type="button" id="color-lilac" data-color="#b8c6ff" aria-pressed="true">淡紫</button>
+          <button type="button" id="color-cyan" data-color="#7ff0ff" aria-pressed="false">青</button>
+          <button type="button" id="color-white" data-color="#f2f4ff" aria-pressed="false">白</button>
+        </div>
+      </section>
+
     </section>
 
-    <section class="il-group">
-      <h2>自定义画面</h2>
-      <div class="il-chips" id="custom-mode-chips">
-        <button type="button" data-custom-mode="scene" aria-pressed="true">三维预设</button>
-        <button type="button" data-custom-mode="text" aria-pressed="false">自定义文字</button>
-        <button type="button" data-custom-mode="image" aria-pressed="false">本地图片</button>
-      </div>
-      <textarea id="custom-text" rows="3" maxlength="160" placeholder="输入要转换成字符画的文字" hidden></textarea>
-      <label class="il-file" for="custom-image-file" id="custom-image-label" hidden>选择本地 PNG / JPEG / WebP
-        <input id="custom-image-file" type="file" accept="image/png,image/jpeg,image/webp">
-      </label>
-      <p class="il-note" id="custom-image-name">素材只在本地解码，最大 10 MiB、单边 4096 像素。</p>
-      <label class="il-row" for="image-sampling">图片取样
-        <select id="image-sampling"><option value="auto">自动（透明图按轮廓）</option><option value="brightness">明暗</option><option value="alpha">透明轮廓</option><option value="invert">反相明暗</option></select>
-      </label>
+    <section class="il-catpanel" data-catpanel="motion" id="panel-motion" role="tabpanel" aria-labelledby="cat-motion" hidden>
+
+      <section class="il-group">
+        <h2>自定义动效</h2>
+        <div class="il-chips" id="motion-chips">
+          <button type="button" data-motion="wave" aria-pressed="true">波动</button>
+          <button type="button" data-motion="breathe" aria-pressed="false">呼吸</button>
+          <button type="button" data-motion="rotate" aria-pressed="false">旋转</button>
+        </div>
+      </section>
+
     </section>
 
-    <section class="il-group">
-      <h2>自定义动效</h2>
-      <div class="il-chips" id="motion-chips">
-        <button type="button" data-motion="wave" aria-pressed="true">波动</button>
-        <button type="button" data-motion="breathe" aria-pressed="false">呼吸</button>
-        <button type="button" data-motion="rotate" aria-pressed="false">旋转</button>
-      </div>
-    </section>
+    <section class="il-catpanel" data-catpanel="output" id="panel-output" role="tabpanel" aria-labelledby="cat-output" hidden>
 
-    <section class="il-group">
-      <h2>动态</h2>
-      <div class="il-range">
-        <label for="p-speed">速度</label>
-        <input type="range" id="p-speed" min="0" max="2.5" step="0.02" value="1">
-        <input type="number" id="n-speed" min="0" max="2.5" step="0.02" value="1">
-      </div>
-      <div class="il-range">
-        <label for="p-glow">辉光</label>
-        <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.65">
-        <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.65">
-      </div>
-    </section>
+      <section class="il-group">
+        <h2>输出</h2>
+        <button type="button" id="btn-export">导出当前帧 PNG</button>
+        <p class="il-note" id="export-info">导出的是当前这一帧字符画（真实字符与颜色），不是原始三维网格。</p>
+      </section>
 
-    <section class="il-group">
-      <h2>颜色</h2>
-      <div class="il-chips" id="color-chips">
-        <button type="button" id="color-blue" data-color="#6ea8ff" aria-pressed="false">蓝</button>
-        <button type="button" id="color-lilac" data-color="#b8c6ff" aria-pressed="true">淡紫</button>
-        <button type="button" id="color-cyan" data-color="#7ff0ff" aria-pressed="false">青</button>
-        <button type="button" id="color-white" data-color="#f2f4ff" aria-pressed="false">白</button>
-      </div>
-    </section>
-
-    <section class="il-group">
-      <h2>单帧与导出</h2>
-      <div class="il-chips" style="margin-bottom:9px">
-        <button type="button" id="btn-pause">暂停</button>
-        <button type="button" id="btn-play">播放</button>
-      </div>
-      <p class="il-note">帧：<b id="frame-info">—</b></p>
-      <button type="button" id="btn-export">导出当前帧 PNG</button>
-      <p class="il-note" id="export-info">导出的是当前这一帧字符画（真实字符与颜色），不是原始三维网格。</p>
     </section>
 
   </aside>
 
-  <section>
+  <section class="il-stagecol">
     <div class="il-stage">
       <div class="il-canvas" id="stage">
         <div id="ascii-holder"></div>
       </div>
     </div>
+    <div class="il-playbar" data-playbar role="group" aria-label="播放控制">
+      <div class="il-chips">
+        <button type="button" id="btn-pause">暂停</button>
+        <button type="button" id="btn-play">播放</button>
+      </div>
+      <div class="il-range">
+        <label for="p-speed">速度</label>
+        <input type="range" id="p-speed" min="0" max="2.5" step="0.02" value="1">
+        <input type="number" id="n-speed" min="0" max="2.5" step="0.02" value="1">
+      </div>
+      <p class="il-note">帧：<b id="frame-info">—</b></p>
+    </div>
     <div class="il-legend">
-      <span id="status">初始化中…</span>
       <span>本地渲染 · 无外部素材 · 可导出 PNG</span>
     </div>
   </section>

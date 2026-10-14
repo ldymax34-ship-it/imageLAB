@@ -16,7 +16,7 @@ npm install          # 安装依赖（three / @visant/extrude3d / @paper-design/
 npm run dev          # 开发服务器 http://127.0.0.1:5177
 npm run build        # 构建完整静态产物到 dist/
 npm run serve        # 本地静态服务器打开 dist（http://127.0.0.1:4890）
-npm test             # 纯 Node：纹理间 4 套测试（34 项）+ 本地服务器自检 + 双页签静态自检 + scripts/check.mjs
+npm test             # 纯 Node：纹理间 4 套测试（34 项）+ 本地服务器自检 + 双页签静态自检 + scripts/check.mjs + tests/workspace-ui.test.cjs（工作台 UI 静态自检 10 项）
 npm run check        # 纯 Node 静态自检（入口、远程资源、字节一致性、许可、清单对齐）
 npm run fixtures     # 重新生成测试素材
 ```
@@ -57,6 +57,34 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/ascii-motion/` | 动态字符画 | `tools/ascii-motion/index.html` | Three 预设 / 本地文字 / 图片以复用 Canvas 字符渲染；自定义字符集与动效 | PNG（当前帧） | 已通过浏览器验收（25 项） |
 
 首页登记全部 12 个内置入口（含 `tools/psychos`）。此前的 **310/310 浏览器验收** 与 9 页主题审计是本轮改动前的历史基线；本批已由 Codex 独立复验通过：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过。画布、源图片、纹理图案、材质与封面保留各自的颜色。静态检查、单元测试与构建以本轮实际结果为准。
+
+### 工具工作台 UI（2026-10-14，用户专项授权；Codex 真实 Chrome 已验收通过）
+
+带播放控制的 5 个自建工具（`shaders-logo` / `shaders-bg` / `shaders-halftone` / `wave-grid` /
+`ascii-motion`）与 `extrude3d` 共用一套工作台骨架：**桌面 ≥1000px 用 `100dvh` 工作区，body 不产生
+页面纵向滚动**；紧凑顶栏放返回首页、工具名与必要状态；主画布占据剩余工作区并始终可见；参数区改为
+**300–330px 悬浮检查器**（距工作区边缘 16px、只有检查器内部滚动），用**分类标签页**只显示当前分类；
+播放 / 暂停、速度、帧与定格等已有播放控件集中到**主画面正下方的播放条**，桌面始终可见。
+**小屏 <1000px 回退自然文档流**，允许纵向滚动，画布在前、面板在后，不横向溢出。
+
+- 共享文件：`assets/workspace.css`（骨架 / 分类导航 / 播放条 / 画布工具栏）与
+  `assets/workspace.js`（`mountCategoryTabs`，只切换 `hidden`，不重建控件、不重置参数 / 素材 / 当前帧 / 相机）。
+- 分类：shader 三工具「素材 / 效果 / 构图 / 输出」（动态背景无素材输入，运行时隐藏空分类）；
+  `wave-grid`「图形 / 外观 / 动效 / 输出」；`ascii-motion`「图形 / 外观 / 动效 / 输出」；
+  `extrude3d` 保留顶部「建模 / 渲染」主页签，建模内「导入 / 几何」、渲染内「材质 / 灯光 / 背景 / 输出」。
+- `extrude3d` 渲染画布右上角新增「重置视图」入口（复用原 `render-reset-view`，恢复摄像机位置、
+  观察中心与模型默认构图，点击后 `controls.update()` 并提示「摄像机与模型构图已重置」）；建模画布
+  工具栏同样放置原有「重置视角」。
+- 所有原有控件 ID、值、事件与状态同步保持不变；未改 shader、渲染算法、动画算法、现有参数默认值、
+  上传校验与导出结果，也未改首页与未授权工具。
+- 静态自检：`tests/workspace-ui.test.cjs`（10 项纯 Node）验证分类导航语义、播放控件唯一且位于播放条、
+  桌面 `100dvh` / 内部滚动、小屏回退、重置视图位置与全部原有控件 id 保留。
+  实现侧当时**未启动浏览器**（历史事实）；**真实 1440×900（桌面）与 390×844（窄屏）浏览器验收已由 Codex
+  用真实 Chrome 完成并通过**：六工具布局全部通过（桌面 body 不滚动、画布 / 播放条在视口、检查器
+  overflow auto；窄屏自然滚动、画布在前、面板在后、无横向溢出），六份规格 `ascii-motion` **25/25**、
+  `extrude3d` **79/79**、`shaders-bg` **37/37**、`shaders-halftone` **29/29**、`shaders-logo` **19/19**、
+  `wave-grid` **51/51**，全部 0 页面错误。
+
 
 > **SVG 转 3D 双页签（2026-10-14，用户专项授权）**：`tools/extrude3d` 分为「建模」与「渲染」两个页签。
 > 建模页签用 Three.js 只做 SVG 导入与安全校验、`ExtrudeGeometry` / 原生圆角立方体、厚度 / 倒角 / 平滑度，
@@ -161,14 +189,14 @@ Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `window.queryLocalFonts`，不复
 
 ```
 index.html                 首页（工具导航：分类 / 搜索 / 卡片）
-assets/                    首页样式、脚本与工具清单
+assets/                    首页样式、脚本与工具清单；workspace.css / workspace.js 为六个自建工具共享的工作台骨架与分类导航
 tools/<id>/                每个工具的独立网页
   ├─ index.html
   ├─ main.js               入口（需要 Vite 打包的工具）
   └─ ...                   该工具自己的资源
 public/                    原样复制到 dist 根目录的静态资源（封面、返回链接样式）
 scripts/                   构建、静态复制、封面、许可汇总、静态自检等脚本
-tests/                     浏览器验收规格（harness + 每个工具一份规格）
+tests/                     浏览器验收规格（harness + 每个工具一份规格）与 Node 静态自检（含 workspace-ui.test.cjs）
 vendor-licenses/           上游仓库原始许可文件（供 collect-licenses 汇总；npm 包内无 LICENSE 时留档）
 third-party-licenses/      汇总后的第三方许可原文
 THIRD_PARTY.md             第三方来源、版本、许可与改动说明
@@ -202,7 +230,7 @@ CHROME_PATH=/path/to/chrome npm run smoke
 ```
 
 浏览器验收开关默认关闭，实现侧误跑会直接提示并以退出码 `2` 结束。
-Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测试共 34 项 + 本地服务器自检 + 静态自检）照常可跑。
+Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测试共 34 项 + 本地服务器自检 + 双页签 / 颜色空间 / vgpu 管线 / 工作台 UI 静态自检 + `scripts/check.mjs`）照常可跑。
 详见 [tests/README.md](tests/README.md)。
 
 > 说明：仓库根 `package.json` **不设** `"type": "module"`——`tools/texture` 的那份 Node 测试套件是

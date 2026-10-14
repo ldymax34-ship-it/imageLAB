@@ -614,6 +614,8 @@ export async function run({ page, base, downloads, check, sleep }) {
   await sleep(SETTLE);
   const currentShot = await snap();
   const currentDims = await page.evaluate(() => ({ w: document.querySelector("#wave-canvas").width, h: document.querySelector("#wave-canvas").height }));
+  // 导出按钮在「输出」分类里；分类切换只改显示，不重置参数或当前帧。
+  await page.$eval('[data-cat="output"]', (node) => node.click());
   await page.click("#btn-export");
   const file = await downloads.waitForFile({ ext: ".png", timeoutMs: 30000 });
   const info = pngInfo(file.bytes);

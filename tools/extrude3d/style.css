@@ -18,6 +18,10 @@ html, body { height: 100%; }
 
 body {
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--il-bg);
   color: var(--il-ink);
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC",
@@ -97,23 +101,30 @@ code {
   vertical-align: 1px;
 }
 
-/* ---------- 布局：左参数栏 + 右 3D 视图 ---------- */
+/* ---------- 布局：悬浮检查器 + 3D 视图，桌面不产生页面滚动 ---------- */
 .il-main {
-  display: grid;
-  grid-template-columns: 322px minmax(0, 1fr);
-  height: calc(100vh - 53px);
+  flex: 1 1 auto;
   min-height: 0;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  align-items: stretch;
 }
 
 .il-panel {
   min-width: 0;
-  padding: 0 16px 26px;
+  max-height: 100%;
+  padding: 0 0 26px;
   overflow: auto;
+  overscroll-behavior: contain;
   background: var(--il-panel);
-  border-right: 1px solid var(--il-line);
+  border: 1px solid var(--il-line);
+  border-radius: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .4);
 }
 
-.il-sec { padding: 15px 0 17px; border-bottom: 1px solid var(--il-line); }
+.il-sec { padding: 15px 14px 17px; border-bottom: 1px solid var(--il-line); }
 .il-sec:last-child { border-bottom: 0; }
 .il-sec h2 {
   margin: 0 0 12px;
@@ -248,7 +259,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 12px 14px 0;
+  padding: 0;
 }
 
 .il-alert {
@@ -265,7 +276,7 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
 .il-view {
   position: relative;
   flex: 1 1 auto;
-  min-height: 260px;
+  min-height: 0;
   border: 1px solid var(--il-line);
   background: var(--il-stage);
   background-image: radial-gradient(rgba(20, 20, 20, .09) .6px, transparent .6px);
@@ -286,9 +297,10 @@ input[type="range"]:disabled { opacity: .45; cursor: not-allowed; }
 }
 .il-status #stats { flex: none; color: var(--il-faint); font-variant-numeric: tabular-nums; }
 
-@media (max-width: 900px) {
-  .il-main { display: flex; flex-direction: column; height: auto; }
-  .il-stage { order: 0; padding: 12px 12px 0; }
+@media (max-width: 999.98px) {
+  body { height: auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+  .il-main { display: flex; flex-direction: column; height: auto; gap: 14px; padding: 14px; }
+  .il-stage { order: 0; padding: 0; }
   .il-view { flex: none; height: 58vh; min-height: 300px; }
-  .il-panel { order: 1; overflow: visible; border-right: 0; border-top: 1px solid var(--il-line); }
+  .il-panel { order: 1; max-height: none; overflow: visible; }
 }

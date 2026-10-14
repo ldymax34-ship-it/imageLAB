@@ -931,6 +931,35 @@ export async function run({ page, base, downloads, check, sleep }) {
     switched.renderSelected === "true" && switched.modelHidden === true && switched.canvasVisible === true
   );
 
+  /* ---------- 渲染画布工具栏：重置视图（复用 render-reset-view） ---------- */
+  const resetEntry = await page.evaluate(() => {
+    const button = document.getElementById("render-reset-view");
+    return button
+      ? {
+          exists: true,
+          text: button.textContent.trim(),
+          title: button.getAttribute("title") || "",
+          inRenderToolbar: !!button.closest("#stage-render .il-canvas-toolbar")
+        }
+      : { exists: false };
+  });
+  check.ok(
+    "重置视图位于渲染画布工具栏且复用 render-reset-view",
+    resetEntry.exists && resetEntry.inRenderToolbar && resetEntry.text === "重置视图" && /观察中心/.test(resetEntry.title),
+    JSON.stringify(resetEntry)
+  );
+  await page.click("#render-reset-view");
+  await sleep(200);
+  const resetResult = await page.evaluate(() => ({
+    status: document.getElementById("render-status").textContent.trim(),
+    distance: window.__extrude3d.getInfo().render.cameraDistance
+  }));
+  check.ok(
+    "点击重置视图反馈「摄像机与模型构图已重置」并恢复默认机位",
+    /摄像机与模型构图已重置/.test(resetResult.status) && Math.abs(resetResult.distance - 8.6) < 0.3,
+    JSON.stringify(resetResult)
+  );
+
   const settled = await waitRenderReady(page);
   const render = await page.evaluate(() => window.__extrude3d.getInfo().render);
   check.ok("渲染页签给出明确结论（就绪或中文不可用提示）", settled && (render.ready || render.failed), render.failed || "ready");
@@ -1039,6 +1068,8 @@ export async function run({ page, base, downloads, check, sleep }) {
     await setControl(page, "render-export-scale", "1", "change");
     await sleep(400);
     await cleanDownloads(downloads);
+    // 导出按钮在「输出」分类里；分类切换只改显示，不重置材质 / 背景 / 相机状态。
+    await page.$eval('[data-cat="output"]', (node) => node.click());
     await page.click("#render-export-png");
     const png1 = await downloads.waitForFile({ ext: ".png", timeoutMs: 45000 });
     const info1 = pngInfo(png1.bytes);
@@ -1105,6 +1136,7 @@ export async function run({ page, base, downloads, check, sleep }) {
       whiteShot.ok ? `luma=${whiteBorder && whiteBorder.meanLuma} spread=${whiteBorder && whiteBorder.meanSpread}` : whiteShot.reason
     );
 
+    await page.$eval('[data-cat="background"]', (node) => node.click());
     await page.click("#render-bg-black");
     await sleep(400);
     const bgBlack = await page.evaluate(() => ({

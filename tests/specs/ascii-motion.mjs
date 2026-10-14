@@ -26,6 +26,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   await sleep(160);
   check.ok("播放状态保留真实时间动画", await page.evaluate(() => window.imagelab.frame()) > motionBefore);
   const colorBefore = await page.evaluate(() => window.imagelab.stats().avgColor.join(","));
+  await page.$eval('[data-cat="look"]', (node) => node.click());
   await page.click("#color-blue");
   await sleep(80);
   const colorAfter = await page.evaluate(() => window.imagelab.stats().avgColor.join(","));
@@ -39,12 +40,15 @@ export async function run({ page, base, downloads, check, sleep }) {
   check.ok("空白或超过 64 字素的字符集被拒绝并保留有效集", (await page.evaluate(() => window.imagelab.charsetGlyphs())).join("") === "中🙂ab");
   await page.$eval("#charset-input", n => { n.value = "   "; n.dispatchEvent(new Event("input", { bubbles: true })); });
   check.ok("空字符集输入保留上次有效值", (await page.evaluate(() => window.imagelab.charsetGlyphs())).join("") === "中🙂ab");
+  await page.$eval('[data-cat="shape"]', (node) => node.click());
   await page.click('[data-custom-mode="text"]');
   await page.$eval("#custom-text", n => { n.value = "本地字符\n图形"; n.dispatchEvent(new Event("input", { bubbles: true })); });
   await sleep(100);
   check.ok("自定义文字使用本地 Three 平面", await page.evaluate(() => window.imagelab.mode()) === "text");
+  await page.$eval('[data-cat="motion"]', (node) => node.click());
   await page.click('[data-motion="rotate"]');
   check.ok("动效选项可切换", await page.evaluate(() => window.imagelab.motion()) === "rotate");
+  await page.$eval('[data-cat="shape"]', (node) => node.click());
   await page.click('[data-custom-mode="image"]');
   await page.evaluate(async () => {
     const c = document.createElement("canvas"); c.width = 96; c.height = 48;
@@ -56,6 +60,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   });
   await page.waitForFunction(() => window.imagelab.hasImage() && window.imagelab.diagnostics().alphaMode);
   check.ok("透明 Logo 自动按 alpha 轮廓采样", await page.evaluate(() => window.imagelab.diagnostics().alphaMode));
+  await page.$eval('[data-cat="shape"]', (node) => node.click());
   await page.click('[data-custom-mode="scene"]');
   check.ok("切回 Three 场景后不沿用图片 alpha 规则", !(await page.evaluate(() => window.imagelab.diagnostics().alphaMode)));
   await page.click("#btn-pause");
@@ -73,6 +78,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   const url = await page.evaluate(() => window.imagelab.exportDataURL());
   const exported = await page.evaluate(async data => { const i = new Image(); i.src = data; await i.decode(); return [i.naturalWidth, i.naturalHeight]; }, url);
   check.ok("导出与预览同一张画布", exported[0] === size.width && exported[1] === size.height);
+  await page.$eval('[data-cat="output"]', (node) => node.click());
   await page.click("#btn-export");
   const file = await downloads.waitForFile({ ext: ".png", timeoutMs: 30000 });
   const info = pngInfo(file.bytes);

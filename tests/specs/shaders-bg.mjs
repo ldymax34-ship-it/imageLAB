@@ -165,6 +165,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   await sleep(800);
 
   const exportBtn = await page.$("#btn-export");
+  await page.$eval('[data-cat="output"]', (node) => node.click());
   const exportText = exportBtn ? await page.evaluate((n) => n.textContent, exportBtn) : "";
   check.ok("导出按钮文字含 PNG", /PNG/.test(exportText), exportText);
   await exportBtn.click();

@@ -8,6 +8,7 @@
 
 import { createModelingTab } from "./modeling.js";
 import { createRenderTab } from "./render-vgpu.js";
+import { mountCategoryTabs } from "../../assets/workspace.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -150,6 +151,9 @@ if (els.tabRender) els.tabRender.addEventListener("click", () => switchTab("rend
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && currentTab === "model") modeling.notifyVisible();
 });
+
+// 建模 / 渲染两个主页签各自再分类；分类只切换显示，不重置 SVG、几何参数或相机状态。
+mountCategoryTabs();
 
 window.__extrude3d = {
   getState: () => ({ ...modeling.getState(), tab: currentTab }),

@@ -193,6 +193,7 @@ export async function run({ page, base, downloads, check, sleep }) {
   check.ok("定格控件可设置帧位置", frame >= 1400 && frame <= 1700, `frame=${frame}ms`);
 
   /* ------------------------------------------------------------ 导出 PNG */
+  await page.$eval('[data-cat="output"]', (node) => node.click());
   const exportBtn = await page.$("#btn-export");
   const exportText = exportBtn ? await page.evaluate((n) => n.textContent, exportBtn) : "";
   check.ok("导出按钮文字含 PNG", /PNG/.test(exportText), exportText);

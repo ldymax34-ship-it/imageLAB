@@ -9,125 +9,152 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000000'/%3E%3Crect x='7' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='17' y='7' width='8' height='8' fill='%23ffffff'/%3E%3Crect x='7' y='17' width='8' height='8' fill='%23ffffff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="../../assets/backlink.css">
 <link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="../../assets/workspace.css">
 
 <script type="module" src="./main.js"></script>
 </head>
-<body>
+<body class="il-workspace" data-canvas="ratio">
 <a class="il-back" href="../../index.html">← 返回首页</a>
 
 <header class="il-head">
   <h1>辉光点阵</h1>
-  <p>
+  <p class="il-head-desc">
     竖幅 4:5 画面里，四条蓝青 / 品红 / 红 / 绿青的宽厚色带斜向交错，亮核是连排实心方块，边缘是空心方块与叉号，
     外部是柔和圆形光晕与沿指定方向拉长的光丝。也可切成小写字母或本地图片取样；暂停后导出这一帧 PNG。素材在浏览器本地处理。
   </p>
 </header>
 
 <main class="il-main">
-  <aside class="il-panel">
+  <!-- 悬浮检查器按「图形 / 外观 / 动效 / 输出」分类；播放与运行状态在画布下方播放条。 -->
+  <aside class="il-panel" id="panel" data-catscope aria-label="参数分类">
 
-    <section class="il-group">
-      <h2>网格密度</h2>
-      <div class="il-range">
-        <label for="p-density">密度</label>
-        <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.55">
-        <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.55">
-      </div>
-      <div class="il-chips" id="density-chips">
-        <button type="button" id="preset-coarse" data-density="0.15" aria-pressed="false">粗</button>
-        <button type="button" id="preset-medium" data-density="0.55" aria-pressed="true">中</button>
-        <button type="button" id="preset-fine" data-density="0.92" aria-pressed="false">细</button>
-      </div>
-      <p class="il-note" id="grid-info">网格随密度实时改变，默认约 9px 间距。</p>
+    <div class="il-catnav" data-catnav role="tablist" aria-label="参数分类">
+      <button type="button" class="il-cat" data-cat="shape" id="cat-shape" role="tab" aria-selected="true" aria-controls="panel-shape">图形</button>
+      <button type="button" class="il-cat" data-cat="look" id="cat-look" role="tab" aria-selected="false" aria-controls="panel-look" tabindex="-1">外观</button>
+      <button type="button" class="il-cat" data-cat="motion" id="cat-motion" role="tab" aria-selected="false" aria-controls="panel-motion" tabindex="-1">动效</button>
+      <button type="button" class="il-cat" data-cat="output" id="cat-output" role="tab" aria-selected="false" aria-controls="panel-output" tabindex="-1">输出</button>
+    </div>
+
+    <section class="il-catpanel" data-catpanel="shape" id="panel-shape" role="tabpanel" aria-labelledby="cat-shape">
+
+      <section class="il-group">
+        <h2>网格密度</h2>
+        <div class="il-range">
+          <label for="p-density">密度</label>
+          <input type="range" id="p-density" min="0" max="1" step="0.01" value="0.55">
+          <input type="number" id="n-density" min="0" max="1" step="0.01" value="0.55">
+        </div>
+        <div class="il-chips" id="density-chips">
+          <button type="button" id="preset-coarse" data-density="0.15" aria-pressed="false">粗</button>
+          <button type="button" id="preset-medium" data-density="0.55" aria-pressed="true">中</button>
+          <button type="button" id="preset-fine" data-density="0.92" aria-pressed="false">细</button>
+        </div>
+        <p class="il-note" id="grid-info">网格随密度实时改变，默认约 9px 间距。</p>
+      </section>
+
+      <section class="il-group">
+        <h2>图形</h2>
+        <div class="il-chips" id="shape-chips">
+          <button type="button" id="preset-ribbons" data-preset="ribbons" aria-pressed="true">宽厚色带</button>
+          <button type="button" id="preset-letters" data-preset="letters" aria-pressed="false">字母图形</button>
+        </div>
+      </section>
+
+      <section class="il-group">
+        <h2>文字图形</h2>
+        <p class="il-note">切换“字母图形”后输入内容，画面按文字形状显示。最多 48 个字符。</p>
+        <input type="text" id="mask-text" maxlength="48" placeholder="如 a" autocomplete="off">
+      </section>
+
+      <section class="il-group">
+        <h2>图片参考</h2>
+        <p class="il-note">可选：上传本地 PNG / JPEG / WebP（≤10 MiB、单边 ≤4096），点阵亮度与颜色会跟随图片。</p>
+        <input type="file" id="image-file" accept="image/png,image/jpeg,image/webp">
+        <div class="il-image-slot">
+          <p class="il-note" id="image-name">未选择图片。</p>
+          <button type="button" id="image-clear" hidden>清除图片</button>
+        </div>
+        <label class="il-note" for="image-sampling">图片取样</label>
+        <select id="image-sampling"><option value="auto">自动（透明图按轮廓）</option><option value="brightness">明暗</option><option value="alpha">透明轮廓</option><option value="invert">反相明暗</option></select>
+      </section>
+
     </section>
 
-    <section class="il-group">
-      <h2>辉光</h2>
-      <div class="il-range">
-        <label for="p-glow">辉光强度</label>
-        <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.55">
-        <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.55">
-      </div>
-      <div class="il-range">
-        <label for="p-glowLength">辉光长度 px</label>
-        <input type="range" id="p-glowLength" min="0" max="120" step="1" value="72">
-        <input type="number" id="n-glowLength" min="0" max="120" step="1" value="72">
-      </div>
-      <div class="il-range">
-        <label for="p-glowAngle">辉光方向 °</label>
-        <input type="range" id="p-glowAngle" min="0" max="360" step="1" value="90">
-        <input type="number" id="n-glowAngle" min="0" max="360" step="1" value="90">
-      </div>
-      <div class="il-range">
-        <label for="p-bandWidth">色带宽度</label>
-        <input type="range" id="p-bandWidth" min="0.4" max="1.8" step="0.02" value="1">
-        <input type="number" id="n-bandWidth" min="0.4" max="1.8" step="0.02" value="1">
-      </div>
-      <p class="il-note">长度控制光丝延伸，方向控制光丝角度，强度控制光晕能量；三者独立。长度 0 仍有圆形光晕，强度 0 关闭辉光，保留清晰点阵。</p>
+    <section class="il-catpanel" data-catpanel="look" id="panel-look" role="tabpanel" aria-labelledby="cat-look" hidden>
+
+      <section class="il-group">
+        <h2>辉光</h2>
+        <div class="il-range">
+          <label for="p-glow">辉光强度</label>
+          <input type="range" id="p-glow" min="0" max="1" step="0.01" value="0.55">
+          <input type="number" id="n-glow" min="0" max="1" step="0.01" value="0.55">
+        </div>
+        <div class="il-range">
+          <label for="p-glowLength">辉光长度 px</label>
+          <input type="range" id="p-glowLength" min="0" max="120" step="1" value="72">
+          <input type="number" id="n-glowLength" min="0" max="120" step="1" value="72">
+        </div>
+        <div class="il-range">
+          <label for="p-glowAngle">辉光方向 °</label>
+          <input type="range" id="p-glowAngle" min="0" max="360" step="1" value="90">
+          <input type="number" id="n-glowAngle" min="0" max="360" step="1" value="90">
+        </div>
+        <div class="il-range">
+          <label for="p-bandWidth">色带宽度</label>
+          <input type="range" id="p-bandWidth" min="0.4" max="1.8" step="0.02" value="1">
+          <input type="number" id="n-bandWidth" min="0.4" max="1.8" step="0.02" value="1">
+        </div>
+        <p class="il-note">长度控制光丝延伸，方向控制光丝角度，强度控制光晕能量；三者独立。长度 0 仍有圆形光晕，强度 0 关闭辉光，保留清晰点阵。</p>
+      </section>
+
     </section>
 
-    <section class="il-group">
-      <h2>动效</h2>
-      <div class="il-range">
-        <label for="p-amp">亮度变化</label>
-        <input type="range" id="p-amp" min="0" max="1" step="0.01" value="0.6">
-        <input type="number" id="n-amp" min="0" max="1" step="0.01" value="0.6">
+    <section class="il-catpanel" data-catpanel="motion" id="panel-motion" role="tabpanel" aria-labelledby="cat-motion" hidden>
+
+      <section class="il-group">
+        <h2>动效</h2>
+        <div class="il-range">
+          <label for="p-amp">亮度变化</label>
+          <input type="range" id="p-amp" min="0" max="1" step="0.01" value="0.6">
+          <input type="number" id="n-amp" min="0" max="1" step="0.01" value="0.6">
+        </div>
+      </section>
+
+    </section>
+
+    <section class="il-catpanel" data-catpanel="output" id="panel-output" role="tabpanel" aria-labelledby="cat-output" hidden>
+
+      <section class="il-group">
+        <h2>输出</h2>
+        <p class="il-note">暂停后导出的就是当前这一帧</p>
+        <button type="button" id="btn-export">导出当前帧 PNG</button>
+        <p class="il-note" id="export-info">导出当前预览画面，不放大、不改变分辨率。</p>
+      </section>
+
+    </section>
+
+  </aside>
+
+  <section class="il-stagecol">
+    <div class="il-stage">
+      <div class="il-canvas" id="stage">
+        <canvas id="wave-canvas"></canvas>
+      </div>
+    </div>
+    <div class="il-playbar" data-playbar role="group" aria-label="播放控制">
+      <div class="il-chips">
+        <button type="button" id="btn-pause">暂停</button>
+        <button type="button" id="btn-play">播放</button>
+        <button type="button" id="btn-reroll" hidden>重新随机</button>
       </div>
       <div class="il-range">
         <label for="p-speed">速度</label>
         <input type="range" id="p-speed" min="0" max="3" step="0.02" value="1">
         <input type="number" id="n-speed" min="0" max="3" step="0.02" value="1">
       </div>
-    </section>
-
-    <section class="il-group">
-      <h2>图形</h2>
-      <div class="il-chips" id="shape-chips">
-        <button type="button" id="preset-ribbons" data-preset="ribbons" aria-pressed="true">宽厚色带</button>
-        <button type="button" id="preset-letters" data-preset="letters" aria-pressed="false">字母图形</button>
-      </div>
-    </section>
-
-    <section class="il-group">
-      <h2>文字图形</h2>
-      <p class="il-note">切换“字母图形”后输入内容，画面按文字形状显示。最多 48 个字符。</p>
-      <input type="text" id="mask-text" maxlength="48" placeholder="如 a" autocomplete="off">
-    </section>
-
-    <section class="il-group">
-      <h2>图片参考</h2>
-      <p class="il-note">可选：上传本地 PNG / JPEG / WebP（≤10 MiB、单边 ≤4096），点阵亮度与颜色会跟随图片。</p>
-      <input type="file" id="image-file" accept="image/png,image/jpeg,image/webp">
-      <div class="il-image-slot">
-        <p class="il-note" id="image-name">未选择图片。</p>
-        <button type="button" id="image-clear" hidden>清除图片</button>
-      </div>
-      <label class="il-note" for="image-sampling">图片取样</label>
-      <select id="image-sampling"><option value="auto">自动（透明图按轮廓）</option><option value="brightness">明暗</option><option value="alpha">透明轮廓</option><option value="invert">反相明暗</option></select>
-    </section>
-
-    <section class="il-group">
-      <h2>播放与导出</h2>
-      <div class="il-chips" style="margin-bottom:9px">
-        <button type="button" id="btn-pause">暂停</button>
-        <button type="button" id="btn-play">播放</button>
-        <button type="button" id="btn-reroll" hidden>重新随机</button>
-      </div>
-      <p class="il-note">暂停后导出的就是当前这一帧</p>
-      <button type="button" id="btn-export">导出当前帧 PNG</button>
-      <p class="il-note" id="export-info">导出当前预览画面，不放大、不改变分辨率。</p>
-    </section>
-
-  </aside>
-
-  <section>
-    <div class="il-stage">
-      <div class="il-canvas" id="stage">
-        <canvas id="wave-canvas"></canvas>
-      </div>
+      <p class="il-runstate" id="status">初始化中…</p>
     </div>
     <div class="il-legend">
-      <span id="status">初始化中…</span>
       <span>本地渲染 · 素材不上传 · 可导出 PNG</span>
     </div>
   </section>

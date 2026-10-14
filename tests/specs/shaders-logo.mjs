@@ -174,6 +174,8 @@ export async function run({ page, base, downloads, check, sleep }) {
   );
 
   /* ------------------------------------------------------------ 导出 PNG */
+  // 导出按钮在「输出」分类里，先切到该分类（分类只切换显示，不重置任何参数）。
+  await page.$eval('[data-cat="output"]', (node) => node.click());
   const exportBtn = await page.$("#btn-export");
   const exportText = exportBtn ? await page.evaluate((n) => n.textContent, exportBtn) : "";
   check.ok("导出按钮文字含 PNG", /PNG/.test(exportText), exportText);

@@ -16,6 +16,7 @@ import * as THREE from "three";
 import { Line2 } from "three/addons/lines/Line2.js";
 import { LineGeometry } from "three/addons/lines/LineGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { mountCategoryTabs } from "../../assets/workspace.js";
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -699,6 +700,7 @@ window.imagelab = {
 };
 
 try {
+  mountCategoryTabs();
   boot();
   window.imagelab.ready = true;
 } catch (err) {

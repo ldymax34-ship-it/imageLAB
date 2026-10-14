@@ -10,6 +10,7 @@
  */
 import { SHADERS, SHADER_ORDER, SIZING_LABELS } from "./catalog.js";
 import { ShaderPreview, splitColor, joinColor, downloadBlob } from "./kit.js";
+import { mountCategoryTabs } from "../../assets/workspace.js";
 
 /** 构图参数（三个工具、所有效果通用） */
 const SIZING_CONTROLS = [
@@ -420,6 +421,9 @@ export function mountTool(cfg) {
   function applyToolConfig() {
     const enabled = Boolean(cfg.imageLabel);
     ui["group-image"].hidden = !enabled;
+    // 不需要素材的效果（动态背景）不显示空的「素材」分类。
+    const mediaTab = document.querySelector('[data-cat="media"]');
+    if (mediaTab) mediaTab.hidden = !enabled;
     if (enabled) {
       ui["image-title"].textContent = cfg.imageLabel;
       ui["image-hint"].textContent = cfg.imageHint || "";
@@ -473,6 +477,8 @@ export function mountTool(cfg) {
   }
 
   applyToolConfig();
+  // 分类导航只切换显示，不重建控件；必须在 applyToolConfig 之后调用，才能排除被隐藏的分类。
+  mountCategoryTabs();
 
   return (async () => {
     await build();

@@ -10,8 +10,28 @@ Node 单测与构建不受影响：
 
 ```bash
 npm run build     # 正常
-npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/serve.test.cjs 服务器自检 + tests/extrude3d-tabs.test.cjs 双页签静态自检 + tests/extrude3d-color.test.cjs 颜色空间自检 + tests/extrude3d-pipeline.test.mjs（vgpu 官方 mock adapter 的 API 合约）+ scripts/check.mjs 静态自检）
+npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/serve.test.cjs 服务器自检 + tests/extrude3d-tabs.test.cjs 双页签静态自检 + tests/extrude3d-color.test.cjs 颜色空间自检 + tests/extrude3d-pipeline.test.mjs（vgpu 官方 mock adapter 的 API 合约）+ tests/workspace-ui.test.cjs 工作台 UI 静态自检 + scripts/check.mjs 静态自检）
 ```
+
+> 2026-10-14 工作台 UI 改版（DSH 执行；Codex 真实 Chrome 已验收通过）：
+> 带播放控制的 5 个自建工具（`shaders-logo` / `shaders-bg` / `shaders-halftone` / `wave-grid` / `ascii-motion`）
+> 与 `extrude3d` 改为紧凑顶栏 + 分类悬浮检查器 + 画布下方播放条（extrude3d 为检查器内分类 + 画布工具栏重置视图）。
+> 新增 `tests/workspace-ui.test.cjs`（10 项纯 Node，内置最小 HTML 解析器）验证：6 个工具的分类导航
+> `role="tab"` / `aria-selected` / `aria-controls` 与 `role="tabpanel"` 对应且初始选中态一致；分类面板
+> 只含各自原有控件；5 个动画工具的播放控件只存在一份且都位于 `[data-playbar]`、播放条在画布之后；
+> `assets/workspace.css` 的桌面 `100dvh` / `body overflow:hidden` / 检查器内部滚动 / 小屏
+> `@media (max-width: 999.98px)` 自然文档流回退；`assets/workspace.js` 只切换 `hidden`、不重建或重置控件；
+> `extrude3d` 主页签保留、`#render-reset-view` 位于 `#stage-render .il-canvas-toolbar` 且复用
+> `render-vgpu.js` 的 `VIEW_DIR` / `VIEW_DISTANCE` / `controls.target` / `controls.update()` 与
+> 「摄像机与模型构图已重置」反馈；并逐工具核对改版前全部控件 id 仍存在且唯一。
+> 浏览器规格同步：需要点击隐藏分类里的控件（各工具导出、ascii 颜色 / 动效、extrude3d 背景 / 导出）前
+> 先 `[data-cat="…"]` 切换分类；`tests/specs/extrude3d.mjs` 新增重置视图入口位置、中文反馈与默认机位断言。
+> 实现侧只跑 `node --check`、`npm test`、`npm run check`、`npm run build`、`git diff --check`，**未启动浏览器**（历史事实）；
+> Codex 随后已用真实 Chrome 完成浏览器验收并通过：`ascii-motion` **25/25**、`extrude3d` **79/79**、
+> `shaders-bg` **37/37**、`shaders-halftone` **29/29**、`shaders-logo` **19/19**、`wave-grid` **51/51**，
+> 全部 **0 页面错误**；1440×900 与 390×844 的六工具布局验收全部通过（桌面 body 不滚动、画布 / 播放条在
+> 视口、检查器 overflow auto；窄屏自然滚动、画布在前、面板在后、无横向溢出）。
+>
 
 > 2026-10-14 修复轮（背景发白 / 玻璃背面 / 色散 / 黑白预设）：
 > `tools/extrude3d` 的四处根因与回归见根 `CHANGELOG.md`。新增 `tests/extrude3d-color.test.cjs`（3 项）：把

@@ -835,11 +835,12 @@ export function createRenderTab({ canvas, els, onStatus }) {
     }
     if (els.resetView) {
       els.resetView.addEventListener("click", () => {
+        // 只恢复摄像机位置与观察中心；模型没有独立的用户变换，不新增对象变换系统。
         camera.position.copy(VIEW_DIR).multiplyScalar(VIEW_DISTANCE);
         controls.target.set(0, 0, 0);
         controls.update();
         dirty = true;
-        status("渲染视角已重置。");
+        status("摄像机与模型构图已重置。");
       });
     }
     if (els.exportScale) {

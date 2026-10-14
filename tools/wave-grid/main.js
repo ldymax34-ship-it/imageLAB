@@ -16,6 +16,7 @@
  */
 import { SimplexNoise } from "three/addons/math/SimplexNoise.js";
 import { BAND_COLORS, CORE_COLOR, clamp01, nextGlyph, sampleGlow } from "./field.js";
+import { mountCategoryTabs } from "../../assets/workspace.js";
 
 const $ = (id) => document.getElementById(id);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -26,6 +27,12 @@ const MAX_SIDE = 4096;
 const MAX_CANVAS = 1600;
 const MAX_CSS_WIDTH = 720;
 const ASPECT = 900 / 720;
+// 统一工作台把桌面画布改为按 100dvh 可用高度定宽（1440×960 下约 580×725），
+// 而改版前是 max-width 720 的 720×900。辉光长度是固定 CSS px，画布变小会让 72px 辉光
+// 的相对占比变大、黑留白跌破旧阈值。这里把「桌面显示尺寸」与「内部渲染基准」解耦：
+// 断点与 workspace.css 的 1000px 一致，桌面固定按 720 宽基准排点 / 渲染，再由 CSS 等比
+// 缩到显示尺寸，保持改版前的辉光 / 黑留白比例；小屏仍按真实宽度渲染。
+const DESKTOP_RENDER_QUERY = "(min-width: 1000px)";
 const GLYPHS = ["", "\u00d7", "\u25a1", "\u25a0"];
 
 // 密度 → 网格间距（CSS px）。0 最粗、1 最细，等比且单调；默认 0.55 ≈ 9px。
@@ -158,7 +165,13 @@ function spacingForDensity(density) {
 
 function layoutCanvas() {
   const stage = $("stage");
-  const cssWidth = clamp(stage.clientWidth || MAX_CSS_WIDTH, 200, MAX_CSS_WIDTH);
+  const displayWidth = clamp(stage.clientWidth || MAX_CSS_WIDTH, 200, MAX_CSS_WIDTH);
+  // 桌面固定用 720 基准宽渲染，显示尺寸由 workspace.css 的 ratio 模式（4:5、100dvh 内）决定；
+  // 小屏回退到真实宽度，保持自然适配。见文件顶部 DESKTOP_RENDER_QUERY 的说明。
+  const desktop = typeof window.matchMedia === "function"
+    ? window.matchMedia(DESKTOP_RENDER_QUERY).matches
+    : window.innerWidth >= 1000;
+  const cssWidth = desktop ? MAX_CSS_WIDTH : displayWidth;
   const cssHeight = Math.round(cssWidth * ASPECT);
   const dpr = Math.min(window.devicePixelRatio || 1, 2, MAX_CANVAS / cssWidth, MAX_CANVAS / cssHeight);
   const pixelWidth = Math.max(1, Math.round(cssWidth * dpr));
@@ -722,5 +735,6 @@ window.imagelab = {
 };
 
 // lastPixelRatio 在 layoutCanvas 里记录，供方向拉丝把 CSS px 换算到低分辨率缓冲。
+mountCategoryTabs();
 boot();
 window.imagelab.ready = true;
