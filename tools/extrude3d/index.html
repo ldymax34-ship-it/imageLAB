@@ -117,13 +117,6 @@
 
       <section class="il-sec">
         <h2><b>01</b>材质</h2>
-        <label class="il-field" for="render-scene">场景
-          <select id="render-scene">
-            <option value="svg" selected>SVG 模型</option>
-            <option value="prism">官方棱镜</option>
-          </select>
-        </label>
-        <p class="il-help">官方棱镜场景使用固定官方视角，切回 SVG 模型后恢复当前网格。</p>
         <label class="il-field" for="render-material">材质预设
           <select id="render-material"></select>
         </label>
@@ -139,9 +132,25 @@
         <input id="render-ior" type="range" min="1" max="2.4" step="0.01" value="1.5">
         <label class="il-slider" for="render-optical">光学厚度倍数（玻璃） <output id="render-optical-out">×1.00</output></label>
         <input id="render-optical" type="range" min="0" max="2" step="0.05" value="1">
-        <label class="il-slider" for="render-dispersion">色散强度（玻璃） <output id="render-dispersion-out">0.090</output></label>
-        <input id="render-dispersion" type="range" min="0" max="0.2" step="0.001" value="0.09">
+        <label class="il-slider" for="render-dispersion">色散范围（玻璃） <output id="render-dispersion-out">100%</output></label>
+        <input id="render-dispersion" type="range" min="0" max="200" step="1" value="100">
+        <label class="il-slider" for="render-chroma">色彩强度（玻璃） <output id="render-chroma-out">100%</output></label>
+        <input id="render-chroma" type="range" min="0" max="200" step="1" value="100">
+        <label class="il-slider" for="render-refraction">折射变形（玻璃） <output id="render-refraction-out">100%</output></label>
+        <input id="render-refraction" type="range" min="0" max="200" step="1" value="100">
         <p class="il-help" id="render-glass-note">透明玻璃按背面世界坐标预通道估算真实厚度，支持折射、菲涅耳、色散与有限全反射；折射需要背景有细节。</p>
+      </section>
+
+      <section class="il-sec">
+        <h2><b>02</b>色散光束</h2>
+        <label class="il-check" for="render-beam"><input id="render-beam" type="checkbox"> 白光穿过当前 SVG 模型</label>
+        <label class="il-slider" for="render-beam-angle">光束方向 <output id="render-beam-angle-out">30°</output></label>
+        <input id="render-beam-angle" type="range" min="0" max="360" step="1" value="30">
+        <label class="il-slider" for="render-beam-position">光束位置 <output id="render-beam-position-out">0%</output></label>
+        <input id="render-beam-position" type="range" min="-200" max="200" step="1" value="0">
+        <label class="il-slider" for="render-beam-intensity">光束强度 <output id="render-beam-intensity-out">1.00</output></label>
+        <input id="render-beam-intensity" type="range" min="0" max="3" step="0.05" value="1">
+        <p class="il-help" id="render-beam-note">色散光束把白光打进当前用户的 SVG 挤出模型，显示内部折射与出射色散；斜入射（默认 30°）才看得到彩边。</p>
       </section>
 
     </section>

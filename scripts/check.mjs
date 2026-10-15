@@ -351,6 +351,38 @@ ok(
     (await read("tools/extrude3d/shaders/glass.wgsl")).includes("refract(") &&
     !/fn trace_cube_exit/.test(extrudeRender)
 );
+const beamOutline = await read("tools/extrude3d/beam-outline.js");
+ok(
+  "色散光束作用于用户 SVG（凸多边形 + 建模→渲染外轮廓交接）",
+  /createBeamPass/.test(extrudeRender) &&
+    /beamActive\(\)/.test(extrudeRender) &&
+    /finalizeBeamOutline/.test(extrudeModeling) &&
+    /outline: beamOutline/.test(extrudeModeling) &&
+    /凹形/.test(beamOutline) &&
+    existsSync(resolve(ROOT, "tools/extrude3d/prism/beam.js")) &&
+    (await read("tools/extrude3d/prism/scene/optics.js")).includes("intersectConvexPolygon") &&
+    (await read("tools/extrude3d/prism/scene/light-mesh.js")).includes("polygon"),
+  "上游三角形求交已泛化为凸多边形，光束用当前 SVG 轮廓"
+);
+ok(
+  "固定三角棱镜场景已删除（不留两套场景）",
+  !extrudeHtml.includes('id="render-scene"') &&
+    !/renderPrismFrame|prismMeshData|PRISM_TRIANGLE/.test(extrudeRender) &&
+    [
+      "tools/extrude3d/prism/pipeline.js",
+      "tools/extrude3d/prism/scene/prism-mesh.js",
+      "tools/extrude3d/prism/pipelines/glass/glass.wgsl",
+      "tools/extrude3d/prism/environment/environment.wgsl"
+    ].every((file) => !existsSync(resolve(ROOT, file))),
+  "保留上游光谱 / bloom / light.wgsl 与许可记录"
+);
+ok(
+  "三个设计师参数（色散范围 / 色彩强度 / 折射变形）就在渲染玻璃区",
+  ['render-dispersion', 'render-chroma', 'render-refraction'].every(
+    (id) => new RegExp(`id="${id}"[^>]*min="0" max="200"`).test(extrudeHtml)
+  ) && /DISPERSION_UNIT = 0\.09/.test(extrudeRender),
+  "0–200% 界面 + 内部映射"
+);
 ok("vite 配置启用 WGSL 加载插件", (await read("vite.config.mjs")).includes("wgslVitePlugin"));
 
 /* ---------- 6. 首页清单与测试规格 ---------- */

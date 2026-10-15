@@ -1,8 +1,61 @@
 # CHANGELOG
 
+### 2026-10-15 · 色散光束作用于用户 SVG（替换固定「官方棱镜」场景）+ 三个设计师参数
+
+范围（用户本轮明确授权）：`tools/extrude3d`（建模→渲染外轮廓交接、渲染页光束与玻璃参数、上游 optics
+泛化、删除固定棱镜场景）、`tests/`（新增 `extrude3d-beam.test.mjs`、更新静态 / mock / 浏览器规格）、
+`THIRD_PARTY.md`、`tests/README.md`。只做开源方案整合与最小适配；不新增依赖，不升级 vgpu（仍锁 0.6.0）。
+DSH 桌面客户端不可用，本轮由 Codex 直接实施；不 push、不合并 main。**上一轮的「官方棱镜」固定场景已被本轮替换。**
+
+- **需求纠正**：三角棱镜只作为 vgpu 官网效果与实现参考，不再是独立固定场景。渲染材质区的「场景」下拉已删除；
+  改为「色散光束」开关 + 光束方向 / 位置 / 强度三个基础参数，白光打在**当前用户 SVG 挤出模型**上，
+  显示内部折射与出射彩色色散。
+- **建模→渲染交接外轮廓**：`modeling.js` 在 `buildSnapshot()` 里额外交接 `outline`——把解析后的
+  `shape.getPoints()` 映射到渲染页同一套世界 XY（已居中 / 按 baseScale 缩放 / Y 轴翻转），
+  `beam-outline.js` 负责去重、按弧长限到 64 点、统一逆时针、判凸（容差按尺寸归一化，近似凸形放行）。
+  不满足时返回中文原因（多轮廓 / 孔洞 / 凹形 / 退化），渲染页只关闭可见光束，**玻璃的折射、色散、吸收、
+  背景与透明 PNG 全部保留**。首版只支持单个闭合凸轮廓（含孔洞、明显凹形、自交不做）。
+- **上游 optics 最小泛化**：`prism/scene/optics.js` 的三角形专用 `insideTriangle` / `intersectTriangle` /
+  `tracePrismDetailed` 泛化为凸多边形版本（`insideConvexPolygon` / `intersectConvexPolygon` /
+  `tracePolygonDetailed`），`prism/scene/light-mesh.js` 的 `beamIntersectsTriangle` 同名泛化；数学与上游逐字一致。
+  同时**修掉上一轮抄写缺陷**：出射界面 Fresnel 必须传 `-exit.normal`，否则每个出射界面透过率恒为 0、
+  出射光谱扇形全黑（上游原文见 `prism-background/scene/optics.ts`）。
+- **继续复用上游**：光束网格 / D65 光谱采样 / 内部路径 / Fresnel / 上游三级 Bloom / `light.wgsl` /
+  `present` 思路全部沿用官网实现；新增 `prism/beam.js` 只做接线（一条 HDR 光束目标 + 上游 bloom，
+  由 `present.wgsl` 加法合成；光束关闭时绑定黑色 1×1 贴图与 0 强度，画面与未接入光束时逐像素一致）。
+  **屏幕空间近似**已在 `prism/beam.js` 与 `glass.wgsl` 注释中写明：光束是二维截面光路、画在模型中间深度、
+  不写深度，不是逐像素光线追踪。默认光束方向 30°（正对平面入射时各波长折射角相同，物理上不会有色散）。
+- **三个设计师参数**（渲染 / 材质分类的玻璃区，0–200%，内部再映射到真实取值，不暴露 WGSL 数值）：
+  **色散范围**（`dispersionRange`：100% = 官方 `dispersion_spread` 0.09，200% = 0.18，并同步放大光束
+  Cauchy `strength`）、**色彩强度**（`chroma`：只调色度、保亮度，0% 灰度、200% 双倍色度，不再靠提亮 RGB）、
+  **折射变形**（`refraction`：只按 `exit_uv = screen_uv + (exit_uv - screen_uv) × refraction` 放大屏幕空间
+  折射位移，0% 即不发生位移 = 普通透明玻璃，不改模型几何）。材质预设的 `dispersion` 值按同一条映射同步回滑杆。
+- **删除固定棱镜场景**：`prism/pipeline.js`、`prism/scene/prism-mesh.js`、`prism/scene/camera.js`、
+  `prism/scene/scene-camera.js`、`prism/pipelines/glass/*`、`prism/pipelines/present.wgsl`、
+  `prism/pipelines/presentation/*`、`prism/environment/*`（渲染页不再有 `renderPrismFrame` 分支）。
+  保留仍被复用的 `scene/light-mesh.js`、`scene/optics.js`、`scene/scene.wgsl`、`pipelines/light.wgsl`、
+  `pipelines/spectral/*`、`pipelines/bloom/*`、`types.js` 与 `prism/LICENSE.txt`（MIT 记录）。
+- **回归修复（导出 / 布局竞态，与光束无关但本轮实测暴露）**：vgpu 会在**帧内同步回调** `surface.onResize`，
+  原先直接在回调里 `resizeTargets()` 会销毁本帧已绑定的目标贴图（真机报
+  `Binding 'back_normal_tex' … destroyed resource`）；现改为只置待处理标记、在下一帧开头统一 resize，
+  并在导出期间冻结预览帧（导出尺寸下的目标不被预览 / resize 打断）。浏览器规格里 1× / 2× 导出尺寸改为与
+  「点击导出那一刻」的画布比对（状态栏文案换行会让画布高度轻微变化，与导出行为无关）。
+- **验证**：`npm run build` 通过；`npm test` **76/76**（含新增 `tests/extrude3d-beam.test.mjs` 7 项与
+  mock 光束全链路 1 项，`node scripts/check.mjs` **61/61**）；`git diff --check` 通过。
+  真实 Chrome（Apple M5 Pro）`IMAGELAB_BROWSER_TESTS=on npm run smoke -- home extrude3d pixelit
+  shaders-halftone image-to-pixel image-to-ascii` **6/6 规格、287 项全过、0 页面错误**，其中 extrude3d
+  **91/91**：方形（4 顶点）/ 六边形（6 顶点）/ 圆角徽章 Logo（64 顶点）三种 SVG 都确认白光穿过**当前
+  SVG**（黑底上出现光谱彩色像素 160 / 276 / 251 个，光束开关前为 0），光束位置 ±200% 时轮廓外无光路
+  （`validBands` 128→0），凹轮廓（十字）保留玻璃并给出中文原因；色散范围 0↔200%、色彩强度 0↔200%
+  （模型区平均饱和度 6.3→139.4）、折射变形 0↔200%（1518 个像素变化）分别可见且互不替代；
+  光束开启后 PNG 导出为 1070×793、不透明占比 1.000（非空图）。
+- **人工抽查（Codex 在真实浏览器截图）**：真实马赛克背景下玻璃前后界面可见、背景图案弯曲错位、
+  200% 色散范围出现明显红黄青蓝彩边；六边形模型上白光入射 → 内部折射 → 两处出射彩色扇形；
+  光束与背景折射可同时存在。截图落在 `.tmp/beamshots/`（`.tmp/` 已在 `.gitignore`，临时产物不入库）。
+
 本文件只记录可核对的改动，不写规划。
 
-### 2026-10-15 · vgpu 玻璃 Double Refraction + 官方棱镜场景 + 封面刷新 + 像素画中文化
+### 2026-10-15 · vgpu 玻璃 Double Refraction + 官方棱镜场景 + 封面刷新 + 像素画中文化（**固定「官方棱镜」场景已被下方同日条目替换**）
 
 范围（用户本轮明确授权）：`tools/extrude3d` 玻璃/棱镜渲染、3 张首页封面、`tools/pixelit` 界面中文化；
 只做开源方案整合与必要适配。未接入 vgpu `typegpu-liquid-glass`（评估记录见 `THIRD_PARTY.md`）。

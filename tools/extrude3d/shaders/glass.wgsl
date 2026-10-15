@@ -22,6 +22,10 @@
 //   - `spectral_weight` 用官方 (0.05 / 0.50 / 0.95)、宽度 (0.45 / 0.38 / 0.45)；
 //   - `dispersion` 直接作为官方 `dispersion_spread`（谱折射率 `ior ± dispersion / 2`），
 //     默认 0.09 与官方 `GLASS.dispersion_spread` 一致，不再额外乘增益。
+// 面向设计师的三个参数（界面 0–200%，内部映射后进入本 shader）：
+//   - `dispersion`（色散范围）：谱折射率展宽，越大彩边越开；
+//   - `chroma`（色彩强度）：只调色度、保亮度；
+//   - `refraction`（折射变形）：屏幕空间折射位移的缩放，0 = 普通透明玻璃。
 
 import { saturate, dielectric_fresnel, studio_env } from "./common.wgsl";
 
@@ -40,6 +44,8 @@ struct Glass {
   roughness: f32,
   thickness_scale: f32,
   dispersion: f32,
+  chroma: f32,
+  refraction: f32,
   fallback_thickness: f32,
   absorption: vec3f,
   env_intensity: f32,
@@ -160,6 +166,9 @@ fn fs_main(in: FragIn, @builtin(position) frag_coord: vec4f) -> @location(0) vec
         exit_uv = project_to_uv(camera.view_projection * vec4f(exit_world, 1.0));
       }
     }
+    // 「折射变形」只放大屏幕空间里已有的折射位移（0% 即不发生位移 = 普通透明玻璃），
+    // 不改模型几何、不改第一次 / 第二次折射的实际方向。
+    exit_uv = screen_uv + (exit_uv - screen_uv) * glass.refraction;
     exit_uv = clamp(exit_uv, vec2f(0.0), vec2f(1.0));
     // dispersion = 0 时权重恒为 1 / 1 / 1，11 个样本平均后就是无分色的普通折射。
     let weight = select(vec3f(1.0), spectral_weight(t), glass.dispersion > 0.001);
@@ -167,6 +176,10 @@ fn fs_main(in: FragIn, @builtin(position) frag_coord: vec4f) -> @location(0) vec
     total += weight;
   }
   var transmitted = spectrum / max(total, vec3f(1e-4));
+  // 「色彩强度」只调色度：取亮度后按比例向彩色插值，亮度基本不变（0% = 灰度，
+  // 200% = 双倍色度）；不做整体提亮，避免过曝发白。
+  let transmitted_luma = dot(transmitted, vec3f(0.2126, 0.7152, 0.0722));
+  transmitted = max(mix(vec3f(transmitted_luma), transmitted, glass.chroma), vec3f(0.0));
   transmitted *= exp(-glass.absorption * thickness);
   transmitted *= glass.base_color;
 

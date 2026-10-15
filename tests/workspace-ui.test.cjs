@@ -147,7 +147,8 @@ const PROTECTED_IDS = {
     "render-export-scale", "render-exposure", "render-exposure-out", "render-glass-note", "render-hint",
     "render-ior", "render-ior-out", "render-light-angle", "render-light-angle-out", "render-light-intensity",
     "render-light-intensity-out", "render-material", "render-metallic", "render-metallic-out",
-    "render-optical", "render-optical-out", "render-reset-view", "render-roughness", "render-roughness-out",
+    "render-optical", "render-optical-out", "render-refraction", "render-refraction-out",
+    "render-reset-view", "render-roughness", "render-roughness-out",
     "render-stats", "render-status", "render-transparent", "render-view", "sample", "smoothness",
     "smoothness-out", "stage-model", "stage-render", "svg-file", "svg-name", "tab-model", "tab-render"
   ]

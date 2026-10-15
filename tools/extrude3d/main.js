@@ -43,7 +43,6 @@ const modelingEls = {
 };
 
 const renderEls = {
-  scene: $("render-scene"),
   material: $("render-material"),
   color: $("render-color"),
   roughness: $("render-roughness"),
@@ -56,7 +55,19 @@ const renderEls = {
   opticalOut: $("render-optical-out"),
   dispersion: $("render-dispersion"),
   dispersionOut: $("render-dispersion-out"),
+  chroma: $("render-chroma"),
+  chromaOut: $("render-chroma-out"),
+  refraction: $("render-refraction"),
+  refractionOut: $("render-refraction-out"),
   glassNote: $("render-glass-note"),
+  beam: $("render-beam"),
+  beamAngle: $("render-beam-angle"),
+  beamAngleOut: $("render-beam-angle-out"),
+  beamPosition: $("render-beam-position"),
+  beamPositionOut: $("render-beam-position-out"),
+  beamIntensity: $("render-beam-intensity"),
+  beamIntensityOut: $("render-beam-intensity-out"),
+  beamNote: $("render-beam-note"),
   lightIntensity: $("render-light-intensity"),
   lightIntensityOut: $("render-light-intensity-out"),
   lightAngle: $("render-light-angle"),

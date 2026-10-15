@@ -83,11 +83,22 @@ test("渲染页签使用通用上传网格而不是固定 cube", () => {
   assert.match(glassBackInfo, /BackInfoOut \{[\s\S]*?@location\(1\) world_normal: vec4f/);
   assert.match(glass, /back_normal_tex/);
   assert.match(glass, /refract\(inside, -exit_normal, spectral_ior\)/);
-  // 棱镜是 vgpu 官网三角玻璃的固定几何 / 管线，不套用任意 SVG 网格。
-  assert.match(renderJs, /renderPrismFrame/);
-  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/pipeline.js")));
-  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/scene/prism-mesh.js")));
-  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/pipelines/glass/glass.wgsl")));
+  // 光束作用于**用户当前 SVG 模型**：玻璃实体仍是上传网格，没有固定三角棱镜场景。
+  assert.match(renderJs, /createBeamPass/);
+  assert.match(renderJs, /beamActive\(\)/);
+  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/beam.js")), "缺少光束通道 beam.js");
+  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/beam-outline.js")), "缺少外轮廓整理模块");
+  for (const removed of [
+    "tools/extrude3d/prism/pipeline.js",
+    "tools/extrude3d/prism/scene/prism-mesh.js",
+    "tools/extrude3d/prism/scene/camera.js",
+    "tools/extrude3d/prism/pipelines/glass/glass.wgsl",
+    "tools/extrude3d/prism/environment/environment.wgsl"
+  ]) {
+    assert.ok(!existsSync(resolve(ROOT, removed)), `固定三角棱镜 / 专用文件应已删除：${removed}`);
+  }
+  assert.ok(!/renderPrismFrame|prismMeshData|PRISM_TRIANGLE|lampForIncidence/.test(renderJs), "渲染页签不应再有固定棱镜分支");
+  assert.ok(!/id="render-scene"/.test(html), "「官方棱镜」固定场景入口应已移除");
 });
 
 test("背景使用 effect() 内置全屏顶点通道（回归：不得再用 fragment-only draw）", () => {
@@ -245,6 +256,44 @@ test("背面通道的 uniform 与背面 WGSL 结构一致（camera_position + �
 
 /* ------------------------------------------------- 色散默认值与映射 */
 
+test("三个设计师参数（色散范围 / 色彩强度 / 折射变形）+ 色散光束：UI 与 WGSL 映射一致", () => {
+  const glass = read("tools/extrude3d/shaders/glass.wgsl");
+  const outline = read("tools/extrude3d/beam-outline.js");
+  // 三个参数都在「渲染 / 玻璃」分类里，界面用 0–200% 表达（内部再映射到真实取值）。
+  assert.match(html, /id="render-dispersion"[^>]*min="0" max="200" step="1" value="100"/);
+  assert.match(html, /id="render-dispersion-out">100%</);
+  assert.match(html, /id="render-chroma"[^>]*min="0" max="200" step="1" value="100"/);
+  assert.match(html, /id="render-chroma-out">100%</);
+  assert.match(html, /id="render-refraction"[^>]*min="0" max="200" step="1" value="100"/);
+  assert.match(html, /id="render-refraction-out">100%</);
+  assert.match(html, /色散范围（玻璃）/);
+  assert.match(html, /色彩强度（玻璃）/);
+  assert.match(html, /折射变形（玻璃）/);
+  // 色散范围 100% = 官方 dispersion_spread 0.09；内部值不直接暴露成 WGSL 数值滑杆。
+  assert.match(renderJs, /const DISPERSION_UNIT = 0\.09;/);
+  assert.match(renderJs, /dispersion: \(state\.dispersionRange \/ 100\) \* DISPERSION_UNIT,/);
+  // 色彩强度只调色度、保亮度；折射变形只放大屏幕空间位移（0% 退回普通透明玻璃）。
+  assert.match(glass, /mix\(vec3f\(transmitted_luma\), transmitted, glass\.chroma\)/);
+  assert.match(glass, /exit_uv = screen_uv \+ \(exit_uv - screen_uv\) \* glass\.refraction;/);
+  // 色散光束控件：开关 + 位置 / 方向 / 强度三个基础参数 + 中文提示。
+  assert.match(html, /id="render-beam" type="checkbox"/);
+  assert.match(html, /id="render-beam-angle"[^>]*min="0" max="360"/);
+  assert.match(html, /id="render-beam-position"[^>]*min="-200" max="200"/);
+  assert.match(html, /id="render-beam-intensity"[^>]*value="1"/);
+  assert.match(renderJs, /buildLightMesh|createBeamPass/);
+  assert.match(renderJs, /function beamNote\(\)/);
+  assert.match(renderJs, /const beamOn = beamActive\(\);/);
+  // 开关只改状态，不重建网格 / 不重置材质与相机。
+  const beamHandler = renderJs.match(/els\.beam\.addEventListener\("change",[\s\S]*?\n      \}\);/);
+  assert.ok(beamHandler, "找不到光束开关事件");
+  assert.ok(!/resetView|setMesh|syncPresetControls/.test(beamHandler[0]), "切换光束不得重置网格 / 材质 / 相机");
+  // 首版只支持单个闭合凸轮廓：不满足条件时给中文原因并保留普通玻璃。
+  assert.match(outline, /凹形/);
+  assert.match(outline, /凸轮廓/);
+  assert.match(read("tools/extrude3d/modeling.js"), /outline: beamOutline/);
+  assert.match(read("tools/extrude3d/modeling.js"), /finalizeBeamOutline/);
+});
+
 test("色散默认值与滑杆映射对齐官方 dispersion_spread（0 表示关闭）", () => {
   const glass = read("tools/extrude3d/shaders/glass.wgsl");
   // 官方 transmission 示例：谱采样 11、金色角、dispersion 直接作为谱折射率展宽。
@@ -262,11 +311,10 @@ test("色散默认值与滑杆映射对齐官方 dispersion_spread（0 表示关
   assert.match(renderJs, /dispersion: 0, absorption: \[0\.1/);
   const stateBlock = renderJs.match(/const state = \{[\s\S]*?\n  \};/);
   assert.ok(stateBlock, "找不到渲染页签 state");
-  const defaultDispersion = Number((stateBlock[0].match(/dispersion: ([\d.]+),/) || [])[1]);
-  assert.ok(defaultDispersion >= 0.09, `默认色散应明显增强，实际 ${defaultDispersion}`);
-  // 控件初始值与范围保留，「色散强度」控件不新增。
-  assert.match(html, /id="render-dispersion"[^>]*min="0" max="0\.2" step="0\.001" value="0\.09"/);
-  assert.match(html, /id="render-dispersion-out">0\.090</);
+  // 默认「色散范围」100% = 官方 dispersion_spread 0.09（比旧默认 0.015 明显更强）。
+  assert.match(stateBlock[0], /dispersionRange: 100,/);
+  assert.match(stateBlock[0], /chroma: 100,\s*\n\s*refraction: 100,/);
+  assert.match(renderJs, /const DISPERSION_UNIT = 0\.09;/);
 });
 
 test("PNG 导出由 WebGPU 渲染结果编码，而不是建模预览截图", () => {

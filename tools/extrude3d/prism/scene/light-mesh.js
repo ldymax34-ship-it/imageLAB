@@ -6,12 +6,16 @@
  * Several additive spectral sheets sample the finite width of the collimated
  * beam, preserving the footprint that a single centre ray would collapse. Their
  * XY coordinates are lifted to a shared world-space depth by `light.wgsl`.
+ *
+ * 本项目最小适配（2026-10-15）：上游把折射体写死成三角棱镜，这里改为调用方传入的
+ * **凸多边形**（用户 SVG 挤出模型归一化后的二维外轮廓）。网格拓扑、光谱采样、有限宽度
+ * 光束切片与能量归一化全部沿用上游实现，只有求交函数从三角形换成多边形。
  */
 
 import {
-  intersectTriangle,
+  intersectConvexPolygon,
   iorAt,
-  tracePrismDetailed,
+  tracePolygonDetailed,
   wavelengthToBeamRgb,
 } from "./optics.js";
 import {
@@ -20,7 +24,6 @@ import {
   PRISM_LIGHT_EXPOSURE,
   PRISM_MAX_INTERNAL_BOUNCES,
   PRISM_SPECTRAL_SAMPLES,
-  PRISM_TRIANGLE,
   PRISM_WAVELENGTHS,
 } from "../types.js";
 
@@ -161,10 +164,10 @@ export function lineThroughWall(origin, direction, halfExtent) {
   return [add(origin, scale(direction, near)), add(origin, scale(direction, far))];
 }
 
-/** Exact overlap test between the forward finite beam strip and the triangle. */
-export function beamIntersectsTriangle(triangle, light) {
+/** Exact overlap test between the forward finite beam strip and the convex polygon. */
+export function beamIntersectsPolygon(polygon, light) {
   const perpendicular = [-light.direction[1], light.direction[0]];
-  let polygon = [triangle.a, triangle.b, triangle.c].map((point) => {
+  let clipped = polygon.map((point) => {
     const offset = sub(point, light.center);
     return [
       offset[0] * light.direction[0] + offset[1] * light.direction[1],
@@ -172,8 +175,8 @@ export function beamIntersectsTriangle(triangle, light) {
     ];
   });
   const clip = (inside) => {
-    const input = polygon;
-    polygon = [];
+    const input = clipped;
+    clipped = [];
     for (let index = 0; index < input.length; index++) {
       const start = input[index];
       const end = input[(index + 1) % input.length];
@@ -181,21 +184,21 @@ export function beamIntersectsTriangle(triangle, light) {
       const endDistance = inside(end);
       const startInside = startDistance >= 0;
       const endInside = endDistance >= 0;
-      if (startInside) polygon.push(start);
+      if (startInside) clipped.push(start);
       if (startInside === endInside) continue;
       const amount = startDistance / (startDistance - endDistance);
-      polygon.push([
+      clipped.push([
         start[0] + (end[0] - start[0]) * amount,
         start[1] + (end[1] - start[1]) * amount,
       ]);
     }
   };
   clip((point) => point[0]);
-  if (polygon.length === 0) return false;
+  if (clipped.length === 0) return false;
   clip((point) => point[1] + light.beamHalfWidth);
-  if (polygon.length === 0) return false;
+  if (clipped.length === 0) return false;
   clip((point) => light.beamHalfWidth - point[1]);
-  return polygon.length > 0;
+  return clipped.length > 0;
 }
 
 function matchingTopology(a, b) {
@@ -206,11 +209,11 @@ function matchingTopology(a, b) {
 }
 
 /** Trace the two physical boundaries for one wavelength. */
-export function traceSpectralBand(triangle, light, dispersion, wavelength) {
+export function traceSpectralBand(polygon, light, dispersion, wavelength) {
   const ior = iorAt(wavelength, dispersion.base, dispersion.strength);
   const [lowerOrigin, upperOrigin] = beamBoundaryOrigins(light);
-  const lower = tracePrismDetailed(triangle, lowerOrigin, light.direction, ior);
-  const upper = tracePrismDetailed(triangle, upperOrigin, light.direction, ior);
+  const lower = tracePolygonDetailed(polygon, lowerOrigin, light.direction, ior);
+  const upper = tracePolygonDetailed(polygon, upperOrigin, light.direction, ior);
   if (!lower || !upper || !matchingTopology(lower, upper)) return undefined;
 
   const direction = normalize(add(lower.direction, upper.direction));
@@ -227,9 +230,9 @@ export function traceSpectralBand(triangle, light, dispersion, wavelength) {
   };
 }
 
-function traceProfilePath(triangle, light, dispersion, wavelength, profile) {
-  return tracePrismDetailed(
-    triangle,
+function traceProfilePath(polygon, light, dispersion, wavelength, profile) {
+  return tracePolygonDetailed(
+    polygon,
     beamProfileOrigin(light, profile),
     light.direction,
     iorAt(wavelength, dispersion.base, dispersion.strength)
@@ -403,9 +406,15 @@ function spectralDensity(nodes, nodeIndex, profileIndex, exposure, inputWidth, p
   );
 }
 
-/** Build the white input and wavelength-connected spectral sheets. */
+/**
+ * Build the white input and wavelength-connected spectral sheets for one convex
+ * polygon cross-section (the extruded model is traced in its mid-plane).
+ */
 export function buildLightMesh(options, target, scratch) {
-  const triangle = options.triangle ?? PRISM_TRIANGLE;
+  const polygon = options.polygon;
+  if (!Array.isArray(polygon) || polygon.length < 3) {
+    throw new RangeError("buildLightMesh needs a convex polygon with at least three vertices.");
+  }
   const samples = Math.max(
     2,
     Math.floor(options.samples ?? PRISM_SPECTRAL_SAMPLES)
@@ -433,7 +442,7 @@ export function buildLightMesh(options, target, scratch) {
   const profileWeights = normalizedProfileWeights(profiles, edgeFalloff);
 
   // White light is sliced across its finite width too. This lets neighbouring
-  // parts of a grazing beam enter different faces—or miss the prism—without
+  // parts of a grazing beam enter different faces—or miss the model—without
   // invalidating the rest of the beam.
   const boundaryProfiles = Array.from(
     { length: beamSlices + 1 },
@@ -441,8 +450,8 @@ export function buildLightMesh(options, target, scratch) {
   );
   const whiteBoundaries = boundaryProfiles.map((profile) => {
     const origin = beamProfileOrigin(options.light, profile);
-    const hit = intersectTriangle(
-      triangle,
+    const hit = intersectConvexPolygon(
+      polygon,
       origin,
       options.light.direction,
       1e-4
@@ -488,7 +497,7 @@ export function buildLightMesh(options, target, scratch) {
           options.light.beamHalfWidth * (upper.profile - lower.profile) * 0.5,
       };
       if (
-        !beamIntersectsTriangle(triangle, cellLight) &&
+        !beamIntersectsPolygon(polygon, cellLight) &&
         lower.wall &&
         upper.wall
       ) {
@@ -514,14 +523,14 @@ export function buildLightMesh(options, target, scratch) {
       PRISM_WAVELENGTHS.min +
       (PRISM_WAVELENGTHS.max - PRISM_WAVELENGTHS.min) * (index / (samples - 1));
     const band = traceSpectralBand(
-      triangle,
+      polygon,
       options.light,
       options.dispersion,
       wavelength
     );
     const paths = profiles.map((profile) =>
       traceProfilePath(
-        triangle,
+        polygon,
         options.light,
         options.dispersion,
         wavelength,
@@ -530,7 +539,7 @@ export function buildLightMesh(options, target, scratch) {
     );
     const boundaryPaths = boundaryProfiles.map((profile) =>
       traceProfilePath(
-        triangle,
+        polygon,
         options.light,
         options.dispersion,
         wavelength,

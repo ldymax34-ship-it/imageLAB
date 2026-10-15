@@ -53,6 +53,20 @@ npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/
 > `IMAGELAB_BROWSER_TESTS=on npm run smoke -- home` **113/113**（**0 页面错误**）、`git diff --check` 通过。
 >
 
+> 2026-10-15 色散光束轮（替换固定「官方棱镜」场景）：
+> 新增 `tests/extrude3d-beam.test.mjs`（7 项，纯 Node 跑真实上游 optics / light-mesh）：凸多边形求交（入 / 出射
+> 点落在轮廓边界、出射 Fresnel 非零的抄写缺陷回归）、`beam-outline.js` 凸 / 凹 / 退化轮廓整理与 64 点上限、
+> 五边形按波长张开的真实色散、光谱网格三段（白光 / 内部 / 出射）都被填上数据、Float32Array 外轮廓输入转换、
+> 光束整体错过轮廓时全为哨兵。
+> `tests/extrude3d-pipeline.test.mjs` 增加「色散光束（凸多边形 + 上游 bloom）」mock 全链路（scene uniform 全字段、
+> 三段绘制范围、三级 bloom、resize 后再渲染）；`tests/extrude3d-tabs.test.cjs` 的断言改为
+> 「光束作用于当前 SVG 轮廓 + 固定棱镜文件已删除 + 三个设计师参数（色散范围 / 色彩强度 / 折射变形）映射」；
+> `tests/workspace-ui.test.cjs` 登记新控件 id。
+> `tests/specs/extrude3d.mjs` 增加：方形 / 六边形 / 圆角 Logo 三种 SVG 确认白光穿过**当前 SVG**（黑底光谱彩色像素、
+> 光束强度 0↔1.6 的有光像素、位置 ±200% 后轮廓外无光路 128→0）、凹轮廓保留玻璃 + 中文原因、
+> 三个参数 0↔200% 分别可见且互不替代、切页签 / 改厚度后开关与参数不丢、光束开启后 PNG 非空。
+> 上游 `vgpu` prism-background 的原文对照：``03_WORKSPACE/vgpu-0.6.0/apps/docs/app/[lang]/(home)/components/prism-background/`（只读参考，未入库）。
+
 > 2026-10-14 修复轮（背景发白 / 玻璃背面 / 色散 / 黑白预设）：
 > `tools/extrude3d` 的四处根因与回归见根 `CHANGELOG.md`。新增 `tests/extrude3d-color.test.cjs`（3 项）：把
 > `common.wgsl` 的 `srgb_to_linear` 数学在 Node 里逐位复现，与 IEC 61966-2-1 参考值和 three 0.186.1 的

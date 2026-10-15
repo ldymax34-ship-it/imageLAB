@@ -29,7 +29,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 | giventofly/pixelit | commit `9c53dfa191fcb2f4a4507c21f40647c29e352939` | MIT | `tools/pixelit` 像素化网页与库 | 见下 |
 | Tezumie/Image-to-Pixel | commit `b0d5b7422db309dae22c2a69d4ebca0ce8c14b78` | MIT（库）/ Apache-2.0（应用） | `tools/image-to-pixel` 像素化与抖动**库本体** | 见下 |
 | nitch193/Image-to-Ascii | commit `71da7bcde48d48ada65d5ea507fce68331e8ba77` | MIT | `tools/image-to-ascii` 字符画网页 | 见下 |
-| vercel-labs/vgpu 官网棱镜场景 | commit `81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5`（`vgpu@0.6.0` 同代 npm 发布） | MIT（[`tools/extrude3d/prism/LICENSE.txt`](tools/extrude3d/prism/LICENSE.txt)） | `tools/extrude3d` 渲染页「官方棱镜」固定场景 | 见下 |
+| vercel-labs/vgpu `prism-background` 光束 | commit `81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5`（`vgpu@0.6.0` 同代 npm 发布） | MIT（[`tools/extrude3d/prism/LICENSE.txt`](tools/extrude3d/prism/LICENSE.txt)） | `tools/extrude3d` 渲染页「色散光束」（白光穿过**当前用户 SVG** 挤出模型） | 见下 |
 | basementstudio/shader-lab | commit `6f39a889db74978d93d882643e3cd2073b3666d6`（pin） | Apache-2.0 | `tools/wave-grid` 的方向模糊（长度 / 角度分离）与多级 bloom 的**思路适配** | 见下 |
 | blakeshao/a-psychos-gd-tool | commit `bdc8808526681e4c16a8b9f2937dc571dc0dd1e7` | MIT | `tools/psychos` 节点式版式工具（含 Slice / Shuffle / PNG 导出） | 见下 |
 | JetBrains Mono（字体子集） | 随 a-psychos-gd-tool 分发 | SIL OFL 1.1 | psychos 界面字体 | 未改动 |
@@ -105,12 +105,28 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
   出射面世界坐标与世界法线；正面玻璃按背面法线执行第二次 `refract`，TIR 回退原有限近似。
   任意闭合 SVG 挤出网格仍走该预通道，不使用官方写死立方体的解析求交；「最先命中的背面片元 +
   折射后出射点不一定逐像素对齐」这一屏幕空间近似限制已在 shader 注释中写明，不是完整光线追踪。
-- **官方棱镜场景（2026-10-15）**：`tools/extrude3d/prism/` 来自 vgpu 官网首页
-  `apps/docs/app/[lang]/(home)/components/prism-background/`（上游 commit
-  `81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5`，MIT）：保留运行时必需的三角棱镜几何、确定性 CPU
-  光束网格、光谱/玻璃/bloom/present shader、烘焙环境与相机结构，按本项目纯 JS + vgpu 0.6.0 做最小
-  接线；排除官网 React 外壳、dust 粒子、wireframe、调试视图、性能面板与主题系统。棱镜使用自己的固定
-  官方几何与视角，不套用任意 SVG 网格；切回 SVG 模型后原网格继续使用。
+- **色散光束作用于用户 SVG（2026-10-15，替换上一轮的固定「官方棱镜」场景）**：`tools/extrude3d/prism/`
+  来自 vgpu 官网首页 `apps/docs/app/[lang]/(home)/components/prism-background/`（上游 commit
+  `81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5`，MIT）。本轮**删除固定三角棱镜场景**，只保留光束链路，
+  并做两处最小泛化/适配：
+  1. **几何来源换成用户模型**：上游把三角形写死成固定棱镜，本项目把 `triangle` 泛化成**凸多边形**——
+     `scene/optics.js` 的 `insideTriangle` / `intersectTriangle` / `tracePrismDetailed` 改为
+     `insideConvexPolygon` / `intersectConvexPolygon` / `tracePolygonDetailed`（数学逐字保留，只是把
+     「三条边」换成「N 条边」）；`scene/light-mesh.js` 的 `beamIntersectsTriangle` 同名泛化。多边形来自
+     建模页签交接的「归一化二维外轮廓」（`tools/extrude3d/beam-outline.js` 整理成单个闭合凸轮廓）。
+  2. **深度平面**：上游把光束抬到固定棱镜的中间深度；本项目模型恒定居中于原点，光束画在 z = 0
+     （`LIGHT_PLANE_Z`），墙范围改用覆盖自由相机的固定矩形（`LIGHT_WALL_HALF_EXTENT`）。
+  继续沿用的上游实现：`scene/light-mesh.js`（光谱条带网格与能量归一化）、`pipelines/light.wgsl`、
+     `pipelines/spectral/*`（D65 光谱 LUT）、`pipelines/bloom/*`（提取 + 三级高斯 + 合成）、
+     `scene/scene.wgsl`（Scene uniform），以及 `types.js` 里对应的默认值（128 波长 / 24 切片 / 曝光 88 /
+     衰减 3.8·3.7 / bloom 0.7·0.1）。排除官网 React 外壳、dust 粒子、wireframe、调试视图、性能面板、
+     主题系统与固定棱镜几何。玻璃实体始终是 render-vgpu.js 里的用户网格。
+  **删除的固定场景专用文件**（避免两套场景）：`prism/pipeline.js`、`prism/scene/prism-mesh.js`、
+     `prism/scene/camera.js`、`prism/scene/scene-camera.js`、`prism/pipelines/glass/*`、
+     `prism/pipelines/present.wgsl`、`prism/pipelines/presentation/*`、`prism/environment/*`。
+  上游关键值与本站实现的差异：官网 `lampForIncidence`（瞄准固定入射面）换成 `lampForPolygon`
+     （瞄准当前轮廓形心、按光束方向 / 位置参数偏移）；色散仍用上游 `stylized` 预设 `base 1.245 / strength 0.06`，
+     `strength` 按界面「色散范围」缩放。
 
 ### tools/psychos
 - 补丁清单见 `tools/psychos/PATCHES.md`。摘要：切除远程 AI 抠图节点（`removeBackground.ts` 及
@@ -163,7 +179,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 | @visant/logo-trace | 依赖 `sharp` 原生模块，浏览器端可行性未证实 |
 | vgpu（旧的「不接入」结论已作废） | 2026-10-14 用户专项授权后接入 `vgpu@0.6.0`（MIT）：渲染页签只使用浏览器主入口，PBR / 透射 WGSL 由官方 MIT 示例最小改写；Node 端 Dawn 适配器不被浏览器构建引用 |
 | danielpetho/cmyk-halftone-emulator | 派生 shader 的上游（Shadertoy `fdjyR1`）许可未证实 |
-| vgpu `examples/typegpu-liquid-glass` | 固定 TypeGPU Logo 的二维 SDF 多通道效果，不是任意 SVG 3D 网格材质；需要 `typegpu` 依赖。可作为后续独立「液态玻璃」工具；支持上传自定义 SVG/Logo 需要新增遮罩或 SDF 生成能力，应另开任务。不与本轮 Transmission Double、棱镜场景强行合并 |
+| vgpu `examples/typegpu-liquid-glass` | 固定 TypeGPU Logo 的二维 SDF 多通道效果，不是任意 SVG 3D 网格材质；需要 `typegpu` 依赖。可作为后续独立「液态玻璃」工具；支持上传自定义 SVG/Logo 需要新增遮罩或 SDF 生成能力，应另开任务。不与本轮 Transmission Double、色散光束强行合并 |
 
 ## 首页封面素材来源（2026-10-15 刷新）
 

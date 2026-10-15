@@ -22,6 +22,7 @@ import {
   recomputeTriplanarUVs,
   smoothCreaseNormals
 } from "@visant/extrude3d";
+import { finalizeBeamOutline } from "./beam-outline.js";
 import {
   LIMITS,
   estimateMinimumVertices,
@@ -47,6 +48,8 @@ const CUBE_ROUND_SEGMENTS = 4;
 const FLAT_NORMALIZED_SIZE = 4;
 const VIEW_DISTANCE = 8.6;
 const VIEW_DIR = new THREE.Vector3(3.0, 2.2, 6.0).normalize();
+/** 交接给渲染页签的二维外轮廓采样密度（顶点上限与判凸见 `beam-outline.js`）。 */
+const BEAM_OUTLINE_DIVISIONS = 16;
 
 const DECIMALS = {
   depth: (v) => `${v.toFixed(0)}%`,
@@ -92,6 +95,11 @@ export function createModelingTab({ els, onMesh, onStatus, onError }) {
   let fittedDistance = 0;
   let hasGeometry = false;
   let geometryRadius = 1;
+  /**
+   * 交接给渲染页签的归一化二维外轮廓（世界 XY、已居中 / 缩放、Y 轴翻转、逆时针）。
+   * `{ ok: true, points: Float32Array, count }` 或 `{ ok: false, reason }`。
+   */
+  let beamOutline = null;
 
   const renderer = new THREE.WebGLRenderer({ canvas: els.canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -327,6 +335,54 @@ export function createModelingTab({ els, onMesh, onStatus, onError }) {
     return `已建模 · 立方体 4×4×${shape.depthUnits.toFixed(2)} · ${round}${limit}`;
   }
 
+  /* ------------------------------------------- 光束用的归一化二维外轮廓 */
+
+  /**
+   * 从已解析的 Shape 生成外轮廓：把形状坐标映射到渲染页签用的世界 XY。
+   *
+   * 与 `buildSnapshot()` 同一条变换（`merged.translate(-center)` → `mesh.scale = baseScale`
+   * → `mesh.rotation.x = π`），所以轮廓与用户实际看到的挤出网格对齐；采样自 `shape.getPoints`，
+   * 因此是**外轮廓的采样近似**，不是逐三角形剪影。
+   */
+  function setOutlineFromShapes(shapes, center, scale) {
+    if (!Array.isArray(shapes) || shapes.length !== 1) {
+      beamOutline = {
+        ok: false,
+        reason: `当前 SVG 有 ${Array.isArray(shapes) ? shapes.length : 0} 个轮廓，色散光束第一版只支持单个闭合凸轮廓；仍保留普通玻璃、背景折射与色散。`
+      };
+      return;
+    }
+    const shape = shapes[0];
+    const holes = shape && Array.isArray(shape.holes) ? shape.holes : [];
+    if (holes.length > 0) {
+      beamOutline = {
+        ok: false,
+        reason: "当前 SVG 轮廓带孔洞，色散光束第一版只支持单个闭合凸轮廓；仍保留普通玻璃、背景折射与色散。"
+      };
+      return;
+    }
+    let raw = [];
+    try {
+      raw = shape.getPoints(BEAM_OUTLINE_DIVISIONS).map((point) => [
+        (point.x - center.x) * scale,
+        -(point.y - center.y) * scale
+      ]);
+    } catch {
+      raw = [];
+    }
+    beamOutline = finalizeBeamOutline(raw);
+  }
+
+  /** 内置立方体没有 SVG 轮廓，直接给一个与网格等大的正方形（圆角未参与，属可接受近似）。 */
+  function setOutlineSquare(halfEdge) {
+    beamOutline = finalizeBeamOutline([
+      [-halfEdge, -halfEdge],
+      [halfEdge, -halfEdge],
+      [halfEdge, halfEdge],
+      [-halfEdge, halfEdge]
+    ]);
+  }
+
   function buildSnapshot() {
     if (!hasGeometry) return null;
     const geometry = mesh.geometry;
@@ -393,7 +449,9 @@ export function createModelingTab({ els, onMesh, onStatus, onError }) {
       source: state.source,
       name: state.svgName,
       bounds: { min, max },
-      thickness: Math.max(0.0001, max[2] - min[2])
+      thickness: Math.max(0.0001, max[2] - min[2]),
+      // 渲染页签的色散光束需要同一份「归一化二维外轮廓」才能把白光打进当前用户模型。
+      outline: beamOutline
     };
   }
 
@@ -437,6 +495,7 @@ export function createModelingTab({ els, onMesh, onStatus, onError }) {
     hasGeometry = true;
     mesh.scale.setScalar(1);
     geometryRadius = Math.max(Math.sqrt(radiusSq), 0.05);
+    setOutlineSquare(CUBE_MAX_EDGE / 2);
 
     state.shapeCount = 1;
     state.vertexCount = position.count;
@@ -570,6 +629,7 @@ export function createModelingTab({ els, onMesh, onStatus, onError }) {
     if (previous) previous.dispose();
     hasGeometry = true;
     mesh.scale.setScalar(baseScale);
+    setOutlineFromShapes(cache.shapes, center, baseScale);
 
     state.shapeCount = shapeCount;
     state.vertexCount = actualVerts;

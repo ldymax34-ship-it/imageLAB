@@ -10,6 +10,8 @@
  *   - 透射：改写自 `apps/docs/examples/transmission/glass.wgsl`（官方 Double refraction），
  *     把写死立方体的 `trace_cube_exit` 换成「背面世界坐标 + 世界法线预通道 + 正面片元」：
  *     空气→玻璃、玻璃→空气各折一次，支持任意闭合挤出网格。
+ *   - 光束：`prism/` 来自 `apps/docs/app/[lang]/(home)/components/prism-background/`，
+ *     三角形求交泛化为**当前 SVG 外轮廓的凸多边形**（见 `prism/beam.js`）。
  * 详见 THIRD_PARTY.md 与 third-party-licenses/vgpu-LICENSE.txt。
  */
 
@@ -23,7 +25,8 @@ import glassBackWgsl from "./shaders/glass-back.wgsl";
 import glassBackInfoWgsl from "./shaders/glass-back-info.wgsl";
 import backgroundWgsl from "./shaders/background.wgsl";
 import presentWgsl from "./shaders/present.wgsl";
-import { createPrismPipeline } from "./prism/pipeline.js";
+import { createBeamPass } from "./prism/beam.js";
+import { PRISM_POSTPROCESS } from "./prism/types.js";
 
 /** 渲染页签首批 7 个常用中文材质预设（不恢复 38 个预设，不做节点编辑器）。 */
 export const MATERIAL_PRESETS = [
@@ -46,6 +49,8 @@ const PRESET_BY_ID = new Map(MATERIAL_PRESETS.map((p) => [p.id, p]));
 const IMAGE_LIMITS = { maxBytes: 10 * 1024 * 1024, maxSide: 4096, mimeTypes: ["image/png", "image/jpeg", "image/webp"] };
 const VIEW_DISTANCE = 8.6;
 const VIEW_DIR = new THREE.Vector3(3.0, 2.2, 6.0).normalize();
+/** 「色散范围」滑杆 100% 对应的官方 `dispersion_spread`（vgpu transmission 示例同值）。 */
+const DISPERSION_UNIT = 0.09;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -71,14 +76,23 @@ function srgbToLinear(hex) {
 
 export function createRenderTab({ canvas, els, onStatus }) {
   const state = {
-    scene: "svg",
     preset: "glass",
     color: "#ffffff",
     roughness: 0.03,
     metallic: 0,
     ior: 1.5,
     optical: 1,
-    dispersion: 0.09,
+    // 面向设计师的三个玻璃参数：色散范围 / 色彩强度 / 折射变形（都用 0–200% 表达，
+    // 内部再映射到真实 WebGPU 取值；不把 WGSL 原始数值暴露给用户）。
+    dispersionRange: 100,
+    chroma: 100,
+    refraction: 100,
+    // 「色散光束」：白光穿过当前 SVG 挤出模型（位置 / 方向 / 强度三个基础参数）。
+    // 默认 30° 斜入射：正对平面入射时各波长折射角相同（物理上就不会有色散）。
+    beam: false,
+    beamAngle: 30,
+    beamPosition: 0,
+    beamIntensity: 1,
     lightIntensity: 1.2,
     lightAngle: 40,
     envIntensity: 1,
@@ -119,12 +133,20 @@ export function createRenderTab({ canvas, els, onStatus }) {
   let bgImage = null;
   let bgTextureGpu = null;
   let fallbackTexture = null;
+  let blackTexture = null;
   let pendingBackgroundFile = null;
   let bgSampler = null;
   let nearestSampler = null;
   let targetSize = [1, 1];
   let exports = 0;
-  let prismPipeline = null;
+  let beam = null;
+  let beamDirty = true;
+  /** 画布尺寸变化待处理（在下一帧开头、绘制之前统一 resize 目标）。 */
+  let pendingSurfaceResize = false;
+  /** 导出进行中：预览帧会占用 / 打断导出尺寸下的目标，必须冻结。 */
+  let exporting = false;
+  /** 建模页签交接的归一化二维外轮廓（色散光束的折射体截面）。 */
+  let outline = null;
 
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
   camera.position.copy(VIEW_DIR).multiplyScalar(VIEW_DISTANCE);
@@ -367,7 +389,10 @@ export function createRenderTab({ canvas, els, onStatus }) {
     // 也保存最近一次合法网格摘要，便于验证真实建模结果已交接。
     // 实际 GPU 上传（geometry / draw）仍只在设备可用时进行。
     meshSummary = summarizeMesh(snapshot);
+    outline = snapshot.outline || null;
+    beamDirty = true;
     dirty = true;
+    if (els.beamNote) els.beamNote.textContent = beamNote();
     if (!gpu) return;
     if (meshGeometry) {
       meshGeometry.destroy();
@@ -403,12 +428,37 @@ export function createRenderTab({ canvas, els, onStatus }) {
     backgroundTarget.resize(next);
     backTarget.resize(next);
     exportTarget.resize(next);
-    prismPipeline?.resize(next);
+    beam?.resize(next);
     updatePanControls();
   }
 
   function geometryReady() {
     return !!meshGeometry && !!pbrDraw && !!glassDraw && !!glassBackDraw && !!glassBackInfoDraw;
+  }
+
+  /**
+   * 色散光束可用性：需要玻璃材质 + 建模页签交接的单个闭合凸轮廓 + GPU 就绪。
+   * 不满足时只关闭可见光束，玻璃的折射 / 色散 / 背景全部保留，原因写在 `beamNote()`。
+   */
+  function beamActive() {
+    return !!(
+      beam &&
+      ready &&
+      state.beam &&
+      preset().kind === "glass" &&
+      outline &&
+      outline.ok
+    );
+  }
+
+  function beamNote() {
+    if (!outline) return "色散光束需要建模页签的二维外轮廓：先在建模页签导入或选择一个 SVG。";
+    if (!outline.ok) return outline.reason;
+    if (preset().kind !== "glass") return "色散光束只在玻璃材质下可用：当前是非透射材质，白光不会进入模型。";
+    if (!state.beam) {
+      return `已就绪：勾选后白光会穿过当前 SVG 轮廓（${outline.count} 个顶点的凸多边形），显示内部折射与出射色散。`;
+    }
+    return `光束正在穿过当前 SVG 轮廓（${outline.count} 个顶点）：入 / 出射界面各折射一次，出射端按 D65 光谱散开。`;
   }
 
   function keyLightDirection() {
@@ -428,15 +478,26 @@ export function createRenderTab({ canvas, els, onStatus }) {
   function renderFrame(targetToPresent) {
     if (!ready || !canvasSurface) return;
     const [width, height] = targetSize;
-    if (state.scene === "prism") {
-      renderPrismFrame(targetToPresent);
-      state.renders += 1;
-      return;
-    }
     updateCameraUniforms(width, height);
     const current = preset();
     const keyDirection = keyLightDirection();
     const cameraPosition = [camera.position.x, camera.position.y, camera.position.z];
+    const beamOn = beamActive();
+
+    if (beamOn) {
+      beam.setViewProjection(viewProjection);
+      if (beamDirty) {
+        // 求交只在外轮廓或光束参数变化时重算，不进入每帧循环。
+        beam.update({
+          polygon: outline.points,
+          angle: state.beamAngle,
+          position: state.beamPosition,
+          dispersion: state.dispersionRange,
+          intensity: state.beamIntensity
+        });
+        beamDirty = false;
+      }
+    }
 
     const [repeatX, repeatY] = backgroundRepeat();
     const [offsetX, offsetY] = backgroundOffset();
@@ -457,12 +518,18 @@ export function createRenderTab({ canvas, els, onStatus }) {
     if (presentEffect) {
       // present 把「模型（sceneTarget）合成到背景（backgroundTarget）之上」：
       // background 是不带深度的全屏 effect，绝不写 sceneTarget 的深度，模型自遮挡才成立。
+      // 光束（含上游 bloom）在这里加法合成：关闭时绑定黑色 1×1 贴图与 0 强度，画面与旧版一致。
       presentEffect.set({
-        present: { exposure: state.exposure },
+        present: {
+          exposure: state.exposure,
+          bloom_strength: beamOn ? PRISM_POSTPROCESS.bloomStrength : 0
+        },
         color_tex: sceneTarget,
         color_samp: bgSampler,
         bg_tex: backgroundTarget,
-        bg_samp: bgSampler
+        bg_samp: bgSampler,
+        beam_tex: beamOn ? beam.beamTarget : blackTexture,
+        bloom_tex: beamOn ? beam.bloomTarget : blackTexture
       });
     }
 
@@ -496,7 +563,9 @@ export function createRenderTab({ canvas, els, onStatus }) {
           ior: state.ior,
           roughness: state.roughness,
           thickness_scale: state.optical,
-          dispersion: state.dispersion,
+          dispersion: (state.dispersionRange / 100) * DISPERSION_UNIT,
+          chroma: state.chroma / 100,
+          refraction: state.refraction / 100,
           fallback_thickness: Math.max((meshSummary && meshSummary.thickness) || 1, 0.05),
           absorption,
           env_intensity: state.envIntensity,
@@ -529,6 +598,8 @@ export function createRenderTab({ canvas, els, onStatus }) {
     frame(gpu, (currentFrame) => {
       // 1) 背景只写不带深度的 backgroundTarget；它同时是玻璃的折射环境。
       currentFrame.pass({ target: backgroundTarget, clear: [0, 0, 0, 0] }, (pass) => pass.draw(backgroundEffect));
+      // 1b) 色散光束写进自己的 HDR 目标（含上游三级 bloom），由 present 加法合成。
+      if (beamOn) beam.render(currentFrame);
       // 2) 玻璃的背面通道（独立深度）：既产出 backTarget 的世界坐标供正面估厚度，
       //    又把背面片元写进 sceneTarget，成为最终成像里可见的后表面 / 内部界面。
       if (modelReady && current.kind === "glass") {
@@ -551,14 +622,6 @@ export function createRenderTab({ canvas, els, onStatus }) {
       currentFrame.pass(targetToPresent, presentEffect);
     });
     state.renders += 1;
-  }
-
-  async function renderPrismFrame(targetToPresent) {
-    if (!prismPipeline) {
-      prismPipeline = await createPrismPipeline(gpu, "extrude3d-prism", targetSize);
-    }
-    await prismPipeline.compile(targetToPresent);
-    frame(gpu, (currentFrame) => prismPipeline.render(currentFrame, targetToPresent));
   }
 
   async function ensureGpu() {
@@ -585,6 +648,9 @@ export function createRenderTab({ canvas, els, onStatus }) {
       nearestSampler = sampler(gpu, { minFilter: "nearest", magFilter: "nearest" });
       fallbackTexture = texture(gpu, { kind: "2d", size: [1, 1], format: "rgba8unorm", usage: ["texture_binding", "copy_dst", "render_attachment"] });
       gpu.gpu.queue.writeTexture({ texture: fallbackTexture.gpu }, new Uint8Array([255, 255, 255, 255]), { bytesPerRow: 4 }, [1, 1]);
+      // 光束关闭时 present 绑定这张黑色 1×1 贴图：加法项恒为 0，画面与未接入光束时完全一致。
+      blackTexture = texture(gpu, { kind: "2d", size: [1, 1], format: "rgba8unorm", usage: ["texture_binding", "copy_dst", "render_attachment"] });
+      gpu.gpu.queue.writeTexture({ texture: blackTexture.gpu }, new Uint8Array([0, 0, 0, 0]), { bytesPerRow: 4 }, [1, 1]);
       bgTextureGpu = fallbackTexture;
 
       const size = canvasSurface.size;
@@ -606,13 +672,19 @@ export function createRenderTab({ canvas, els, onStatus }) {
           color_tex: sceneTarget,
           color_samp: bgSampler,
           bg_tex: backgroundTarget,
-          bg_samp: bgSampler
+          bg_samp: bgSampler,
+          beam_tex: blackTexture,
+          bloom_tex: blackTexture
         }
       });
+      // 色散光束通道：上游 prism-background 的确定性光束 + 三级 bloom，作用在当前 SVG 轮廓上。
+      beam = createBeamPass(gpu, "extrude3d-beam", targetSize);
 
+      // vgpu 会在帧内同步通知画布尺寸变化（onResize）；若在帧中途 resize 目标，
+      // 本帧已绑定的目标贴图会被销毁 → 下一趟 draw 报「destroyed resource」。
+      // 因此只记录待处理标记，真正的 resize 放到下一帧开头、任何绘制之前执行。
       canvasSurface.onResize(() => {
-        if (!sceneTarget) return;
-        resizeTargets(canvasSurface.size);
+        pendingSurfaceResize = true;
         dirty = true;
       });
 
@@ -621,6 +693,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
       await Promise.all([
         backgroundEffect.compile(backgroundTarget),
         presentEffect.compile(canvasSurface),
+        beam.compile(),
         ...(geometryReady()
           ? [pbrDraw.compile(sceneTarget), glassDraw.compile(sceneTarget), glassBackDraw.compile(sceneTarget), glassBackInfoDraw.compile(backTarget)]
           : [])
@@ -641,6 +714,12 @@ export function createRenderTab({ canvas, els, onStatus }) {
   function tick() {
     raf = requestAnimationFrame(tick);
     if (disposed || !active || !ready || document.hidden) return;
+    // 导出期间冻结预览：此时所有目标是导出尺寸，预览帧与画布 resize 都会打断 / 破坏导出。
+    if (exporting) return;
+    if (pendingSurfaceResize) {
+      pendingSurfaceResize = false;
+      if (sceneTarget) resizeTargets(canvasSurface.size);
+    }
     const controlsChanged = controls.update();
     if (dirty || controlsChanged) {
       try {
@@ -678,6 +757,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
       return;
     }
     if (els.exportPng) els.exportPng.disabled = true;
+    exporting = true;
     try {
       const scale = Math.max(1, Number(state.exportScale) || 1);
       const [viewWidth, viewHeight] = canvasSurface.size;
@@ -721,6 +801,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
     } finally {
       const [viewWidth, viewHeight] = canvasSurface.size;
       resizeTargets([viewWidth, viewHeight]);
+      exporting = false;
       dirty = true;
       if (els.exportPng) els.exportPng.disabled = false;
     }
@@ -741,18 +822,26 @@ export function createRenderTab({ canvas, els, onStatus }) {
     if (els.metallicOut) els.metallicOut.textContent = current.metallic.toFixed(2);
     state.ior = current.ior ?? 1.5;
     state.optical = current.optical ?? 1;
-    state.dispersion = current.dispersion ?? 0;
+    // 预设里的 dispersion 是 WGSL 取值；界面只显示 0–200% 的「色散范围」。
+    state.dispersionRange = Math.round(((current.dispersion ?? 0) / DISPERSION_UNIT) * 100);
     if (els.ior) els.ior.value = String(state.ior);
     if (els.iorOut) els.iorOut.textContent = state.ior.toFixed(2);
     if (els.optical) els.optical.value = String(state.optical);
     if (els.opticalOut) els.opticalOut.textContent = `×${state.optical.toFixed(2)}`;
-    if (els.dispersion) els.dispersion.value = String(state.dispersion);
-    if (els.dispersionOut) els.dispersionOut.textContent = state.dispersion.toFixed(3);
+    if (els.dispersion) els.dispersion.value = String(state.dispersionRange);
+    if (els.dispersionOut) els.dispersionOut.textContent = `${state.dispersionRange}%`;
+    if (els.chroma) els.chroma.value = String(state.chroma);
+    if (els.chromaOut) els.chromaOut.textContent = `${state.chroma}%`;
+    if (els.refraction) els.refraction.value = String(state.refraction);
+    if (els.refractionOut) els.refractionOut.textContent = `${state.refraction}%`;
     const isGlass = current.kind === "glass";
-    for (const input of [els.ior, els.optical, els.dispersion]) if (input) input.disabled = !isGlass;
+    for (const input of [els.ior, els.optical, els.dispersion, els.chroma, els.refraction, els.beam, els.beamAngle, els.beamPosition, els.beamIntensity]) {
+      if (input) input.disabled = !isGlass;
+    }
+    if (els.beamNote) els.beamNote.textContent = beamNote();
     if (els.glassNote) {
       els.glassNote.textContent = isGlass
-        ? "透明玻璃按背面世界坐标预通道估算真实厚度，支持折射、菲涅耳、色散与有限全反射；折射需要背景有细节。"
+        ? "透明玻璃按背面世界坐标预通道估算真实厚度，支持折射、菲涅耳、色散与有限全反射；折射需要背景有细节（纯色背景看不出变形）。"
         : "当前是非透射材质，折射 / 色散参数不参与计算。";
     }
     dirty = true;
@@ -774,13 +863,6 @@ export function createRenderTab({ canvas, els, onStatus }) {
         status(`材质已切换到 ${preset().label}`);
       });
     }
-    if (els.scene) {
-      els.scene.addEventListener("change", () => {
-        state.scene = els.scene.value;
-        dirty = true;
-        status(state.scene === "prism" ? "已切换到官方棱镜场景（固定官方视角）。" : "已切回 SVG 模型。");
-      });
-    }
     if (els.color) {
       els.color.addEventListener("input", () => {
         state.color = els.color.value;
@@ -799,7 +881,46 @@ export function createRenderTab({ canvas, els, onStatus }) {
     bindRange(els.metallic, els.metallicOut, "metallic");
     bindRange(els.ior, els.iorOut, "ior");
     bindRange(els.optical, els.opticalOut, "optical", (v) => `×${v.toFixed(2)}`);
-    bindRange(els.dispersion, els.dispersionOut, "dispersion", (v) => v.toFixed(3));
+    bindRange(els.dispersion, els.dispersionOut, "dispersionRange", (v) => `${v.toFixed(0)}%`);
+    bindRange(els.chroma, els.chromaOut, "chroma", (v) => `${v.toFixed(0)}%`);
+    bindRange(els.refraction, els.refractionOut, "refraction", (v) => `${v.toFixed(0)}%`);
+    // 光束位置 / 方向会改变求交结果，必须标记重算；强度只是 uniform（跟随滑杆即时生效）。
+    const bindBeamGeometry = (input, out, key, format) => {
+      if (!input) return;
+      input.addEventListener("input", () => {
+        state[key] = Number(input.value);
+        if (out) out.textContent = format(state[key]);
+        beamDirty = true;
+        dirty = true;
+      });
+    };
+    bindBeamGeometry(els.beamAngle, els.beamAngleOut, "beamAngle", (v) => `${v.toFixed(0)}°`);
+    bindBeamGeometry(els.beamPosition, els.beamPositionOut, "beamPosition", (v) => `${v.toFixed(0)}%`);
+    if (els.beamIntensity) {
+      els.beamIntensity.addEventListener("input", () => {
+        state.beamIntensity = Number(els.beamIntensity.value);
+        if (els.beamIntensityOut) els.beamIntensityOut.textContent = state.beamIntensity.toFixed(2);
+        if (beam) beam.setIntensity?.(state.beamIntensity);
+        beamDirty = true;
+        dirty = true;
+      });
+    }
+    if (els.beam) {
+      els.beam.addEventListener("change", () => {
+        // 开关只改光束可见性：不重建网格、不重置 SVG / 厚度 / 倒角 / 材质 / 摄像机。
+        state.beam = els.beam.checked;
+        beamDirty = true;
+        dirty = true;
+        if (els.beamNote) els.beamNote.textContent = beamNote();
+        status(
+          !state.beam
+            ? "色散光束已关闭，回到普通玻璃。"
+            : beamActive()
+              ? "色散光束已开启：白光正在穿过当前 SVG 模型。"
+              : `色散光束已开启但没有可见光路：${beamNote()}`
+        );
+      });
+    }
     bindRange(els.lightIntensity, els.lightIntensityOut, "lightIntensity");
     bindRange(els.lightAngle, els.lightAngleOut, "lightAngle", (v) => `${v.toFixed(0)}°`);
     bindRange(els.envIntensity, els.envIntensityOut, "envIntensity");
@@ -916,6 +1037,13 @@ export function createRenderTab({ canvas, els, onStatus }) {
         presets: MATERIAL_PRESETS.map((p) => ({ id: p.id, label: p.label, kind: p.kind })),
         state: { ...state },
         mesh: meshSummary,
+        // 色散光束：是否可用 / 光路统计；外轮廓不满足条件时给出中文原因。
+        beam: {
+          enabled: state.beam,
+          active: beamActive(),
+          outline: outline ? (outline.ok ? { ok: true, count: outline.count } : { ok: false, reason: outline.reason }) : null,
+          stats: beam ? beam.stats : null
+        },
         hasGpuGeometry: !!meshGeometry,
         targetSize: [...targetSize],
         cameraDistance: +camera.position.distanceTo(controls.target).toFixed(3),

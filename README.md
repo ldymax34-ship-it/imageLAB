@@ -48,7 +48,7 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/texture/` | 纹理生成器 | `tools/texture/index.html` | 点阵渐变与曲线纹理，参数化无缝图案 | PNG / SVG / 参数 JSON | 已通过浏览器验收 |
 | `tools/pixelit/` | 像素画 | `tools/pixelit/index.html` | 上传图片像素化，像素尺寸 / 调色板 / 灰度 | PNG | 已通过浏览器验收 |
 | `tools/image-to-ascii/` | 字符画 | `tools/image-to-ascii/index.html` | 图片转字符画，保留明暗关系 | PNG | 已通过浏览器验收 |
-| `tools/extrude3d/` | SVG 转 3D | `tools/extrude3d/index.html` | **建模 / 渲染双页签**：建模页签用 Three.js 做 SVG 挤出（厚度 / 倒角按最大平面边长百分比、平滑度、原生圆角立方体默认）与中性灰诊断预览；渲染页签用 vgpu / WebGPU 接收同一份 position / normal / uv / index 网格，提供 7 个中文材质预设（透明玻璃 / 磨砂玻璃 / 彩色亚克力 / 塑料 / 陶瓷 / 金属 / 镀铬）、棚拍灯光与环境、纯色（黑 / 白快速预设 + 自定义颜色，默认白）/ 棚拍渐变 / 背景图片（居中 cover、1×–3× 缩放、横向 / 纵向平移）、独立镜头 | PNG（渲染页签当前帧，可选透明背景） | 上一批 68/68 已由 Codex 真实 Chrome WebGPU 验收；本轮背景颜色空间 / 玻璃背面 / 色散默认值 / 黑白预设修复待 Codex 视觉复验 |
+| `tools/extrude3d/` | SVG 转 3D | `tools/extrude3d/index.html` | **建模 / 渲染双页签**：建模页签用 Three.js 做 SVG 挤出（厚度 / 倒角按最大平面边长百分比、平滑度、原生圆角立方体默认）与中性灰诊断预览；渲染页签用 vgpu / WebGPU 接收同一份 position / normal / uv / index 网格与**归一化二维外轮廓**，提供 7 个中文材质预设（透明玻璃 / 磨砂玻璃 / 彩色亚克力 / 塑料 / 陶瓷 / 金属 / 镀铬）、**色散范围 / 色彩强度 / 折射变形三个设计师参数（0–200%）**、**「色散光束」开关（白光穿过当前 SVG 模型，含光束方向 / 位置 / 强度）**、棚拍灯光与环境、纯色（黑 / 白快速预设 + 自定义颜色，默认白）/ 棚拍渐变 / 背景图片（居中 cover、1×–3× 缩放、横向 / 纵向平移）、独立镜头 | PNG（渲染页签当前帧，可选透明背景） | 本轮 91/91 已由 Codex 真实 Chrome WebGPU 验收（0 页面错误） |
 | `tools/image-to-pixel/` | 图片抖动 | `tools/image-to-pixel/index.html` | 像素化 + 7 种抖动 + 数组调色板 | PNG | 已通过浏览器验收（34 项） |
 | `tools/shaders-logo/` | 标志材质 | `tools/shaders-logo/index.html` | 液态金属等着色器 Logo / 图片遮罩 | PNG（单帧） | 已通过浏览器验收（19 项） |
 | `tools/shaders-bg/` | 动态背景 | `tools/shaders-bg/index.html` | 动态背景效果集 | PNG（单帧） | 已通过浏览器验收（8 效果 / 参数 / 单帧 PNG） |
@@ -355,6 +355,28 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
   canvas 现画白底黑字 ImageLAB 背景（走既有本地图片校验管线，不联网、不用任何用户素材）。
 - 验证：`node --check`（main.js / 规格）、`npm run check`、`npm run build`、`git diff --check` 通过；**未启动浏览器**，
   新用例待 Codex 独立复验。限制：原生透射是单次折射 + 屏幕空间色散，不等同多次内反射（TIR），不声称与参考图一致。
+
+### 2026-10-15 · SVG 转 3D：色散光束作用于用户 SVG + 三个设计师参数（Codex 实施；真实 Chrome WebGPU 已验收 91/91）
+
+- **需求纠正**：上一轮的「官方棱镜」固定场景已删除——三角棱镜只作为 vgpu 官网效果与实现参考。
+  渲染材质区改为「**色散光束**」开关：白光穿过**当前用户上传并挤出的 SVG 模型**，显示内部折射与出射彩色色散，
+  另有光束方向 / 位置 / 强度三个基础参数。玻璃实体始终是用户网格，不再有第二套场景。
+- **建模→渲染交接外轮廓**：`modeling.js` 除网格外额外交接归一化二维外轮廓（世界 XY、已居中 / 缩放 / Y 轴翻转），
+  `beam-outline.js` 去重、限 64 点、统一逆时针并判凸。首版只支持**单个闭合凸轮廓（含近似凸）**；
+  多轮廓 / 孔洞 / 凹形时保留普通玻璃与背景折射，只关闭可见光束并给出中文原因。
+- **上游最小泛化**：`prism/scene/optics.js` 与 `prism/scene/light-mesh.js` 里三角形专用的求交 / 追踪
+  （`insideTriangle` / `intersectTriangle` / `tracePrismDetailed` / `beamIntersectsTriangle`）泛化为**凸多边形**版本，
+  数学与上游逐字一致；光束网格、D65 光谱采样、Fresnel、内部路径、上游三级 Bloom 与渲染管线继续复用官网实现
+  （上游 commit `81c4a27`，MIT）。屏幕空间近似限制已写在源码注释中，不声称是完整光线追踪。
+- **三个设计师参数**（渲染 / 玻璃区，界面 0–200%，内部映射真实取值）：**色散范围**（100% = 官方
+  `dispersion_spread` 0.09）、**色彩强度**（只调色度、保亮度）、**折射变形**（只放大屏幕空间折射位移，
+  0% 即普通透明玻璃，不改几何）。参数归零可退回普通透明玻璃；切换光束开关不丢 SVG / 厚度 / 倒角 / 材质 / 相机。
+- **删除**：固定棱镜几何与专用文件（`prism/pipeline.js`、`prism/scene/prism-mesh.js`、相机、棱镜玻璃 /
+  present / presentation shader、环境烘焙）；保留光谱、Bloom、`light.wgsl`、许可记录与被复用的 `types.js` 默认值。
+- **验证**：`npm run build`、`npm test` 76/76、`node scripts/check.mjs` 61/61、`git diff --check` 通过；
+  真实 Chrome WebGPU `IMAGELAB_BROWSER_TESTS=on npm run smoke -- home extrude3d pixelit shaders-halftone
+  image-to-pixel image-to-ascii` **6/6 规格 287 项全过、0 页面错误**（extrude3d 91/91）。方形 / 六边形 /
+  圆角 Logo 三种 SVG 均确认白光穿过当前 SVG；凹轮廓给出中文原因；三项参数分别可见。
 
 ### 2026-10-14 · SVG 转 3D 双页签（建模 Three / 渲染 vgpu，DSH 执行；Codex 真实 Chrome WebGPU 已验收 68/68）
 

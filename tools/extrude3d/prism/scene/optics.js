@@ -4,6 +4,11 @@
  * Snell refraction, Fresnel transmission and total internal reflection are
  * solved here for the two boundaries of every wavelength band. `light-mesh.ts`
  * turns those deterministic paths into the vertices the GPU rasterizes.
+ *
+ * 本项目最小适配（2026-10-15）：上游只对写死的三角棱镜求交，这里把
+ * `insideTriangle` / `intersectTriangle` / `tracePrismDetailed` 泛化成**凸多边形**版本
+ * （多边形 = 顶点数组 `[[x, y], ...]`，逆时针）。数学与上游逐字一致，只是把「三条边」
+ * 换成「N 条边」；凹形 / 孔洞 / 自交轮廓不在支持范围内（调用方负责拒绝）。
  */
 
 import {
@@ -26,17 +31,25 @@ const cross = (a, b)=> a[0] * b[1] - a[1] * b[0];
 
 
 /** Signed area doubled; positive for counter-clockwise winding. */
-export function triangleWinding(triangle){
-  return cross(sub(triangle.b, triangle.a), sub(triangle.c, triangle.a));
+export function polygonWinding(polygon){
+  let total = 0;
+  for (let index = 0; index < polygon.length; index++){
+    const a = polygon[index];
+    const b = polygon[(index + 1) % polygon.length];
+    total += cross(a, b);
+  }
+  return total;
 }
 
-/** True when the point is on the inner side of all three edges. */
-export function insideTriangle(triangle, point){
-  const sign = triangleWinding(triangle) >= 0 ? 1 : -1;
-  const ab = cross(sub(triangle.b, triangle.a), sub(point, triangle.a)) * sign;
-  const bc = cross(sub(triangle.c, triangle.b), sub(point, triangle.b)) * sign;
-  const ca = cross(sub(triangle.a, triangle.c), sub(point, triangle.c)) * sign;
-  return ab >= 0 && bc >= 0 && ca >= 0;
+/** True when the point is on the inner side of every edge (convex polygon only). */
+export function insideConvexPolygon(polygon, point){
+  const sign = polygonWinding(polygon) >= 0 ? 1 : -1;
+  for (let index = 0; index < polygon.length; index++){
+    const start = polygon[index];
+    const end = polygon[(index + 1) % polygon.length];
+    if (cross(sub(end, start), sub(point, start)) * sign < 0) return false;
+  }
+  return true;
 }
 
 /** Cauchy's empirical dispersion law, with the wavelength given in nanometres. */
@@ -47,22 +60,23 @@ export function iorAt(wavelengthNm, base, strength){
 /** @typedef {object} EdgeHit */
 
 /**
- * Nearest crossing of the triangle's boundary strictly beyond `minT`.
+ * Nearest crossing of the convex polygon's boundary strictly beyond `minT`.
  *
- * Works from inside and outside caller decides what a hit means by looking
+ * Works from inside and outside; the caller decides what a hit means by looking
  * at the sign of `dot(direction, normal)`.
  */
-export function intersectTriangle(
-  triangle,
+export function intersectConvexPolygon(
+  polygon,
   origin,
   direction,
   minT,
 ){
-  const vertices = [triangle.a, triangle.b, triangle.c];
+  const vertices = polygon;
   let best;
-  for (let index = 0; index < 3; index++) {
+  const count = vertices.length;
+  for (let index = 0; index < count; index++) {
     const edgeStart = vertices[index];
-    const edgeEnd = vertices[(index + 1) % 3];
+    const edgeEnd = vertices[(index + 1) % count];
     const edge = sub(edgeEnd, edgeStart);
     const denominator = cross(direction, edge);
     if (denominator === 0) continue;
@@ -72,7 +86,7 @@ export function intersectTriangle(
     if (t <= minT || s < 0 || s > 1) continue;
     if (best && best.t <= t) continue;
     // Counter-clockwise winding puts the interior left of every edge, so
-    // rotating the edge clockwise points out of the triangle.
+    // rotating the edge clockwise points out of the polygon.
     best = { t, normal: normalize([edge[1], -edge[0]]), edge: index };
   }
   return best;
@@ -125,24 +139,24 @@ export function fresnelTransmittance(
   return 1 - reflectance;
 }
 
-/** @typedef {object} PrismPath */
+/** @typedef {object} PolygonPath */
 
 /**
- * Refract a ray through the prism and return the ray that comes out the far side.
+ * Refract a ray through a convex prism and return the ray that comes out the far side.
  *
  * `origin` is outside the glass and `direction` points into it. The ray
  * refracts on entry, crosses the interior, and refracts again on exit; when the
  * exit face reflects it instead (total internal reflection) it keeps bouncing
  * inside until it escapes or runs out of bounces.
  */
-export function tracePrism(
-  triangle,
+export function tracePolygon(
+  polygon,
   origin,
   direction,
   ior,
   maxBounces = PRISM_MAX_INTERNAL_BOUNCES,
 ){
-  const path = tracePrismDetailed(triangle, origin, direction, ior, maxBounces);
+  const path = tracePolygonDetailed(polygon, origin, direction, ior, maxBounces);
   if (!path) return undefined;
   return {
     origin: path.origin,
@@ -152,14 +166,14 @@ export function tracePrism(
 }
 
 /** Detailed forward path used to turn a finite beam into renderable ribbons. */
-export function tracePrismDetailed(
-  triangle,
+export function tracePolygonDetailed(
+  polygon,
   origin,
   direction,
   ior,
   maxBounces = PRISM_MAX_INTERNAL_BOUNCES,
 ){
-  const entry = intersectTriangle(triangle, origin, direction, SURFACE_EPSILON);
+  const entry = intersectConvexPolygon(polygon, origin, direction, SURFACE_EPSILON);
   // A ray that first meets the boundary from behind started inside the glass.
   if (!entry || dot(direction, entry.normal) >= 0) return undefined;
 
@@ -177,14 +191,16 @@ export function tracePrismDetailed(
   let transmission = entryTransmission;
 
   for (let bounces = 0; bounces <= maxBounces; bounces++) {
-    const exit = intersectTriangle(triangle, position, inside, SURFACE_EPSILON);
+    const exit = intersectConvexPolygon(polygon, position, inside, SURFACE_EPSILON);
     if (!exit) return undefined;
     position = add(position, scale(inside, exit.t));
     points.push(position);
     edges.push(exit.edge);
     const transmitted = refract(inside, scale(exit.normal, -1), ior);
     if (transmitted) {
-      transmission *= fresnelTransmittance(inside, exit.normal, ior, 1);
+      // 上游此处传的是 -exit.normal（法线朝向入射介质一侧）；上一轮抄写时漏了取反，
+      // 会让每个出射界面的透过率恒为 0（出射光谱扇形全黑）。
+      transmission *= fresnelTransmittance(inside, scale(exit.normal, -1), ior, 1);
       return {
         origin: position,
         direction: normalize(transmitted),

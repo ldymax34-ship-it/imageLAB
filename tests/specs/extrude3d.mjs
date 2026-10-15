@@ -47,7 +47,11 @@ const FIX = {
   overLimit: resolve(TMP_DIR, "extrude3d-over-limit.svg"),
   fakePng: resolve(TMP_DIR, "extrude3d-fake-texture.png"),
   plainText: resolve(TMP_DIR, "extrude3d-texture.txt"),
-  props: [20, 200, 2000].map((units) => resolve(TMP_DIR, `extrude3d-prop-${units}.svg`))
+  props: [20, 200, 2000].map((units) => resolve(TMP_DIR, `extrude3d-prop-${units}.svg`)),
+  beamSquare: resolve(TMP_DIR, "extrude3d-beam-square.svg"),
+  beamHexagon: resolve(TMP_DIR, "extrude3d-beam-hexagon.svg"),
+  beamLogo: resolve(TMP_DIR, "extrude3d-beam-logo.svg"),
+  beamConcave: resolve(TMP_DIR, "extrude3d-beam-concave.svg")
 };
 
 /* --------------------------------------------------------------- SVG 素材 */
@@ -183,6 +187,32 @@ const ALLOWED_ORDINARY_SVG_TEXT = `<?xml version="1.0" encoding="UTF-8"?>
 /** 实心方块：玻璃折射 / 背景测试用。 */
 const SOLID_SVG_TEXT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
   <rect x="20" y="20" width="160" height="160" fill="#111111"/>
+</svg>
+`;
+
+/* -------------------------------------------- 色散光束用的 SVG 素材（凸 / 凹轮廓） */
+
+/** 方形：最简凸轮廓（4 顶点），白光必须穿过当前 SVG。 */
+const BEAM_SQUARE_SVG_TEXT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <rect x="20" y="20" width="160" height="160" fill="#111111"/>
+</svg>
+`;
+
+/** 正六边形：6 顶点凸轮廓，色散光束要跟着轮廓走而不是固定三角形。 */
+const BEAM_HEXAGON_SVG_TEXT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <polygon points="100,15 173.6,57.5 173.6,142.5 100,185 26.4,142.5 26.4,57.5" fill="#111111"/>
+</svg>
+`;
+
+/** 普通 Logo 轮廓：圆角方形徽章（凸），代表真实设计稿里的常见外形。 */
+const BEAM_LOGO_SVG_TEXT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <path fill="#111111" d="M70 20 H130 A50 50 0 0 1 180 70 V130 A50 50 0 0 1 130 180 H70 A50 50 0 0 1 20 130 V70 A50 50 0 0 1 70 20 Z"/>
+</svg>
+`;
+
+/** 十字形：单个闭合凹轮廓，第一版不支持光束，必须保留普通玻璃并给出中文原因。 */
+const BEAM_CONCAVE_SVG_TEXT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <path fill="#111111" d="M70 20 H130 V70 H180 V130 H130 V180 H70 V130 H20 V70 H70 Z"/>
 </svg>
 `;
 
@@ -533,6 +563,10 @@ async function analyzePng(page, bytes) {
 
 export async function run({ page, base, downloads, check, sleep }) {
   await mkdir(TMP_DIR, { recursive: true });
+  await writeFile(FIX.beamSquare, BEAM_SQUARE_SVG_TEXT, "utf8");
+  await writeFile(FIX.beamHexagon, BEAM_HEXAGON_SVG_TEXT, "utf8");
+  await writeFile(FIX.beamLogo, BEAM_LOGO_SVG_TEXT, "utf8");
+  await writeFile(FIX.beamConcave, BEAM_CONCAVE_SVG_TEXT, "utf8");
   const external = watchExternal(page, base);
   const url = `${base}/tools/extrude3d/index.html`;
   const res = await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
@@ -1070,13 +1104,15 @@ export async function run({ page, base, downloads, check, sleep }) {
     await cleanDownloads(downloads);
     // 导出按钮在「输出」分类里；分类切换只改显示，不重置材质 / 背景 / 相机状态。
     await page.$eval('[data-cat="output"]', (node) => node.click());
+    // 画布高度会随状态栏文案换行轻微变化，导出尺寸必须与「点击导出那一刻」的画布比对。
+    const exportSize1 = await page.evaluate(() => window.__extrude3d.getInfo().render.canvas);
     await page.click("#render-export-png");
     const png1 = await downloads.waitForFile({ ext: ".png", timeoutMs: 45000 });
     const info1 = pngInfo(png1.bytes);
     check.ok(
       "透明背景 1× 导出尺寸等于视图尺寸",
-      Math.abs(info1.width - canvasSize[0]) <= 2 && Math.abs(info1.height - canvasSize[1]) <= 2,
-      `PNG=${info1.width}×${info1.height} 视图=${canvasSize.join("×")}`
+      Math.abs(info1.width - exportSize1[0]) <= 2 && Math.abs(info1.height - exportSize1[1]) <= 2,
+      `PNG=${info1.width}×${info1.height} 视图=${exportSize1.join("×")}`
     );
     check.ok("透明模式导出的 PNG 带 alpha 通道", png1.bytes[25] === 6, `IHDR colorType=${png1.bytes[25]}`);
     const alpha = await analyzePng(page, png1.bytes);
@@ -1090,20 +1126,21 @@ export async function run({ page, base, downloads, check, sleep }) {
     await setControl(page, "render-export-scale", "2", "change");
     await sleep(400);
     await cleanDownloads(downloads);
+    const exportSize2 = await page.evaluate(() => window.__extrude3d.getInfo().render.canvas);
     await page.click("#render-export-png");
     const png2 = await downloads.waitForFile({ ext: ".png", timeoutMs: 45000 });
     const info2 = pngInfo(png2.bytes);
     check.ok(
       "2× 导出尺寸约为视图尺寸 2 倍",
-      Math.abs(info2.width - canvasSize[0] * 2) <= 3 && Math.abs(info2.height - canvasSize[1] * 2) <= 3,
-      `PNG=${info2.width}×${info2.height} 期望=${canvasSize[0] * 2}×${canvasSize[1] * 2}`
+      Math.abs(info2.width - exportSize2[0] * 2) <= 3 && Math.abs(info2.height - exportSize2[1] * 2) <= 3,
+      `PNG=${info2.width}×${info2.height} 期望=${exportSize2[0] * 2}×${exportSize2[1] * 2}`
     );
     await sleep(400);
     const restored = await page.evaluate(() => window.__extrude3d.getInfo().render.canvas);
     check.ok(
       "导出后预览画布恢复视图尺寸",
-      Math.abs(restored[0] - canvasSize[0]) <= 1 && Math.abs(restored[1] - canvasSize[1]) <= 1,
-      `恢复=${restored.join("×")}`
+      Math.abs(restored[0] - exportSize2[0]) <= 1 && Math.abs(restored[1] - exportSize2[1]) <= 1,
+      `恢复=${restored.join("×")} 导出时=${exportSize2.join("×")}`
     );
 
     /* ---------- 纯色背景黑 / 白快速预设（默认白色） ---------- */
@@ -1185,10 +1222,10 @@ export async function run({ page, base, downloads, check, sleep }) {
       state: window.__extrude3d.getInfo().render.state
     }));
     check.ok(
-      "色散默认值明显增强且与控件 / 状态一致",
-      Number(dispersionDefault.input) >= 0.09 &&
-        dispersionDefault.state.dispersion === Number(dispersionDefault.input) &&
-        /^0\.0\d\d$/.test(dispersionDefault.out),
+      "色散范围默认 100%（= 官方 dispersion_spread 0.09）且与状态一致",
+      dispersionDefault.input === "100" &&
+        dispersionDefault.state.dispersionRange === 100 &&
+        dispersionDefault.out === "100%",
       JSON.stringify(dispersionDefault)
     );
     await setControl(page, "render-dispersion", "0", "input");
@@ -1198,11 +1235,11 @@ export async function run({ page, base, downloads, check, sleep }) {
       state: window.__extrude3d.getInfo().render.state
     }));
     check.ok(
-      "色散滑到 0 表示关闭且状态同步为 0",
-      dispersionOff.state.dispersion === 0 && dispersionOff.out === "0.000",
+      "色散范围滑到 0 表示关闭且状态同步为 0",
+      dispersionOff.state.dispersionRange === 0 && dispersionOff.out === "0%",
       JSON.stringify(dispersionOff)
     );
-    await setControl(page, "render-dispersion", "0.09", "input");
+    await setControl(page, "render-dispersion", "100", "input");
     await sleep(300);
 
     /* ---------- 背景：模式 / 校验 / 缩放 / 平移 ---------- */
@@ -1343,6 +1380,317 @@ export async function run({ page, base, downloads, check, sleep }) {
       `name=${backToModel.name} depth=${backToModel.state.depth} verts=${backToModel.verts}`
     );
   }
+
+  /* ============================== 色散光束：白光穿过当前用户 SVG 模型 */
+
+  await page.click("#tab-render");
+  await sleep(400);
+  await setControl(page, "render-material", "glass", "change");
+  await sleep(400);
+
+  /** 画面里「明显彩色」的像素数：黑底 + 光束时只有光谱扇形会贡献这个量。 */
+  const chromaticPixels = (data, minSpread = 30) => {
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const max = Math.max(data[i], data[i + 1], data[i + 2]);
+      const min = Math.min(data[i], data[i + 1], data[i + 2]);
+      if (max - min >= minSpread) count += 1;
+    }
+    return count;
+  };
+  /**
+   * 色散变化的专用指标：两张图的像素差里「三通道变化不一致」的像素数。
+   * 单纯变亮 / 变暗时 ΔR≈ΔG≈ΔB；波长分离（彩边挪位）必然让三通道差异不一致。
+   */
+  const chromaticDiff = (a, b, minSkew = 30) => {
+    let count = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      const dr = a[i] - b[i];
+      const dg = a[i + 1] - b[i + 1];
+      const db = a[i + 2] - b[i + 2];
+      const skew = Math.max(dr, dg, db) - Math.min(dr, dg, db);
+      if (skew >= minSkew) count += 1;
+    }
+    return count;
+  };
+  /** 有亮度的像素数（各通道最大值 ≥ min）：判断「有没有光」比判断色度更稳。 */
+  const brightPixels = (data, min = 40) => {
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (Math.max(data[i], data[i + 1], data[i + 2]) >= min) count += 1;
+    }
+    return count;
+  };
+  /** 画面中心（模型所在区域）的平均饱和度，用来判断色彩强度是否真的起作用。 */
+  const centerSpread = (data, n) => {
+    let sum = 0;
+    let count = 0;
+    for (let y = Math.floor(n * 0.35); y < n * 0.65; y += 1) {
+      for (let x = Math.floor(n * 0.35); x < n * 0.65; x += 1) {
+        const i = (y * n + x) * 4;
+        sum += Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]);
+        count += 1;
+      }
+    }
+    return count ? sum / count : 0;
+  };
+  const loadBeamSvg = async (file) => {
+    await page.click("#tab-model");
+    await sleep(300);
+    await uploadSvg(page, file);
+    await waitModelled(page);
+    await page.click("#tab-render");
+    await sleep(500);
+  };
+  const beamInfo = () =>
+    page.evaluate(() => {
+      const info = window.__extrude3d.getInfo();
+      return {
+        outline: info.render.beam.outline,
+        active: info.render.beam.active,
+        stats: info.render.beam.stats,
+        state: info.render.state,
+        note: document.getElementById("render-beam-note").textContent.trim()
+      };
+    });
+
+  // 黑底：只有光束自己会带来彩色像素，便于区分「真光谱扇形」与「背景本身的颜色」。
+  await page.$eval('[data-cat="background"]', (node) => node.click());
+  await page.click("#render-bg-black");
+  await sleep(400);
+  await loadBeamSvg(FIX.beamSquare);
+  const squareOutline = await beamInfo();
+  check.ok(
+    "方形 SVG：交接给渲染页签的是 4 顶点凸轮廓",
+    squareOutline.outline && squareOutline.outline.ok === true && squareOutline.outline.count === 4,
+    JSON.stringify(squareOutline.outline)
+  );
+
+  await page.$eval('[data-cat="material"]', (node) => node.click());
+  await setControl(page, "render-beam", false, "change");
+  await sleep(400);
+  const beamOff = await sampleCanvasShot(page, "#render-canvas", 64);
+  await setControl(page, "render-beam", true, "change");
+  await sleep(900);
+  const beamOn = await sampleCanvasShot(page, "#render-canvas", 64);
+  const squareBeam = await beamInfo();
+  const beamChanged = beamOff.ok && beamOn.ok ? changedPixels(beamOff.rgba, beamOn.rgba) : 0;
+  check.ok(
+    "开启色散光束后白光真的穿过方形 SVG（黑底上出现光束像素）",
+    squareBeam.active === true &&
+      squareBeam.stats &&
+      squareBeam.stats.validBands >= 60 &&
+      beamChanged > 150 &&
+      chromaticPixels(beamOn.rgba) > 15 &&
+      chromaticPixels(beamOff.rgba) === 0,
+    `active=${squareBeam.active} bands=${squareBeam.stats && squareBeam.stats.validBands} 变化像素=${beamChanged} 彩色 ${chromaticPixels(beamOff.rgba)}→${chromaticPixels(beamOn.rgba)}`
+  );
+
+  // 光束强度：同一个光路上的发光强度变化（不是重算几何）。
+  await page.$eval('[data-cat="material"]', (node) => node.click());
+  const beamDark = await (async () => {
+    await setControl(page, "render-beam-intensity", "0", "input");
+    await sleep(500);
+    return sampleCanvasShot(page, "#render-canvas", 64);
+  })();
+  await setControl(page, "render-beam-intensity", "1.6", "input");
+  await sleep(500);
+  const beamBright = await sampleCanvasShot(page, "#render-canvas", 64);
+  const beamIntensityState = await page.evaluate(() => window.__extrude3d.getInfo().render.state);
+  check.ok(
+    "光束强度参数真实改变亮度（0 时几乎无光）",
+    beamIntensityState.beamIntensity === 1.6 &&
+      beamDark.ok &&
+      beamBright.ok &&
+      brightPixels(beamBright.rgba) > brightPixels(beamDark.rgba) * 1.5,
+    `强度=${beamIntensityState.beamIntensity} 有光像素 ${brightPixels(beamDark.rgba)}→${brightPixels(beamBright.rgba)}`
+  );
+  await setControl(page, "render-beam-intensity", "1", "input");
+  await sleep(300);
+
+  // 光束位置：偏离轮廓时不再穿过模型（光路消失），移回后恢复。
+  await setControl(page, "render-beam-position", "200", "input");
+  await sleep(800);
+  const beamOffset = await sampleCanvasShot(page, "#render-canvas", 64);
+  const beamMissed = await beamInfo();
+  check.ok(
+    "光束位置参数把光束移出轮廓后光路消失，说明求交用的是当前 SVG 轮廓",
+    beamOffset.ok && chromaticPixels(beamOffset.rgba) < chromaticPixels(beamBright.rgba) &&
+      beamMissed.stats && beamMissed.stats.validBands < squareBeam.stats.validBands,
+    `bands ${squareBeam.stats.validBands}→${beamMissed.stats && beamMissed.stats.validBands}`
+  );
+  await setControl(page, "render-beam-position", "0", "input");
+  await sleep(500);
+
+  // 六边形 + 普通 Logo 轮廓：同一条链路，轮廓顶点数随之变化。
+  await loadBeamSvg(FIX.beamHexagon);
+  const hexBeam = await beamInfo();
+  const hexShot = await sampleCanvasShot(page, "#render-canvas", 64);
+  check.ok(
+    "六边形 SVG：6 顶点凸轮廓下光束同样可见",
+    hexBeam.outline && hexBeam.outline.ok === true && hexBeam.outline.count === 6 &&
+      hexBeam.active === true && chromaticPixels(hexShot.rgba) > 8,
+    `outline=${JSON.stringify(hexBeam.outline)} 彩色=${chromaticPixels(hexShot.rgba)}`
+  );
+
+  await loadBeamSvg(FIX.beamLogo);
+  const logoBeam = await beamInfo();
+  const logoShot = await sampleCanvasShot(page, "#render-canvas", 64);
+  check.ok(
+    "普通 Logo 轮廓（圆角徽章）：光束随用户 SVG 轮廓走",
+    logoBeam.outline && logoBeam.outline.ok === true && logoBeam.outline.count >= 3 &&
+      logoBeam.active === true && chromaticPixels(logoShot.rgba) > 8,
+    `outline=${JSON.stringify(logoBeam.outline)} 彩色=${chromaticPixels(logoShot.rgba)}`
+  );
+
+  // 凹轮廓：保留普通玻璃，只关闭可见光束并给出中文原因。
+  await loadBeamSvg(FIX.beamConcave);
+  const concaveBeam = await beamInfo();
+  const concaveShot = await sampleCanvasShot(page, "#render-canvas", 64);
+  check.ok(
+    "凹轮廓 SVG：光束关闭、给出中文原因，玻璃本身仍然渲染",
+    concaveBeam.outline && concaveBeam.outline.ok === false &&
+      /凹形/.test(concaveBeam.outline.reason) &&
+      concaveBeam.state.beam === true &&
+      concaveBeam.active === false &&
+      /凹形/.test(concaveBeam.note) &&
+      concaveShot.ok &&
+      concaveShot.drawn,
+    `outline=${JSON.stringify(concaveBeam.outline)} note=${concaveBeam.note.slice(0, 40)}`
+  );
+
+  // 回到方形 + 真实背景图形（纯色背景看不出折射变形）。
+  await loadBeamSvg(FIX.beamSquare);
+  await page.$eval('[data-cat="background"]', (node) => node.click());
+  await uploadVariedBackground(page, sleep);
+  await page.$eval('[data-cat="material"]', (node) => node.click());
+  await setControl(page, "render-beam", false, "change");
+  await sleep(600);
+
+  /* 三个设计师参数：色散范围 / 色彩强度 / 折射变形 */
+
+  const dispZero = await (async () => {
+    await setControl(page, "render-dispersion", "0", "input");
+    await sleep(500);
+    return sampleCanvasShot(page, "#render-canvas", 64);
+  })();
+  await setControl(page, "render-dispersion", "200", "input");
+  await sleep(500);
+  const dispMax = await sampleCanvasShot(page, "#render-canvas", 64);
+  const dispState = await page.evaluate(() => ({
+    state: window.__extrude3d.getInfo().render.state,
+    out: document.getElementById("render-dispersion-out").textContent.trim()
+  }));
+  check.ok(
+    "色散范围 0 ↔ 200%：画面真实变化，读数与状态同步",
+    dispState.state.dispersionRange === 200 &&
+      dispState.out === "200%" &&
+      dispZero.ok &&
+      dispMax.ok &&
+      changedPixels(dispZero.rgba, dispMax.rgba) > 150 &&
+      chromaticDiff(dispZero.rgba, dispMax.rgba) > 40,
+    `读数=${dispState.out} 变化像素=${dispZero.ok && dispMax.ok ? changedPixels(dispZero.rgba, dispMax.rgba) : "n/a"} 彩色差=${dispZero.ok && dispMax.ok ? chromaticDiff(dispZero.rgba, dispMax.rgba) : "n/a"}`
+  );
+
+  const chromaZero = await (async () => {
+    await setControl(page, "render-chroma", "0", "input");
+    await sleep(500);
+    return sampleCanvasShot(page, "#render-canvas", 64);
+  })();
+  await setControl(page, "render-chroma", "200", "input");
+  await sleep(500);
+  const chromaMax = await sampleCanvasShot(page, "#render-canvas", 64);
+  const chromaState = await page.evaluate(() => document.getElementById("render-chroma-out").textContent.trim());
+  check.ok(
+    "色彩强度 0 ↔ 200%：玻璃区域饱和度随之升降（只调色度、不改亮度）",
+    chromaState === "200%" &&
+      chromaZero.ok &&
+      chromaMax.ok &&
+      centerSpread(chromaMax.rgba, 64) > centerSpread(chromaZero.rgba, 64) * 1.2,
+    `中心饱和度 ${chromaZero.ok ? centerSpread(chromaZero.rgba, 64).toFixed(1) : "n/a"}→${chromaMax.ok ? centerSpread(chromaMax.rgba, 64).toFixed(1) : "n/a"}`
+  );
+  await setControl(page, "render-chroma", "100", "input");
+  await sleep(300);
+
+  const refractZero = await (async () => {
+    await setControl(page, "render-refraction", "0", "input");
+    await sleep(500);
+    return sampleCanvasShot(page, "#render-canvas", 64);
+  })();
+  await setControl(page, "render-refraction", "200", "input");
+  await sleep(500);
+  const refractMax = await sampleCanvasShot(page, "#render-canvas", 64);
+  const refractState = await page.evaluate(() => document.getElementById("render-refraction-out").textContent.trim());
+  check.ok(
+    "折射变形 0 ↔ 200%：背景透过玻璃的弯曲 / 位移真实变化",
+    refractState === "200%" &&
+      refractZero.ok &&
+      refractMax.ok &&
+      changedPixels(refractZero.rgba, refractMax.rgba) > 300,
+    `读数=${refractState} 变化像素=${refractZero.ok && refractMax.ok ? changedPixels(refractZero.rgba, refractMax.rgba) : "n/a"}`
+  );
+  await setControl(page, "render-refraction", "100", "input");
+  await setControl(page, "render-dispersion", "100", "input");
+  await sleep(400);
+
+  /* 开关状态保持 + 导出 */
+
+  await setControl(page, "render-beam", true, "change");
+  await sleep(700);
+  const beforeEdit = await page.evaluate(() => {
+    const info = window.__extrude3d.getInfo();
+    return {
+      state: info.render.state,
+      name: document.getElementById("svg-name").textContent.trim(),
+      cameraDistance: info.render.cameraDistance
+    };
+  });
+  await page.click("#tab-model");
+  await sleep(300);
+  await setControl(page, "depth", "60", "input");
+  await sleep(700);
+  const editedShadow = await sampleCanvasShot(page, "#render-canvas", 48);
+  await page.click("#tab-render");
+  await sleep(800);
+  const afterEdit = await page.evaluate(() => {
+    const info = window.__extrude3d.getInfo();
+    return {
+      state: info.render.state,
+      name: document.getElementById("svg-name").textContent.trim(),
+      cameraDistance: info.render.cameraDistance,
+      beam: info.render.beam
+    };
+  });
+  check.ok(
+    "切换页签 / 调厚度后光束开关与三个参数都不丢，且仍作用于当前 SVG",
+    afterEdit.state.beam === true &&
+      afterEdit.state.dispersionRange === beforeEdit.state.dispersionRange &&
+      afterEdit.state.chroma === beforeEdit.state.chroma &&
+      afterEdit.state.refraction === beforeEdit.state.refraction &&
+      afterEdit.state.beamAngle === beforeEdit.state.beamAngle &&
+      afterEdit.state.beamPosition === beforeEdit.state.beamPosition &&
+      afterEdit.name === beforeEdit.name &&
+      afterEdit.beam.active === true &&
+      Math.abs(afterEdit.cameraDistance - beforeEdit.cameraDistance) < 0.01,
+    JSON.stringify({ after: afterEdit.state.beam, dispersion: afterEdit.state.dispersionRange, name: afterEdit.name, rendered: editedShadow.ok })
+  );
+
+  // PNG 导出（光束开启 + 真实背景）：必须是与预览同源的非空图。
+  await page.$eval('[data-cat="output"]', (node) => node.click());
+  await setControl(page, "render-transparent", false, "change");
+  await setControl(page, "render-export-scale", "1", "change");
+  await sleep(400);
+  await cleanDownloads(downloads);
+  await page.click("#render-export-png");
+  const beamPng = await downloads.waitForFile({ ext: ".png", timeoutMs: 45000 });
+  const beamPngInfo = pngInfo(beamPng.bytes);
+  const beamPngAlpha = await analyzePng(page, beamPng.bytes);
+  check.ok(
+    "开启光束后导出的 PNG 不是空图（尺寸正确且模型 / 光束像素保留）",
+    beamPngInfo.width > 0 && beamPngInfo.height > 0 && beamPngAlpha.opaqueRatio > 0.01,
+    `${beamPngInfo.width}×${beamPngInfo.height} 不透明占比=${beamPngAlpha.opaqueRatio.toFixed(3)}`
+  );
+  await page.$eval('[data-cat="material"]', (node) => node.click());
 
   /* ================================================ 全局边界 */
 
