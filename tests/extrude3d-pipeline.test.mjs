@@ -25,7 +25,7 @@ async function loadShaders() {
   const { resolveShader } = await import("@vgpu/wgsl/runtime");
   const { prepareShader } = await import("@vgpu/wgsl/prepare");
   const out = {};
-  for (const name of ["pbr", "glass", "glass-back", "background", "present"]) {
+  for (const name of ["pbr", "glass", "glass-back", "glass-back-info", "background", "present"]) {
     const resolved = await resolveShader({ entry: `${SHADER_DIR}${name}.wgsl`, validate: false });
     out[name] = prepareShader(resolved.wgsl);
   }
@@ -41,7 +41,8 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
     const size = [64, 48];
     const sceneTarget = target(gpu, { size, format: "rgba16float", depth: true });
     const backgroundTarget = target(gpu, { size, format: "rgba16float" });
-    const backTarget = target(gpu, { size, format: "rgba16float", depth: true });
+    // 与生产一致：backTarget 双颜色附件（RGB 世界坐标 + RGB 世界法线）。
+    const backTarget = target(gpu, { size, format: "rgba16float", depth: true, colors: [{ format: "rgba16float" }, { format: "rgba16float" }] });
     const exportTarget = target(gpu, { size, format: "rgba8unorm" });
     const linear = sampler(gpu, { minFilter: "linear", magFilter: "linear" });
     const nearest = sampler(gpu, { minFilter: "nearest", magFilter: "nearest" });
@@ -76,6 +77,7 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
 
     const pbrDraw = draw(gpu, { shader: shaders.pbr, geometry: mesh, cull: "back" });
     const glassBackDraw = draw(gpu, { shader: shaders["glass-back"], geometry: mesh, cull: "front" });
+    const glassBackInfoDraw = draw(gpu, { shader: shaders["glass-back-info"], geometry: mesh, cull: "front", colors: [null, null] });
     const glassDraw = draw(gpu, { shader: shaders.glass, geometry: mesh, cull: "back" });
     // background.wgsl 只有 fs_main，必须走 effect() 的内置全屏顶点通道（不能再用 draw()）。
     const backgroundEffect = effect(gpu, shaders.background, {
@@ -105,7 +107,9 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
       scene_tex: backgroundTarget,
       scene_samp: linear,
       back_tex: backTarget,
-      back_samp: nearest
+      back_samp: nearest,
+      back_normal_tex: backTarget.colors[1],
+      back_normal_samp: nearest
     });
     // 背面通道与生产代码一致：camera 多一个 camera_position，glass 只取背面着色需要的字段。
     const glassBackUniforms = () => ({
@@ -147,6 +151,7 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
         }
       });
       glassBackDraw.set(glassBackUniforms());
+      glassBackInfoDraw.set({ camera: { view_projection: vp, camera_position: cameraPosition } });
     };
     refreshBindings();
 
@@ -157,7 +162,8 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
       presentEffect.compile(exportTarget),
       pbrDraw.compile(sceneTarget),
       glassDraw.compile(sceneTarget),
-      glassBackDraw.compile(backTarget)
+      glassBackDraw.compile(backTarget),
+      glassBackInfoDraw.compile(backTarget)
     ]);
 
     const render = (glass, resolution) => {
@@ -167,7 +173,8 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
         // present 再把模型合成到背景之上（与 render-vgpu.js 的接线一致）。
         f.pass({ target: backgroundTarget, clear: [0, 0, 0, 0] }, (p) => p.draw(backgroundEffect));
         if (glass) {
-          f.pass({ target: backTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (p) => p.draw(glassBackDraw));
+          // 背面信息预通道（世界坐标 + 法线，双附件）供正面玻璃做第二次折射。
+          f.pass({ target: backTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (p) => p.draw(glassBackInfoDraw));
         }
         f.pass({ target: sceneTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (p) => {
           if (glass) {

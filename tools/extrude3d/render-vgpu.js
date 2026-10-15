@@ -7,8 +7,9 @@
  * 官方来源（固定 vgpu 0.6.0，MIT）：
  *   - 公共 API：`init` / `surface` / `target` / `draw` / `effect` / `frame` / `sampler` / `texture` / `geometry`
  *   - PBR：改写自 `apps/docs/examples/glass-fractal/hero-fractal-ceramic.wgsl`
- *   - 透射：改写自 `apps/docs/examples/transmission/glass.wgsl`，把写死立方体的 `trace_cube_exit`
- *     换成「背面世界坐标预通道 + 正面片元」估算厚度 / 出射，支持任意闭合挤出网格。
+ *   - 透射：改写自 `apps/docs/examples/transmission/glass.wgsl`（官方 Double refraction），
+ *     把写死立方体的 `trace_cube_exit` 换成「背面世界坐标 + 世界法线预通道 + 正面片元」：
+ *     空气→玻璃、玻璃→空气各折一次，支持任意闭合挤出网格。
  * 详见 THIRD_PARTY.md 与 third-party-licenses/vgpu-LICENSE.txt。
  */
 
@@ -19,8 +20,10 @@ import { init, surface, target, draw, effect, frame, sampler, texture, geometry 
 import pbrWgsl from "./shaders/pbr.wgsl";
 import glassWgsl from "./shaders/glass.wgsl";
 import glassBackWgsl from "./shaders/glass-back.wgsl";
+import glassBackInfoWgsl from "./shaders/glass-back-info.wgsl";
 import backgroundWgsl from "./shaders/background.wgsl";
 import presentWgsl from "./shaders/present.wgsl";
+import { createPrismPipeline } from "./prism/pipeline.js";
 
 /** 渲染页签首批 7 个常用中文材质预设（不恢复 38 个预设，不做节点编辑器）。 */
 export const MATERIAL_PRESETS = [
@@ -68,6 +71,7 @@ function srgbToLinear(hex) {
 
 export function createRenderTab({ canvas, els, onStatus }) {
   const state = {
+    scene: "svg",
     preset: "glass",
     color: "#ffffff",
     roughness: 0.03,
@@ -108,6 +112,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
   let pbrDraw = null;
   let glassDraw = null;
   let glassBackDraw = null;
+  let glassBackInfoDraw = null;
   let meshGeometry = null;
   let pendingMesh = null;
   let meshSummary = null;
@@ -119,6 +124,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
   let nearestSampler = null;
   let targetSize = [1, 1];
   let exports = 0;
+  let prismPipeline = null;
 
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
   camera.position.copy(VIEW_DIR).multiplyScalar(VIEW_DISTANCE);
@@ -329,12 +335,17 @@ export function createRenderTab({ canvas, els, onStatus }) {
     if (pbrDraw) pbrDraw.dispose();
     if (glassDraw) glassDraw.dispose();
     if (glassBackDraw) glassBackDraw.dispose();
+    if (glassBackInfoDraw) glassBackInfoDraw.dispose();
     pbrDraw = null;
     glassDraw = null;
     glassBackDraw = null;
+    glassBackInfoDraw = null;
     if (!meshGeometry) return;
     pbrDraw = draw(gpu, { shader: pbrWgsl, geometry: meshGeometry, cull: "back" });
     glassBackDraw = draw(gpu, { shader: glassBackWgsl, geometry: meshGeometry, cull: "front" });
+    // backTarget 的第二张颜色附件存背面世界法线，专供正面通道做第二次折射；
+    // sceneTarget 的可见背面仍用原单输出着色通道，行为不变。
+    glassBackInfoDraw = draw(gpu, { shader: glassBackInfoWgsl, geometry: meshGeometry, cull: "front", colors: [null, null] });
     glassDraw = draw(gpu, { shader: glassWgsl, geometry: meshGeometry, cull: "back" });
   }
 
@@ -371,8 +382,8 @@ export function createRenderTab({ canvas, els, onStatus }) {
           stride: 32,
           attributes: {
             position: { format: "float32x3", offset: 0 },
-            normal: { format: "float32x3", offset: 12 },
-            uv: { format: "float32x2", offset: 24 }
+            normal: { format: "float32x3", offset: 12, location: 1 },
+            uv: { format: "float32x2", offset: 24, location: 2 }
           }
         }
       ],
@@ -392,11 +403,12 @@ export function createRenderTab({ canvas, els, onStatus }) {
     backgroundTarget.resize(next);
     backTarget.resize(next);
     exportTarget.resize(next);
+    prismPipeline?.resize(next);
     updatePanControls();
   }
 
   function geometryReady() {
-    return !!meshGeometry && !!pbrDraw && !!glassDraw && !!glassBackDraw;
+    return !!meshGeometry && !!pbrDraw && !!glassDraw && !!glassBackDraw && !!glassBackInfoDraw;
   }
 
   function keyLightDirection() {
@@ -416,6 +428,11 @@ export function createRenderTab({ canvas, els, onStatus }) {
   function renderFrame(targetToPresent) {
     if (!ready || !canvasSurface) return;
     const [width, height] = targetSize;
+    if (state.scene === "prism") {
+      renderPrismFrame(targetToPresent);
+      state.renders += 1;
+      return;
+    }
     updateCameraUniforms(width, height);
     const current = preset();
     const keyDirection = keyLightDirection();
@@ -454,6 +471,9 @@ export function createRenderTab({ canvas, els, onStatus }) {
       const baseColor = srgbToLinear(state.color);
       const keyColor = [1.0, 0.97, 0.93];
       const absorption = current.absorption || [0.05, 0.05, 0.05];
+      glassBackInfoDraw.set({
+        camera: { view_projection: viewProjection, camera_position: cameraPosition }
+      });
       // 背面通道与正面通道共用相机 / 玻璃参数：背面同一趟写进 sceneTarget，
       // 先在最终画面里形成可见的后表面 / 内部界面（正面玻璃随后以 Fresnel 权重叠上去）。
       glassBackDraw.set({
@@ -487,7 +507,9 @@ export function createRenderTab({ canvas, els, onStatus }) {
         scene_tex: backgroundTarget,
         scene_samp: bgSampler,
         back_tex: backTarget,
-        back_samp: nearestSampler
+        back_samp: nearestSampler,
+        back_normal_tex: backTarget.colors[1],
+        back_normal_samp: nearestSampler
       });
     } else if (modelReady) {
       pbrDraw.set({
@@ -511,7 +533,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
       //    又把背面片元写进 sceneTarget，成为最终成像里可见的后表面 / 内部界面。
       if (modelReady && current.kind === "glass") {
         currentFrame.pass({ target: backTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (pass) =>
-          pass.draw(glassBackDraw)
+          pass.draw(glassBackInfoDraw)
         );
       }
       // 3) 模型写入带深度的 sceneTarget：背景不参与这一趟，深度只由模型自己决定。
@@ -529,6 +551,14 @@ export function createRenderTab({ canvas, els, onStatus }) {
       currentFrame.pass(targetToPresent, presentEffect);
     });
     state.renders += 1;
+  }
+
+  async function renderPrismFrame(targetToPresent) {
+    if (!prismPipeline) {
+      prismPipeline = await createPrismPipeline(gpu, "extrude3d-prism", targetSize);
+    }
+    await prismPipeline.compile(targetToPresent);
+    frame(gpu, (currentFrame) => prismPipeline.render(currentFrame, targetToPresent));
   }
 
   async function ensureGpu() {
@@ -561,7 +591,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
       targetSize = [Math.max(1, size[0]), Math.max(1, size[1])];
       sceneTarget = target(gpu, { size: targetSize, format: "rgba16float", depth: true });
       backgroundTarget = target(gpu, { size: targetSize, format: "rgba16float" });
-      backTarget = target(gpu, { size: targetSize, format: "rgba16float", depth: true });
+      backTarget = target(gpu, { size: targetSize, format: "rgba16float", depth: true, colors: [{ format: "rgba16float" }, { format: "rgba16float" }] });
       exportTarget = target(gpu, { size: targetSize, format: "rgba8unorm" });
 
       // background.wgsl 只有 fs_main：必须用 effect()，由 vgpu 注入官方内置全屏顶点通道
@@ -592,7 +622,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
         backgroundEffect.compile(backgroundTarget),
         presentEffect.compile(canvasSurface),
         ...(geometryReady()
-          ? [pbrDraw.compile(sceneTarget), glassDraw.compile(sceneTarget), glassBackDraw.compile(backTarget)]
+          ? [pbrDraw.compile(sceneTarget), glassDraw.compile(sceneTarget), glassBackDraw.compile(sceneTarget), glassBackInfoDraw.compile(backTarget)]
           : [])
       ]);
       ready = true;
@@ -654,7 +684,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
       const width = Math.max(1, Math.round(viewWidth * scale));
       const height = Math.max(1, Math.round(viewHeight * scale));
       resizeTargets([width, height]);
-      renderFrame(exportTarget);
+      await renderFrame(exportTarget);
       const pixels = await exportTarget.color.read({ mipLevel: 0, region: "all" });
       // 反预乘：present 输出 premultiplied，PNG 用直通 alpha。
       const straight = new Uint8ClampedArray(pixels.length);
@@ -742,6 +772,13 @@ export function createRenderTab({ canvas, els, onStatus }) {
         state.preset = els.material.value;
         syncPresetControls();
         status(`材质已切换到 ${preset().label}`);
+      });
+    }
+    if (els.scene) {
+      els.scene.addEventListener("change", () => {
+        state.scene = els.scene.value;
+        dirty = true;
+        status(state.scene === "prism" ? "已切换到官方棱镜场景（固定官方视角）。" : "已切回 SVG 模型。");
       });
     }
     if (els.color) {

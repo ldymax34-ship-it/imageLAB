@@ -1,11 +1,18 @@
-// 通用闭合网格的透射正面通道（最小通用方案）。
+// 通用闭合网格的透射正面通道（最小通用方案，Double Refraction）。
 //
-// 结构参考 vercel-labs/vgpu 官方 MIT 示例 `apps/docs/examples/transmission/glass.wgsl`
-// （Fresnel、色散谱权重、粗糙度锥形采样、吸收），但把官方写死立方体的 `trace_cube_exit`
-// 换成「背面世界坐标预通道 + 当前正面片元」估算厚度与出射点：
-//   1. 背面预通道（`glass-back.wgsl`）把最近背面片元的世界坐标写进 back_tex（alpha=1 命中）；
-//   2. 正面片元在同一屏幕像素取回背面世界坐标，厚度 = |back - front| × 光学厚度倍数；
-//   3. 出射点 = 正面点 + 折射方向 × 厚度，投影回屏幕采样背景（可折射任意闭合挤出体）。
+// 结构参考 vercel-labs/vgpu 官方 MIT 仓库 `apps/docs/examples/transmission/glass.wgsl`
+// （commit 81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5；Fresnel、色散谱权重、粗糙度锥形
+// 采样、吸收、两次折射），但把官方写死立方体的 `trace_cube_exit` 换成「背面预通道 +
+// 当前正面片元」：
+//   1. 背面预通道（`glass-back-info.wgsl`）把最近背面片元的世界坐标写进 back_tex
+//      （alpha=1 命中）、世界法线写进 back_normal_tex；
+//   2. 正面片元先按官方逻辑做空气→玻璃的第一次折射；
+//   3. 命中背面时，用背面世界法线对 `inside` 做玻璃→空气的第二次折射
+//      （`refract(inside, -exit_normal, ior)`，与官方出射折射一致），出射点 =
+//      背面位置 + 出射方向 × 小步长，投影回屏幕采样背景；
+//   4. 未命中背面（边缘 / 背面超出视口）退回「沿内部方向 × 厚度」的旧屏幕空间近似。
+// 这是对任意闭合挤出网格的屏幕空间近似（背面法线是最近背面片元，不逐像素追踪
+// 折射后的射线交点），不是完整光线追踪；TIR 仍按反射处理。
 // 背面同一趟还会以 (1 - Fresnel) 的权重写进 sceneTarget，因此最终成像同时有前、后两个界面。
 // 支持明显折射、Fresnel、有限色散与有限 TIR（refract 失败按反射处理）；
 // 不承诺任意非流形 / 高度凹陷模型的多次内反射。
@@ -47,6 +54,8 @@ struct Glass {
 @group(0) @binding(3) var scene_samp: sampler;
 @group(0) @binding(4) var back_tex: texture_2d<f32>;
 @group(0) @binding(5) var back_samp: sampler;
+@group(0) @binding(6) var back_normal_tex: texture_2d<f32>;
+@group(0) @binding(7) var back_normal_samp: sampler;
 
 struct VertexOut {
   @builtin(position) position: vec4f,
@@ -110,6 +119,7 @@ fn fs_main(in: FragIn, @builtin(position) frag_coord: vec4f) -> @location(0) vec
   let screen_uv = frag_coord.xy / max(camera.resolution, vec2f(1.0));
 
   let back_sample = textureSampleLevel(back_tex, back_samp, screen_uv, 0.0);
+  let back_normal_sample = textureSampleLevel(back_normal_tex, back_normal_samp, screen_uv, 0.0);
   var thickness = glass.fallback_thickness * glass.thickness_scale;
   if (back_sample.a > 0.5) {
     thickness = max(length(back_sample.xyz - in.world_position), 1e-3) * glass.thickness_scale;
@@ -138,12 +148,19 @@ fn fs_main(in: FragIn, @builtin(position) frag_coord: vec4f) -> @location(0) vec
       inside = reflect(incident, normal);
     }
     inside = cone_direction(inside, i, cone_radius, rotation, f32(sample_count));
-    let exit_world = in.world_position + inside * thickness;
-    let exit_uv = clamp(
-      project_to_uv(camera.view_projection * vec4f(exit_world, 1.0)),
-      vec2f(0.0),
-      vec2f(1.0),
-    );
+    var exit_world = in.world_position + inside * thickness;
+    // Double refraction：出玻璃时用背面世界法线再折一次；小步长只为把采样点
+    // 挪到背面外侧。TIR（refract 返回零向量）退回旧的屏幕空间近似出射点。
+    var exit_uv = project_to_uv(camera.view_projection * vec4f(exit_world, 1.0));
+    if (back_sample.a > 0.5 && back_normal_sample.a > 0.5) {
+      let exit_normal = normalize(back_normal_sample.rgb);
+      let outgoing = refract(inside, -exit_normal, spectral_ior);
+      if (dot(outgoing, outgoing) > 1e-6) {
+        exit_world = back_sample.xyz + outgoing * 0.02;
+        exit_uv = project_to_uv(camera.view_projection * vec4f(exit_world, 1.0));
+      }
+    }
+    exit_uv = clamp(exit_uv, vec2f(0.0), vec2f(1.0));
     // dispersion = 0 时权重恒为 1 / 1 / 1，11 个样本平均后就是无分色的普通折射。
     let weight = select(vec3f(1.0), spectral_weight(t), glass.dispersion > 0.001);
     spectrum += textureSampleLevel(scene_tex, scene_samp, exit_uv, 0.0).rgb * weight;

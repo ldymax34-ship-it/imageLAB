@@ -62,8 +62,8 @@ test("建模→渲染网格交接结构为 position / normal / uv / index", () =
   assert.match(modelingJs, /indices/);
   assert.match(modelingJs, /onMesh/);
   assert.match(renderJs, /position: \{ format: "float32x3", offset: 0 \}/);
-  assert.match(renderJs, /normal: \{ format: "float32x3", offset: 12 \}/);
-  assert.match(renderJs, /uv: \{ format: "float32x2", offset: 24 \}/);
+  assert.match(renderJs, /normal: \{ format: "float32x3", offset: 12, location: 1 \}/);
+  assert.match(renderJs, /uv: \{ format: "float32x2", offset: 24, location: 2 \}/);
   assert.match(renderJs, /stride: 32/);
   assert.match(mainJs, /render\.setMesh\(snapshot\)|onMesh: \(snapshot\) => render\.setMesh\(snapshot\)/);
 });
@@ -75,9 +75,19 @@ test("渲染页签使用通用上传网格而不是固定 cube", () => {
   assert.ok(!/fn trace_cube_exit/.test(renderJs), "不应再使用写死立方体的官方 trace_cube_exit");
   const glassBack = read("tools/extrude3d/shaders/glass-back.wgsl");
   const glass = read("tools/extrude3d/shaders/glass.wgsl");
+  const glassBackInfo = read("tools/extrude3d/shaders/glass-back-info.wgsl");
   assert.match(glassBack, /world_position/);
   assert.match(glass, /back_tex/);
   assert.match(glass, /refract\(/);
+  // Double refraction：捕获背面位置 + 世界法线，出射时按背面法线再折一次。
+  assert.match(glassBackInfo, /BackInfoOut \{[\s\S]*?@location\(1\) world_normal: vec4f/);
+  assert.match(glass, /back_normal_tex/);
+  assert.match(glass, /refract\(inside, -exit_normal, spectral_ior\)/);
+  // 棱镜是 vgpu 官网三角玻璃的固定几何 / 管线，不套用任意 SVG 网格。
+  assert.match(renderJs, /renderPrismFrame/);
+  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/pipeline.js")));
+  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/scene/prism-mesh.js")));
+  assert.ok(existsSync(resolve(ROOT, "tools/extrude3d/prism/pipelines/glass/glass.wgsl")));
 });
 
 test("背景使用 effect() 内置全屏顶点通道（回归：不得再用 fragment-only draw）", () => {
@@ -204,7 +214,7 @@ test("玻璃背面像写进 sceneTarget，最终画面同时有前、后两个�
   assert.ok(scenePass, "找不到 sceneTarget 绘制趟");
   assert.match(scenePass[0], /pass\.draw\(glassBackDraw\);\s*\n\s*pass\.draw\(glassDraw\);/);
   // backTarget 仍是独立的深度目标，供正面通道估厚度。
-  assert.match(renderJs, /pass\.draw\(glassBackDraw\)[\s\S]{0,200}backTarget|backTarget[\s\S]{0,200}pass\.draw\(glassBackDraw\)/);
+  assert.match(renderJs, /target: backTarget, clear: \[0, 0, 0, 0\], clearDepth: 1/);
   const glassBackWgsl = read("tools/extrude3d/shaders/glass-back.wgsl");
   // 背面着色复用官方逻辑：法线朝向 select、Schlick 菲涅耳、studio_env 反射、吸收。
   assert.match(glassBackWgsl, /select\(-geometric_normal, geometric_normal, dot\(geometric_normal, view\) > 0\.0\)/);

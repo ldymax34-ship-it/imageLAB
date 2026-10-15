@@ -2,6 +2,38 @@
 
 本文件只记录可核对的改动，不写规划。
 
+### 2026-10-15 · vgpu 玻璃 Double Refraction + 官方棱镜场景 + 封面刷新 + 像素画中文化
+
+范围（用户本轮明确授权）：`tools/extrude3d` 玻璃/棱镜渲染、3 张首页封面、`tools/pixelit` 界面中文化；
+只做开源方案整合与必要适配。未接入 vgpu `typegpu-liquid-glass`（评估记录见 `THIRD_PARTY.md`）。
+DSH 桌面客户端不可用，本轮由 Codex 直接实施；不 push、不合并 main。
+
+- **SVG 3D 玻璃 Double Refraction**：新增 `glass-back-info.wgsl`，用 vgpu 0.6.0 双颜色附件捕获背面
+  世界坐标与世界法线；`glass.wgsl` 在光线离开玻璃时按背面法线执行第二次折射，TIR 回退原有限近似。
+  保留任意闭合挤出网格、背面可见、背景上传/移动、黑白背景、色散、吸收与透明 PNG；无 Simple/Double
+  切换控件，屏幕空间近似限制已在源码注释声明。
+- **官方棱镜场景**：新增 `tools/extrude3d/prism/`，来自 vgpu 官网首页三角玻璃（上游 commit
+  `81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5`，MIT），只保留运行时场景、Shader、烘焙环境与相机，
+  排除 React 外壳、dust、wireframe、调试/性能面板与主题系统；渲染材质区新增「场景」入口，可在
+  「SVG 模型」与「官方棱镜」间切换，切回后保留用户当前 SVG。
+- **封面**：`shaders-halftone` / `pixelit` / `image-to-pixel` 改用对应上游仓库官方示意图（来源与
+  许可见 `THIRD_PARTY.md`）；`image-to-ascii` 保持现状并标记「素材许可待确认」；
+  `assets/tools.js` 16 个 `coverQuery` 统一改为 `20261015-upstream`。
+- **像素画中文化**：`tools/pixelit/index.html` `lang=zh-CN` 并翻译操作界面；ID / class / DOM / 事件与
+  `pixelit.min.js` 未改，API 方法名、代码示例和 Pixel It 来源名保留英文。
+
+- **验证**：`npm test` **67/67**（含 58 项静态自检）；`node scripts/check.mjs` **58/58**；
+  `npm run build` 通过；`git diff --check` 通过。棱镜管线先经 vgpu mock 全链路
+  （create → compile → render → resize → render）验证为 `PIPELINE_OK`；真实 Chrome WebGPU 冒烟与
+  视觉验收：真实 Chrome（Apple M5 Pro）`IMAGELAB_BROWSER_TESTS=on npm run smoke -- home extrude3d
+  pixelit shaders-halftone image-to-pixel image-to-ascii` **6/6 规格、275 项全过、0 页面错误**，
+  其中 extrude3d **79/79**（7 材质、透明 PNG 1×/2×、背景上传/缩放/平移、玻璃前后界面）。
+  修复合入前曾出现的「玻璃背面信息预通道未随双附件目标编译」回归（单输出 shader 误编译到
+  双颜色附件 target），根因修复后真机管线创建成功。另以临时 Playwright 脚本在真机切换
+  `#render-scene`：官方棱镜编译渲染成功（截图确认为官方三角玻璃 + 白光入射 + 内部光谱色散 +
+  出射光，非彩虹渐变贴图），切回 SVG 模型后渲染页签恢复就绪并保留当前网格。PNG 导出经
+  smoke 实测四角 alpha=0、模型像素保留，非透明空图。
+
 ## [未发布] integration/first-batch · 第一轮批量整合
 
 ### 2026-10-14 · 刷新全部工具缩略图 + 外链本地缩略图 + 品牌素材生成外链入口（DSH 执行实现；Codex 已完成实际抓图与独立验收）

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,73 +9,73 @@
  <link rel="stylesheet" href="assets/slim.select.css">
  <link rel="stylesheet" href="../../assets/backlink.css">
 
- <title>Pixel It - Create pixel art from an image</title>
+ <title>像素画 Pixel It · 图片转像素画</title>
 </head>
 <body>
 <a class="il-back" href="../../index.html">← 返回首页</a>
   <header>
-   <h1>Pixel It<span></span></h1>
-   <p>Javascript library to create pixel art from an image.</p>
+   <h1>像素画<span>Pixel It</span></h1>
+   <p>把图片转换成像素画的开源 JavaScript 库。</p>
    <div class="actions">
-      <a href="#tryit" class="btn call">try it</a>
-      <a href="#examples" class="btn ">examples</a>
-      <a href="#docs" class="btn">Documentation</a>
-      <a href="LICENSE" class="btn" title="MIT license">license</a>
+      <a href="#tryit" class="btn call">开始使用</a>
+      <a href="#examples" class="btn ">示例</a>
+      <a href="#docs" class="btn">使用文档</a>
+      <a href="LICENSE" class="btn" title="MIT 许可证">许可证</a>
    </div>
 
   </header>
  <section class="example" id="examples">
    <div class="wrap">
-    <p>Pixel It allows you to take an image and convert into pixel art. You can define the "pixel" size, create a pixel image using a color palette and also convert to a pixel grayscale image.</p>
-    <p>You can use Pixel It to be your jump start to make some pixel art. Check the documentation for all the available api methods.</p>
+    <p>Pixel It 可以把一张图片转换成像素画：可以设置「像素」大小、用调色板重建颜色，也可以转换成灰度像素画。</p>
+    <p>可以把它当作像素画创作的起点；全部 API 方法见下方文档。</p>
 
-    <h2>Default usage</h2>
-    <p>Blocksize of 7 and no other modification</p>
-    <img src="assets/px-normal.jpg" alt="image pixelated block 4">
+    <h2>基础用法</h2>
+    <p>像素大小 7，其他参数保持默认。</p>
+    <img src="assets/px-normal.jpg" alt="像素大小 4 的示例图">
 
-    <h2>Color palette</h2>
-    <p>Blocksize of 17 and a 4 Color palette</p>
-    <img src="assets/px-palette4c.jpg" alt="image pixelated 4c palette">
+    <h2>调色板</h2>
+    <p>像素大小 17，4 色调色板。</p>
+    <img src="assets/px-palette4c.jpg" alt="4 色调色板像素化示例">
 
-    <h2>Greyscale</h2>
-    <p>blocksize of 10 and greyscale</p>
-    <img src="assets/px-grey.jpg" alt="image pixelated greyscale">
+    <h2>灰度</h2>
+    <p>像素大小 10 并启用灰度。</p>
+    <img src="assets/px-grey.jpg" alt="灰度像素画示例">
 
-    <h2>Color palette</h2>
-    <p>Blocksize of 8 and a 16 Color palette</p>
-    <img src="assets/px-16cp.jpg" alt="image pixelated 16c palette">
+    <h2>调色板</h2>
+    <p>像素大小 8，16 色调色板。</p>
+    <img src="assets/px-16cp.jpg" alt="16 色调色板像素化示例">
 
     </div>
   </section>
 <section class="working">
   <div class="wrap">
-  <h2>Pixel It now</h2>
-  <p>You can try pixel It live here, you can use the default image (just change some value) or upload an image to start see the changes.</p>
-  <p>Local sample image: <a href="assets/sample.png">assets/sample.png</a> (a generated test photo shipped with this offline copy).</p>
+  <h2>在线体验</h2>
+  <p>可以直接在这里试用：用默认图片（随意调整参数），或上传自己的图片查看效果。</p>
+  <p>本地示例图片：<a href="assets/sample.png">assets/sample.png</a>（随本离线副本提供的程序生成测试照片）。</p>
 
   <!-- max width -->
 <div class="container maxwidth" id="tryit">
   <div class="selectors">
     <!--upload image -->
     <span id="uploadspan">
-    <label id="uploadimage" for="pixlInput">Upload Image<input type="file" class="inputbtn" id="pixlInput"></label>
+    <label id="uploadimage" for="pixlInput">上传图片<input type="file" class="inputbtn" id="pixlInput"></label>
   </span>
     <!-- block size -->
-    <label for="blocksize" class="inputbtn">Block size<span id="blockvalue">7</span><input value="7" type="range" min="1" max="50" id="blocksize"></label>
+    <label for="blocksize" class="inputbtn">像素大小<span id="blockvalue">7</span><input value="7" type="range" min="1" max="50" id="blocksize"></label>
     <!-- greyscale -->
-    <label for="greyscale" class="inputbtn" >Greyscale<input type="checkbox" id="greyscale"></label>
+    <label for="greyscale" class="inputbtn" >灰度<input type="checkbox" id="greyscale"></label>
     <!-- palette -->
-    <label for="palette" class="inputbtn">palette<input type="checkbox"  id="palette"></label>
+    <label for="palette" class="inputbtn">调色板<input type="checkbox"  id="palette"></label>
     <!-- max height -->
-    <label for="maxheight" class="inputbtn">Max Height<input type="input"  id="maxheight" placeholder="in px"></label>
+    <label for="maxheight" class="inputbtn">最大高度<input type="input"  id="maxheight" placeholder="像素"></label>
     <!-- max width -->
-    <label for="maxwidth" class="inputbtn">Max Width<input type="input" id="maxwidth" placeholder="in px"></label>
+    <label for="maxwidth" class="inputbtn">最大宽度<input type="input" id="maxwidth" placeholder="像素"></label>
   </div>
   <div class="infoselects">
    <!-- color palette example-->
    <div class="colorpalette">
     <div class="text">
-      <button class="btn small" id="changepalette">Select palette</button>
+      <button class="btn small" id="changepalette">选择调色板</button>
       <select name="paletteselector" id="paletteselector"></select>
     </div>
     <div class="icons" id="palettecolor">
@@ -83,36 +83,36 @@
     </div>
    </div>
    <div class="infoselects">
-    <h3>Upload palette</h3>
-    <p>The user can upload a palette file, Works for .hex files, pixilart.com txt files, Paint.net TXT files and probably others as long as they are in a csv-like format.</p>
+    <h3>上传调色板</h3>
+    <p>可以上传调色板文件：支持 .hex、pixilart.com 导出的 txt、Paint.net 的 TXT，以及其他类似 csv 的格式。</p>
     <!--upload palette -->
-    <label id="uploadpalettelabel" for="uploadpalettefile">Upload palette <input type="file" class="inputbtn" id="uploadpalettefile" accepts=".hex, .txt"></label>
+    <label id="uploadpalettelabel" for="uploadpalettefile">上传调色板 <input type="file" class="inputbtn" id="uploadpalettefile" accepts=".hex, .txt"></label>
   
    </div>
    <!-- custom palette -->
    <div class="infoselects">
-    <h3>Manual palette</h3>
-    <p>Click on the color to change it</p>
+    <h3>手动调色板</h3>
+    <p>点击颜色方块即可修改颜色。</p>
     <div class="custompalette" id="custompalette">
       <input type="color" name="customcolor" id="customcolor">
-      <button class="btn small" id="addcustomcolor">Add Color</button>
+      <button class="btn small" id="addcustomcolor">添加颜色</button>
     </div>
     <div id="currentpallete" class="colorpalette"> </div>
-    <button class="btn small" id="savecustompalette">Save Palette</button>
-    <p>After clicking save you need to refresh to see the palette added</p>
-    <button class="btn small" id="clearcustompalettes">Clear Custom Palettes</button>
-    <p>Click clear to remove all of your custom palettes, this is irreversible. Refresh to see changes.</p>
+    <button class="btn small" id="savecustompalette">保存调色板</button>
+    <p>点击保存后，刷新页面才能看到新增的调色板。</p>
+    <button class="btn small" id="clearcustompalettes">清空自定义调色板</button>
+    <p>点击清空会移除全部自定义调色板，且不可恢复；刷新页面后生效。</p>
    </div>
    <div class="dothings">
    <!-- download image -->
-   <Button id="downloadimage" class="btn small call">Download Image</Button>
+   <Button id="downloadimage" class="btn small call">保存图片</Button>
    </div>
 
   </div>
 
   <canvas id="pixelitcanvas"></canvas>
   <div class="tip">
-    <p>Pixel It is MIT licensed. This page is an offline copy: the library, styles, fonts and example images are all served from this folder.</p>
+    <p>Pixel It 采用 MIT 许可证。本页是离线副本：库、样式、字体与示例图片都来自本文件夹。</p>
    </div>
  </div>
 
@@ -120,9 +120,9 @@
 </section>
  <section class="docs" id="docs">
    <div class="wrap withmargins">
-  <h2>Documentation</h2>
-  <h3>Quick usage</h3>
-  <p>To use the quick default configuration you need an element from where to draw the image and canvas element with the id pixelitcanvas. Then load the pixelit.js script and apply it on an image.</p>
+  <h2>使用文档</h2>
+  <h3>快速上手</h3>
+  <p>使用默认配置时，需要一个提供图片的元素和一个 id 为 pixelitcanvas 的画布元素；载入 pixelit.js 脚本后即可对图片应用效果。</p>
   <pre>
 &lt;img src="assets/sky.jpg"  id="pixelitimg" alt=""&gt;
 &lt;canvas id="pixelitcanvas"&gt;&lt;/canvas&gt;
@@ -134,8 +134,8 @@
 &lt;/script</pre>
 
 
-  <h3>Options</h3>
-  <p>You can pass some options when creating the instance (you can alter them later using the api methods).</p>
+  <h3>配置项</h3>
+  <p>创建实例时可以传入一些配置项（之后也能用 API 方法修改）。</p>
   <pre>
 config = {
   to : elem, defaults to document.getElementById("pixelitcanvas")
@@ -148,9 +148,9 @@ config = {
   </pre>
 
 
-  <h3>API</h3>
-  <p>You can chain all methods together, beware that the order they are applied can change the final result.</p>
-  <p>Applying first the color palette and then the greyscale can give a slightlity different image.</p>
+  <h3>API 方法</h3>
+  <p>所有方法都可以链式调用；注意调用顺序会影响最终结果。</p>
+  <p>先应用调色板再做灰度，与相反顺序会得到略有差异的图片。</p>
 
 <p class="api"><strong>.draw()</strong> draw to canvas from image source and resizes if max height or max width is reached</p>
 <p class="api"><strong>.hideFromImg()</strong> hides the from image element, is applied on object creation</p>
@@ -173,7 +173,7 @@ config = {
 
 </section>
  <section class="links"><div class="wrap">
-   <a href="LICENSE" class="btn call github" title="MIT license">license</a>
+   <a href="LICENSE" class="btn call github" title="MIT 许可证">许可证</a>
   </div></section>
   <img src="assets/sky.jpg"  id="pixelitimg" alt="">
   <!--<img style="visibility: hidden;" id="pixlimg" alt="">  -->

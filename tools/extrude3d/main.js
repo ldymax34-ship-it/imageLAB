@@ -43,6 +43,7 @@ const modelingEls = {
 };
 
 const renderEls = {
+  scene: $("render-scene"),
   material: $("render-material"),
   color: $("render-color"),
   roughness: $("render-roughness"),

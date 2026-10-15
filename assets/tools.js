@@ -21,7 +21,7 @@ window.IMAGELAB_TOOLS = [
     href: "tools/extrude3d/index.html",
     cover: "assets/covers/extrude3d.png",
     // 本批统一刷新全部封面，强制换新 query 避免首页命中旧封面缓存；真实封面由验收方导出。
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "三维 立体 3d svg 挤出 倒角 材质 金属 玻璃 extrude",
   },
   {
@@ -31,7 +31,7 @@ window.IMAGELAB_TOOLS = [
     cat: "着色器效果",
     href: "tools/shaders-logo/index.html",
     cover: "assets/covers/shaders-logo.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "logo 液态金属 宝石 遮罩 着色器 metal",
   },
   {
@@ -41,7 +41,7 @@ window.IMAGELAB_TOOLS = [
     cat: "着色器效果",
     href: "tools/shaders-bg/index.html",
     cover: "assets/covers/shaders-bg.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "背景 渐变 噪声 网格 神光 融球 着色器 background gradient",
   },
   {
@@ -51,7 +51,7 @@ window.IMAGELAB_TOOLS = [
     cat: "着色器效果",
     href: "tools/shaders-halftone/index.html",
     cover: "assets/covers/shaders-halftone.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "半调 网点 cmyk 印刷 抖动 halftone dots",
   },
   {
@@ -61,7 +61,7 @@ window.IMAGELAB_TOOLS = [
     cat: "版式与切片",
     href: "tools/psychos/index.html",
     cover: "assets/covers/psychos.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "版式 拼贴 切片 shuffle slice 生成式 海报",
   },
   {
@@ -71,7 +71,7 @@ window.IMAGELAB_TOOLS = [
     cat: "像素与点阵",
     href: "tools/pixelit/index.html",
     cover: "assets/covers/pixelit.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "像素 复古 8bit 点阵 调色板 pixel art",
   },
   {
@@ -81,7 +81,7 @@ window.IMAGELAB_TOOLS = [
     cat: "像素与点阵",
     href: "tools/image-to-pixel/index.html",
     cover: "assets/covers/image-to-pixel.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "像素 抖动 dither 二值 调色板 复古 bayer atkinson",
   },
   {
@@ -91,7 +91,7 @@ window.IMAGELAB_TOOLS = [
     cat: "字符与文字",
     href: "tools/image-to-ascii/index.html",
     cover: "assets/covers/image-to-ascii.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "字符 ascii 文字 点阵 终端 text art",
   },
   {
@@ -101,7 +101,7 @@ window.IMAGELAB_TOOLS = [
     cat: "纹理生成",
     href: "tools/texture/index.html",
     cover: "assets/covers/texture.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "纹理 图案 无缝 点阵 曲线 pattern seamless",
   },
   {
@@ -111,7 +111,7 @@ window.IMAGELAB_TOOLS = [
     cat: "字符与文字",
     href: "tools/mixed-type/index.html",
     cover: "assets/covers/mixed-type.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "文字 混排 中英文 排版 字族 海报 描边 字体 typography poster",
   },
   {
@@ -121,7 +121,7 @@ window.IMAGELAB_TOOLS = [
     cat: "像素与点阵",
     href: "tools/wave-grid/index.html",
     cover: "assets/covers/wave-grid.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "点阵 发光 条带 字母 logo led 矩阵 动效 辉光 glow grid matrix 光丝 方向模糊",
   },
   {
@@ -131,7 +131,7 @@ window.IMAGELAB_TOOLS = [
     cat: "字符与文字",
     href: "tools/ascii-motion/index.html",
     cover: "assets/covers/ascii-motion.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "字符画 ascii 动态 水母 圆环 隧道 波形 三维 动画 jellyfish",
   },
   {
@@ -146,7 +146,7 @@ window.IMAGELAB_TOOLS = [
     href: "https://spacetypegenerator.com/",
     external: true,
     cover: "assets/covers/space-type-generator.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "动态文字 文字动画 排版 字体 kinetic typography space type generator spacetypegenerator"
   },
   {
@@ -157,7 +157,7 @@ window.IMAGELAB_TOOLS = [
     href: "https://eng.basement.studio/tools/shader-lab",
     external: true,
     cover: "assets/covers/shader-lab.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "着色器 shader 效果堆叠 组合 实时预览 basement studio shader lab"
   },
   {
@@ -168,7 +168,7 @@ window.IMAGELAB_TOOLS = [
     href: "https://www.tooooools.app/",
     external: true,
     cover: "assets/covers/tooooools.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "网点 半调 点阵 图像 halftone dots tooooools"
   },
   {
@@ -183,7 +183,7 @@ window.IMAGELAB_TOOLS = [
     href: "https://brand-generator.stoyanov.works/",
     external: true,
     cover: "assets/covers/brand-assets-generator.png",
-    coverQuery: "20261014-refresh1",
+    coverQuery: "20261015-upstream",
     keywords: "品牌 素材 生成器 logo 版式 组合 assets brand generator stoyanov"
   }
 ];
