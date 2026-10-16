@@ -2,7 +2,8 @@
   "staticDirs": [
     "tools/texture",
     "tools/pixelit",
-    "tools/image-to-ascii"
+    "tools/image-to-ascii",
+    "tools/fui-scatter"
   ],
   "extraDirs": [],
   "extraFiles": [

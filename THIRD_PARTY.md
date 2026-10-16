@@ -33,6 +33,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 | basementstudio/shader-lab | commit `6f39a889db74978d93d882643e3cd2073b3666d6`（pin） | Apache-2.0 | `tools/wave-grid` 的方向模糊（长度 / 角度分离）与多级 bloom 的**思路适配** | 见下 |
 | blakeshao/a-psychos-gd-tool | commit `bdc8808526681e4c16a8b9f2937dc571dc0dd1e7` | MIT | `tools/psychos` 节点式版式工具（含 Slice / Shuffle / PNG 导出） | 见下 |
 | JetBrains Mono（字体子集） | 随 a-psychos-gd-tool 分发 | SIL OFL 1.1 | psychos 界面字体 | 未改动 |
+| sashamartinsen/fui-scatter | commit `bd940620806bedfb3350fec042ab2b37a4076af2`（`main` HEAD；`gh-pages` `e23d092dccfba48f3e4e4c78fbbb061a29f9c85` 内容与其 `dist/` 一致） | **MIT**（代码）/ **CC BY 4.0**（原始视觉素材、shape sets 与设计） | `tools/fui-scatter` 矢量图层散布：SVG 图层组合生成器（散布 / 镜像 / 万花筒 / 网格 + Bloom / 色差 / 颗粒 / CRT 后期） | 见下 |
 
 ## 逐项改动说明
 
@@ -169,6 +170,41 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 - 光带场的数值结构（斜向四分带、噪声分段、白核与亮簇）是 imageLAB 自有实现，见 `tools/wave-grid/field.js`；
   逐格噪声由 `three@0.186.1` 自带的 `examples/jsm/math/SimplexNoise.js`（MIT）在布局时预计算。
 
+### tools/fui-scatter · 矢量图层散布
+
+- **整合模式：静态搬运 + 入口页外壳适配 + 界面文案汉化**。上游 `dist/` 就是可直接静态运行的成品
+  （上游 README 明确「No backend or build dependencies are needed」、使用相对 URL、可在仓库子路径下运行），
+  因此把 `dist/` 整个复制到 `tools/fui-scatter/`：接入时除 `index.html` 外与上游固定 commit
+  `bd940620806bedfb3350fec042ab2b37a4076af2` **逐字节一致**（`diff -rq` 复核，55 个文件中仅入口页有差异）；
+  随后经用户专项授权对入口页与 JS 用户可见文案做中文替换，因此现版本**已不是上游的逐字节副本**
+  （预设 JSON 与 `shape-library/*.svg` 素材未改）。
+  不参与 Vite 多页打包，登记在 `scripts/static-tools.json` 的 `staticDirs`，由 `npm run build` 整体复制进 `dist/`。
+- **入口页外壳**：`tools/fui-scatter/index.html` 注入共享工具外壳——head 增加一条
+  `<link rel="stylesheet" href="../../assets/backlink.css">`，body 首个元素增加
+  `<a class="il-back" href="../../index.html">← 返回首页</a>`（13 个工具统一左上返回）。
+- **界面汉化（用户专项授权）**：`index.html` 与 `app.js` / `engine.js` / `composition-presets.js` /
+  `shape-library.js` / `fx-panels.js` / `render.js` / `svg-assets.js` 的用户可见文案（静态外壳、动态 UI、图层参数、
+  `title` / `aria-label`、状态与错误、预设保存弹窗、导出提示）改为中文；保留品牌 `FUI SCATTER`、作者署名、
+  上游素材库名 `b1` / `y2k` / `fui` / `uav` 与素材 / 预设文件名、`SVG` / `PNG` / `CRT` / `RGB` / `px` / `°` 等常用缩写、
+  用户输入与用户预设名；DOM id、枚举值、持久化键、路径与导出文件名不变。新建 / 复制图层的默认名改为「图层 N」；
+  模块路径与素材相对路径继续使用站内相对引用。
+- **无后端、无远程运行时依赖**：静态扫描确认加载期引用全部是相对路径；代码里仅有的 `http(s)://`
+  字面量是 SVG / Inkscape / `w3.org` 的 XML 命名空间常量（`svg-assets.js` 与内联 favicon），不产生网络请求。
+  素材库与内置预设的 `fetch()` 都是站内相对路径（`shape-library/manifest.json`、`presets/manifest.json`
+  与同目录 JSON / SVG）；本地构图预设保存在浏览器 IndexedDB，不上传，也没有远程字体（界面只用
+  `Inter, "Segoe UI", Arial, sans-serif` 这类本机字体族，仓库不分发字体文件）。
+- **导出能力保留（未重写）**：上游自带 `Export PNG`（界面汉化为「导出 PNG」），1× / 2× / 4×，从矢量源按导出分辨率
+  **重新渲染**并叠加当前 Bloom / 色差 / 颗粒 / CRT 后期后下载 `scatter-<w>x<h>.png`；另有上游自带的
+  `.scatter.json` 构图预设导入 / 导出（IndexedDB + 下载）。汉化轮次只替换用户可见文案，**未改导出实现与效果参数**。
+- **许可**：代码 MIT（原文 [`third-party-licenses/fui-scatter-LICENSE.txt`](third-party-licenses/fui-scatter-LICENSE.txt)）；
+  原始视觉素材、shape sets 与设计 CC BY 4.0（原文
+  [`third-party-licenses/fui-scatter-LICENSE-ASSETS.md`](third-party-licenses/fui-scatter-LICENSE-ASSETS.md)，
+  署名 Copyright (c) 2026 Sasha Martinsen，许可地址 https://creativecommons.org/licenses/by/4.0/ ）。
+  两份原文同时随整合副本放在 `tools/fui-scatter/LICENSE` 与 `tools/fui-scatter/LICENSE-ASSETS.md`，随分发保留署名。
+- **封面缺口（如实登记）**：上游仓库不含任何**成品预览图 / 截图**，只有无背景的矢量素材；本项目不自行合成封面、
+  不 AI 生图、也不截测试图，因此 `public/assets/covers/fui-scatter.png` 登记为「待生成」，
+  首页在此之前显示既有中性文字占位（不伪造效果图），待验收方用 `scripts/capture-covers.mjs` 抓取真实导出补齐。
+
 ## 明确排除（未接入）
 
 | 项目 | 原因 |
@@ -179,6 +215,7 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 | @visant/logo-trace | 依赖 `sharp` 原生模块，浏览器端可行性未证实 |
 | vgpu（旧的「不接入」结论已作废） | 2026-10-14 用户专项授权后接入 `vgpu@0.6.0`（MIT）：渲染页签只使用浏览器主入口，PBR / 透射 WGSL 由官方 MIT 示例最小改写；Node 端 Dawn 适配器不被浏览器构建引用 |
 | danielpetho/cmyk-halftone-emulator | 派生 shader 的上游（Shadertoy `fdjyR1`）许可未证实 |
+| sashamartinsen/auto-dither-journal-poster（字符抖动海报，Dither//ASCII Poster Tool） | 上游仓库根目录只有 `README.md` / `app.js` / `index.html` / `style.css`，**没有 LICENSE**（`LICENSE.md` 亦 404），README 与源码均无版权 / 许可声明，GitHub 仓库页也无 license 字段 → 许可证据不足、无明确授权：**不复制源码 / 不本地部署 / 不 iframe / 不引入运行时请求，也不截取 / 复制其素材**，仅在 `assets/tools.js` 登记为首页外链入口（无 cover，中性文字占位） |
 | vgpu `examples/typegpu-liquid-glass` | 固定 TypeGPU Logo 的二维 SDF 多通道效果，不是任意 SVG 3D 网格材质；需要 `typegpu` 依赖。可作为后续独立「液态玻璃」工具；支持上传自定义 SVG/Logo 需要新增遮罩或 SDF 生成能力，应另开任务。不与本轮 Transmission Double、色散光束强行合并 |
 
 ## 首页封面素材来源（2026-10-15 刷新）
@@ -191,6 +228,11 @@ imageLAB 只做开源方案的整合：页面外壳、入口连接、参数映�
 | `public/assets/covers/pixelit.png` | giventofly/pixelit | `docs/assets/px-palette4c.jpg` | `9c53dfa` | MIT |
 | `public/assets/covers/image-to-pixel.png` | Tezumie/Image-to-Pixel | `cover.png` | `46f80e2` | MIT |
 | `public/assets/covers/image-to-ascii.png` | nitch193/Image-to-Ascii | README 内嵌 Tanjiro 示例 PNG | `71da7bc` | **素材许可待确认**；作者与再分发依据未核实，本轮保持现状、不复制替代图 |
+| `public/assets/covers/fui-scatter.png` | sashamartinsen/fui-scatter | 无（上游不含成品预览图 / 截图，只有无背景矢量素材） | `bd94062` | **待生成缺口**：本项目不合成封面、不 AI 生图、不截测试图；首页显示中性文字占位，待验收方用 `scripts/capture-covers.mjs` 抓取真实导出补齐 |
+
+> 外链入口 `auto-dither-journal-poster`（字符抖动海报）**不登记封面**，因此上表没有它的条目：
+> 上游无 LICENSE / 无授权声明，本项目不截取其页面、不复制其素材，首页只走既有「外部网站 · 跳转官网」
+> 中性文字占位。`scripts/capture-external-covers.mjs` 只覆盖 4 个已登记封面的外链，不含该入口。
 
 ## 本项目自身的代码
 

@@ -79,10 +79,11 @@ test("渲染页签使用通用上传网格而不是固定 cube", () => {
   assert.match(glassBack, /world_position/);
   assert.match(glass, /back_tex/);
   assert.match(glass, /refract\(/);
-  // Double refraction：捕获背面位置 + 世界法线，出射时按背面法线再折一次。
+  // Double refraction：捕获背面位置 + 世界法线，出射时按背面法线再折一次
+  // （预通道法线已朝向入射侧，直接传 exit_normal）。
   assert.match(glassBackInfo, /BackInfoOut \{[\s\S]*?@location\(1\) world_normal: vec4f/);
   assert.match(glass, /back_normal_tex/);
-  assert.match(glass, /refract\(inside, -exit_normal, spectral_ior\)/);
+  assert.match(glass, /refract\(inside, exit_normal, spectral_ior\)/);
   // 光束作用于**用户当前 SVG 模型**：玻璃实体仍是上传网格，没有固定三角棱镜场景。
   assert.match(renderJs, /createBeamPass/);
   assert.match(renderJs, /beamActive\(\)/);
@@ -176,7 +177,7 @@ test("图片素材按 sRGB → 线性采样（回归画面发白 / 颜色被二�
   // 不允许再叠一次 convertSRGBToLinear（会二次转换，中间灰被压近黑）。
   assert.ok(!/\.convertSRGBToLinear\(\)/.test(renderJs), "不能二次调用 convertSRGBToLinear");
   const baseColorUses = renderJs.match(/base_color: (?:srgbToLinear\(state\.color\)|baseColor)/g) || [];
-  assert.ok(baseColorUses.length >= 3, `玻璃正面 / 背面 / PBR 基色都应线性化，实际 ${baseColorUses.length} 处`);
+  assert.ok(baseColorUses.length >= 2, `玻璃正面 / PBR 基色都应线性化，实际 ${baseColorUses.length} 处`);
   assert.match(renderJs, /const baseColor = srgbToLinear\(state\.color\);/);
   assert.match(renderJs, /color: srgbToLinear\(state\.bgColor\)/);
 });
@@ -216,42 +217,90 @@ test("应用黑 / 白预设切回纯色并同步颜色输入与选中态", () =>
 
 /* ------------------------------------------------- 玻璃前后界面：pass / cull / 管线 */
 
-test("玻璃背面像写进 sceneTarget，最终画面同时有前、后两个界面", () => {
+test("玻璃背面贡献进入正面透射：背面反射独立成目标，sceneTarget 只画正面", () => {
   // 背面通道剔除正面（cull: front），正面通道剔除背面（cull: back）。
   assert.match(renderJs, /glassBackDraw = draw\(gpu, \{ shader: glassBackWgsl, geometry: meshGeometry, cull: "front" \}\)/);
   assert.match(renderJs, /glassDraw = draw\(gpu, \{ shader: glassWgsl, geometry: meshGeometry, cull: "back" \}\)/);
-  // sceneTarget 那一趟在玻璃材质下先背面、再正面（两个界面都参与最终合成）。
+  // 背面界面反射写进独立的带深度目标（最近背面片元胜出），不再画进 sceneTarget。
+  assert.match(renderJs, /backShadeTarget = target\(gpu, \{ size: targetSize, format: "rgba16float", depth: true \}\)/);
+  assert.match(renderJs, /target: backShadeTarget, clear: \[0, 0, 0, 0\], clearDepth: 1/);
+  assert.match(renderJs, /glassBackDraw\.compile\(backShadeTarget\)/);
+  // sceneTarget 那一趟在玻璃材质下只画正面（背面已在正面透射里合成）。
   const scenePass = renderJs.match(/currentFrame\.pass\(\{ target: sceneTarget[\s\S]*?\n      \}\);/);
   assert.ok(scenePass, "找不到 sceneTarget 绘制趟");
-  assert.match(scenePass[0], /pass\.draw\(glassBackDraw\);\s*\n\s*pass\.draw\(glassDraw\);/);
-  // backTarget 仍是独立的深度目标，供正面通道估厚度。
+  assert.match(scenePass[0], /pass\.draw\(glassDraw\);/);
+  assert.ok(!/pass\.draw\(glassBackDraw\)/.test(scenePass[0]), "sceneTarget 不得再画背面（会被正面覆盖）");
+  // backTarget 仍是独立的深度目标，供正面通道求出射点与第二次折射。
   assert.match(renderJs, /target: backTarget, clear: \[0, 0, 0, 0\], clearDepth: 1/);
   const glassBackWgsl = read("tools/extrude3d/shaders/glass-back.wgsl");
-  // 背面着色复用官方逻辑：法线朝向 select、Schlick 菲涅耳、studio_env 反射、吸收。
+  const glass = read("tools/extrude3d/shaders/glass.wgsl");
+  // 背面着色复用官方逻辑：法线朝向 select、Schlick 菲涅耳、studio_env 反射；输出 premultiplied。
   assert.match(glassBackWgsl, /select\(-geometric_normal, geometric_normal, dot\(geometric_normal, view\) > 0\.0\)/);
-  assert.match(glassBackWgsl, /fn fresnel_scale\(facing: f32\) -> f32/);
+  assert.match(glassBackWgsl, /fn fresnel_scale\(ior: f32, facing: f32\) -> f32/);
   assert.match(glassBackWgsl, /studio_env\(/);
-  assert.match(glassBackWgsl, /exp\(-glass\.absorption \* path\)/);
-  // 正面通道仍读 back_tex 估厚度 / 出射。
-  assert.match(read("tools/extrude3d/shaders/glass.wgsl"), /back_sample\.a > 0\.5/);
+  assert.match(glassBackWgsl, /return vec4f\(reflection \* fresnel, fresnel\)/);
+  // 旧版「相机到背面顶点的距离当吸收光程」已删除：吸收只在正面按真实厚度算一次。
+  assert.ok(!/exp\(-glass\.absorption \* path\)/.test(glassBackWgsl), "背面不应再用相机距离做吸收");
+  // 正面通道读背面界面与环境并按 premultiplied 语义合成，同时把光束纳入透射。
+  assert.match(glass, /back_sample\.a > 0\.5/);
+  assert.match(glass, /back_shade_tex/);
+  // 环境调制只对纯色背板生效（pure_backdrop 由 render-vgpu.js 按 bgMode === "pure" 映射）；
+  // 棚拍 / 图片背景已是渲染好的辐亮度，必须原样进入透射，否则会被整体压暗、色散位移失真。
+  assert.match(glass, /let backdrop = textureSampleLevel\(scene_tex, scene_samp, exit_uv, 0\.0\)\.rgb;/);
+  assert.match(glass, /struct Glass \{[\s\S]*?pure_backdrop: f32,[\s\S]*?\}/);
+  assert.match(glass, /select\([\s\S]*?backdrop,[\s\S]*?backdrop \* env_radiance,[\s\S]*?glass\.pure_backdrop > 0\.5/);
+  assert.ok(!/let environment = backdrop \* env_radiance \+ beam;/.test(glass), "环境调制不得再无条件乘到所有背景");
+  assert.match(renderJs, /pure_backdrop: state\.bgMode === "pure" \? 1 : 0/);
+  // 光束仍无条件加在透射上（开关关闭时绑定黑色贴图，恒为 0）。
+  assert.match(glass, /\) \+ beam;/);
+  // 背面内侧界面反射用「内部入射方向 + 背面法线」的真实反射方向（不再是视线反射）。
+  assert.match(glass, /reflect\(inside, exit_normal\)/);
+  // premultiplied 合成：背面反射 + 环境 × 背面透射。
+  assert.match(glass, /let through = back_reflection \+ environment \* back_transmission;/);
+  assert.match(glass, /beam_tex/);
+  // Double refraction：第二次折射的法线必须朝入射侧（预通道法线已朝向相机）。
+  assert.match(glass, /refract\(inside, exit_normal, spectral_ior\)/);
+  assert.ok(!/refract\(inside, -exit_normal/.test(glass), "第二次折射法线方向不得再取反");
+  // 光束不再整体贴在模型之上：present 只在轮廓之外叠加。
+  const presentWgsl = read("tools/extrude3d/shaders/present.wgsl");
+  assert.match(presentWgsl, /\(1\.0 - scene_alpha\)/);
+  assert.match(presentWgsl, /scene\.rgb \* scene_alpha/);
   // 不引入 raymarch / SDF / 第二套引擎（注释里的否定说明不算实现）。
-  const glassCode = (glassBackWgsl + read("tools/extrude3d/shaders/glass.wgsl")).replace(/\/\/[^\n]*/g, "");
+  const glassCode = (glassBackWgsl + glass).replace(/\/\/[^\n]*/g, "");
   assert.ok(
     !/sculpture_distance|march_surface|ray_march|raymarch|sdf_distance/i.test(glassCode),
     "玻璃着色器不应引入 raymarch / SDF"
   );
 });
 
-test("背面通道的 uniform 与背面 WGSL 结构一致（camera_position + 玻璃字段）", () => {
+test("背面通道的 uniform 与背面 WGSL 结构一致（camera_position + 界面反射字段）", () => {
   const glassBackWgsl = read("tools/extrude3d/shaders/glass-back.wgsl");
   assert.match(glassBackWgsl, /struct BackCamera \{[\s\S]*?camera_position: vec3f,[\s\S]*?\}/);
-  assert.match(glassBackWgsl, /struct GlassBack \{[\s\S]*?base_color: vec3f,[\s\S]*?ior: f32,[\s\S]*?absorption: vec3f,[\s\S]*?env_intensity: f32,[\s\S]*?key_intensity: f32,[\s\S]*?key_direction: vec3f,[\s\S]*?key_color: vec3f,[\s\S]*?\}/);
-  // 生产代码给背面 draw 的字段必须齐全（吸收按当前预设可直接用简写）。
+  assert.match(glassBackWgsl, /struct GlassBack \{[\s\S]*?ior: f32,[\s\S]*?env_intensity: f32,[\s\S]*?key_intensity: f32,[\s\S]*?key_direction: vec3f,[\s\S]*?key_color: vec3f,[\s\S]*?\}/);
+  // 生产代码给背面 draw 的字段必须齐全（吸收 / 基色只由正面通道负责）。
   const setBlock = renderJs.match(/glassBackDraw\.set\(\{[\s\S]*?\n      \}\);/);
   assert.ok(setBlock, "找不到 glassBackDraw.set 调用");
-  for (const field of ["view_projection", "camera_position", "base_color", "ior", "absorption", "env_intensity", "key_intensity", "key_direction", "key_color"]) {
+  for (const field of ["view_projection", "camera_position", "ior", "env_intensity", "key_intensity", "key_direction", "key_color"]) {
     assert.ok(new RegExp(`\\b${field}\\b`).test(setBlock[0]), `背面 uniform 缺少 ${field}`);
   }
+  assert.ok(!/\bbase_color\b/.test(setBlock[0]), "背面 uniform 不应再有 base_color（基色只在正面透射里算）");
+  assert.ok(!/\babsorption\b/.test(setBlock[0]), "背面 uniform 不应再有 absorption");
+  assert.ok(!/\btransparent\b/.test(setBlock[0]), "背面 uniform 不应再有 transparent");
+});
+
+test("回归：背面不再写进 sceneTarget，光束不再整体盖在模型上（透明导出无 alpha=0 RGB 污染）", () => {
+  // 旧实现：sceneTarget 同一趟先画背面再画正面（未启用混合，背面被正面覆盖）；present 把
+  // 光束无条件加在模型之上。两处都不得再出现。
+  const scenePass = renderJs.match(/currentFrame\.pass\(\{ target: sceneTarget[\s\S]*?\n      \}\);/);
+  assert.ok(scenePass, "找不到 sceneTarget 绘制趟");
+  assert.ok(!/glassBackDraw/.test(scenePass[0]), "sceneTarget 趟不得再绘制背面");
+  const presentWgsl = read("tools/extrude3d/shaders/present.wgsl");
+  assert.ok(!/premultiplied = scene\.rgb \+ beam/.test(presentWgsl), "光束不得再无条件盖在模型之上");
+  assert.match(presentWgsl, /scene\.rgb \* scene_alpha \+ beam/);
+  // 正面玻璃保持 alpha=1：present 的 over 合成不会重影，透明导出只由模型覆盖度决定。
+  assert.match(read("tools/extrude3d/shaders/glass.wgsl"), /return vec4f\(mix\(transmitted, reflection, fresnel\), 1\.0\)/);
+  // 正面在轮廓内采样同一张光束贴图（内部透射），关闭时绑定黑色 1×1 贴图。
+  assert.match(renderJs, /beam_tex: beamOn \? beam\.beamTarget : blackTexture/);
 });
 
 /* ------------------------------------------------- 色散默认值与映射 */

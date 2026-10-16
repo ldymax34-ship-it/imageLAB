@@ -8,8 +8,9 @@
  *   - 公共 API：`init` / `surface` / `target` / `draw` / `effect` / `frame` / `sampler` / `texture` / `geometry`
  *   - PBR：改写自 `apps/docs/examples/glass-fractal/hero-fractal-ceramic.wgsl`
  *   - 透射：改写自 `apps/docs/examples/transmission/glass.wgsl`（官方 Double refraction），
- *     把写死立方体的 `trace_cube_exit` 换成「背面世界坐标 + 世界法线预通道 + 正面片元」：
- *     空气→玻璃、玻璃→空气各折一次，支持任意闭合挤出网格。
+ *     把写死立方体的 `trace_cube_exit` 换成「背面世界坐标 / 世界法线预通道 + 正面片元 + 背面
+ *     界面反射通道」：背面界面以 premultiplied 形式写进独立目标，正面在出射点把
+ *     「背面反射 + 环境（背景 + 光束）× 背面透射」一起算进透射，支持任意闭合挤出网格。
  *   - 光束：`prism/` 来自 `apps/docs/app/[lang]/(home)/components/prism-background/`，
  *     三角形求交泛化为**当前 SVG 外轮廓的凸多边形**（见 `prism/beam.js`）。
  * 详见 THIRD_PARTY.md 与 third-party-licenses/vgpu-LICENSE.txt。
@@ -120,6 +121,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
   let sceneTarget = null;
   let backgroundTarget = null;
   let backTarget = null;
+  let backShadeTarget = null;
   let exportTarget = null;
   let backgroundEffect = null;
   let presentEffect = null;
@@ -365,8 +367,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
     if (!meshGeometry) return;
     pbrDraw = draw(gpu, { shader: pbrWgsl, geometry: meshGeometry, cull: "back" });
     glassBackDraw = draw(gpu, { shader: glassBackWgsl, geometry: meshGeometry, cull: "front" });
-    // backTarget 的第二张颜色附件存背面世界法线，专供正面通道做第二次折射；
-    // sceneTarget 的可见背面仍用原单输出着色通道，行为不变。
+    // 背面预通道（双颜色附件）：世界坐标 + 世界法线，供正面通道求出射点与第二次折射。
     glassBackInfoDraw = draw(gpu, { shader: glassBackInfoWgsl, geometry: meshGeometry, cull: "front", colors: [null, null] });
     glassDraw = draw(gpu, { shader: glassWgsl, geometry: meshGeometry, cull: "back" });
   }
@@ -427,6 +428,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
     sceneTarget.resize(next);
     backgroundTarget.resize(next);
     backTarget.resize(next);
+    backShadeTarget.resize(next);
     exportTarget.resize(next);
     beam?.resize(next);
     updatePanControls();
@@ -516,9 +518,10 @@ export function createRenderTab({ canvas, els, onStatus }) {
       });
     }
     if (presentEffect) {
-      // present 把「模型（sceneTarget）合成到背景（backgroundTarget）之上」：
+      // present 把「模型（sceneTarget，只有正面玻璃）合成到背景（backgroundTarget）之上」：
       // background 是不带深度的全屏 effect，绝不写 sceneTarget 的深度，模型自遮挡才成立。
-      // 光束（含上游 bloom）在这里加法合成：关闭时绑定黑色 1×1 贴图与 0 强度，画面与旧版一致。
+      // 光束只在模型轮廓之外由这里叠加（轮廓内见 glass.wgsl 的透射项）；bloom 仍在这里
+      // 按 bloom_strength 加法叠加。关闭时绑定黑色 1×1 贴图与 0 强度，画面与旧版一致。
       presentEffect.set({
         present: {
           exposure: state.exposure,
@@ -541,19 +544,16 @@ export function createRenderTab({ canvas, els, onStatus }) {
       glassBackInfoDraw.set({
         camera: { view_projection: viewProjection, camera_position: cameraPosition }
       });
-      // 背面通道与正面通道共用相机 / 玻璃参数：背面同一趟写进 sceneTarget，
-      // 先在最终画面里形成可见的后表面 / 内部界面（正面玻璃随后以 Fresnel 权重叠上去）。
+      // 背面界面通道：只产界面反射（premultiplied），写进独立的 backShadeTarget，
+      // 由正面通道与背景 / 光束一起合成；吸收 / 基色只在正面按真实厚度算一次。
       glassBackDraw.set({
         camera: { view_projection: viewProjection, camera_position: cameraPosition },
         glass: {
-          base_color: baseColor,
           ior: state.ior,
-          absorption,
           env_intensity: state.envIntensity,
           key_intensity: state.lightIntensity,
           key_direction: keyDirection,
-          key_color: keyColor,
-          transparent: state.transparent ? 1 : 0
+          key_color: keyColor
         }
       });
       glassDraw.set({
@@ -570,6 +570,8 @@ export function createRenderTab({ canvas, els, onStatus }) {
           absorption,
           env_intensity: state.envIntensity,
           key_intensity: state.lightIntensity,
+          // 环境调制只对纯色背板生效：棚拍 / 图片背景已是渲染好的辐亮度，不能整体压暗。
+          pure_backdrop: state.bgMode === "pure" ? 1 : 0,
           key_direction: keyDirection,
           key_color: keyColor
         },
@@ -578,7 +580,12 @@ export function createRenderTab({ canvas, els, onStatus }) {
         back_tex: backTarget,
         back_samp: nearestSampler,
         back_normal_tex: backTarget.colors[1],
-        back_normal_samp: nearestSampler
+        back_normal_samp: nearestSampler,
+        back_shade_tex: backShadeTarget,
+        back_shade_samp: nearestSampler,
+        // 光束关闭时绑定黑色 1×1 贴图：透射项里的 beam 恒为 0。
+        beam_tex: beamOn ? beam.beamTarget : blackTexture,
+        beam_samp: bgSampler
       });
     } else if (modelReady) {
       pbrDraw.set({
@@ -598,21 +605,24 @@ export function createRenderTab({ canvas, els, onStatus }) {
     frame(gpu, (currentFrame) => {
       // 1) 背景只写不带深度的 backgroundTarget；它同时是玻璃的折射环境。
       currentFrame.pass({ target: backgroundTarget, clear: [0, 0, 0, 0] }, (pass) => pass.draw(backgroundEffect));
-      // 1b) 色散光束写进自己的 HDR 目标（含上游三级 bloom），由 present 加法合成。
+      // 1b) 色散光束写进自己的 HDR 目标（含上游三级 bloom）：轮廓外由 present 叠加，
+      //     轮廓内由正面玻璃的透射项按同一张 beamTarget 采样。
       if (beamOn) beam.render(currentFrame);
-      // 2) 玻璃的背面通道（独立深度）：既产出 backTarget 的世界坐标供正面估厚度，
-      //    又把背面片元写进 sceneTarget，成为最终成像里可见的后表面 / 内部界面。
+      // 2) 背面预通道（世界坐标 + 法线，独立深度）与背面界面着色（premultiplied 反射，
+      //    独立深度）各写各的辅助目标：背面贡献不再写进 sceneTarget，因此不会被正面覆盖。
       if (modelReady && current.kind === "glass") {
         currentFrame.pass({ target: backTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (pass) =>
           pass.draw(glassBackInfoDraw)
         );
+        currentFrame.pass({ target: backShadeTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (pass) =>
+          pass.draw(glassBackDraw)
+        );
       }
-      // 3) 模型写入带深度的 sceneTarget：背景不参与这一趟，深度只由模型自己决定。
-      //    玻璃先画背面（较远），再画正面（较近，透过深度测试），前后两个界面都能辨认。
+      // 3) 模型写入带深度的 sceneTarget：玻璃只画正面（背面已经在正面透射里合成），
+      //    alpha=1、无混合，present 再把它 over 到背景 / 光束之上，不会出现前后重影。
       currentFrame.pass({ target: sceneTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (pass) => {
         if (!modelReady) return;
         if (current.kind === "glass") {
-          pass.draw(glassBackDraw);
           pass.draw(glassDraw);
         } else {
           pass.draw(pbrDraw);
@@ -658,6 +668,9 @@ export function createRenderTab({ canvas, els, onStatus }) {
       sceneTarget = target(gpu, { size: targetSize, format: "rgba16float", depth: true });
       backgroundTarget = target(gpu, { size: targetSize, format: "rgba16float" });
       backTarget = target(gpu, { size: targetSize, format: "rgba16float", depth: true, colors: [{ format: "rgba16float" }, { format: "rgba16float" }] });
+      // 背面界面着色独立成一张带深度的目标：最近背面片元胜出，正面通道再把它与
+      // 环境合成（不再画进 sceneTarget，避免被正面片元覆盖造成「背面不可见」）。
+      backShadeTarget = target(gpu, { size: targetSize, format: "rgba16float", depth: true });
       exportTarget = target(gpu, { size: targetSize, format: "rgba8unorm" });
 
       // background.wgsl 只有 fs_main：必须用 effect()，由 vgpu 注入官方内置全屏顶点通道
@@ -695,7 +708,7 @@ export function createRenderTab({ canvas, els, onStatus }) {
         presentEffect.compile(canvasSurface),
         beam.compile(),
         ...(geometryReady()
-          ? [pbrDraw.compile(sceneTarget), glassDraw.compile(sceneTarget), glassBackDraw.compile(sceneTarget), glassBackInfoDraw.compile(backTarget)]
+          ? [pbrDraw.compile(sceneTarget), glassDraw.compile(sceneTarget), glassBackDraw.compile(backShadeTarget), glassBackInfoDraw.compile(backTarget)]
           : [])
       ]);
       ready = true;

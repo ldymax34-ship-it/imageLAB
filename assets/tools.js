@@ -1,14 +1,16 @@
 /* ImageLAB 首页数据源：登记已经实现完成、可独立打开的入口。
  * 封面一律是**仓库本地**图片（放在 public/assets/covers/<id>.png），运行时不会请求任何第三方图片：
  *   - 12 个内置工具的封面来自工具真实导出结果；
- *   - 4 个外部网站入口的封面是验收方从公开官网当前页面截取后、保存进本仓库的页面缩略图，
+ *   - 外部网站入口的封面（若登记）是验收方从公开官网当前页面截取后、保存进本仓库的页面缩略图，
  *     只作导航预览；外部网站内容不由本项目提供，卡片仍明确标「外部网站」并显示主机名。
+ *   - 未取得可用授权封面的外部入口不登记 cover，首页走既有的「外部网站 · 跳转官网」中性文字占位。
  * 文件缺失时首页显示中性占位（不会破图，也不会伪造效果图）。
  * 各入口的浏览器验收状态见 README.md 的工具清单表。
  *
  * 字段说明：首页卡片只渲染 name / cat / href / cover（外部入口额外渲染「外部网站」标识与 href 主机名），
  * 不渲染任何说明文字；keywords 只服务搜索，en 只服务来源记录。
- * coverQuery 只用于效果改版后强制换新首页封面缓存（同一批次统一使用一个新值）。
+ * coverQuery 只用于效果改版后强制换新首页封面缓存：默认同一批次统一用一个新值；
+ * 若某个入口的缩略图被单独重生成（如 extrude3d 的 20261016-glass），只给该条目换新值，其余条目不动。
  * 因此这里不再登记 desc / note / span —— 工具一览是统一的一行 4 个，
  * 卡片宽度由 CSS 网格决定，页面上没有 desc / note 的位置，留着只会变成「废话」。 */
 // 首页陈列顺序：成熟视觉工具优先，外部网站放在末尾。
@@ -20,8 +22,9 @@ window.IMAGELAB_TOOLS = [
     cat: "三维与立体",
     href: "tools/extrude3d/index.html",
     cover: "assets/covers/extrude3d.png",
-    // 本批统一刷新全部封面，强制换新 query 避免首页命中旧封面缓存；真实封面由验收方导出。
-    coverQuery: "20261015-upstream",
+    // 本条目单独换新 query：SVG 转 3D 的封面由验收方（Codex）从本地真实渲染重新生成后覆盖同名 PNG，
+    // 换 query 避免首页命中旧封面缓存；其余条目保持原 coverQuery 不变。
+    coverQuery: "20261016-glass",
     keywords: "三维 立体 3d svg 挤出 倒角 材质 金属 玻璃 extrude",
   },
   {
@@ -135,6 +138,19 @@ window.IMAGELAB_TOOLS = [
     keywords: "字符画 ascii 动态 水母 圆环 隧道 波形 三维 动画 jellyfish",
   },
   {
+    id: "fui-scatter",
+    name: "矢量图层散布",
+    en: "FUI Scatter",
+    cat: "版式与切片",
+    href: "tools/fui-scatter/index.html",
+    // 封面缺口（已如实登记）：上游 sashamartinsen/fui-scatter 只提供无背景的矢量素材（CC BY 4.0），
+    // 仓库内没有成品预览图 / 截图；本项目不自行合成、不 AI 生图、不截测试图，因此预期路径先登记，
+    // 首页在此之前显示中性文字占位；真实封面由验收方用工具导出的 PNG 补齐。
+    cover: "assets/covers/fui-scatter.png",
+    coverQuery: "20261015-upstream",
+    keywords: "矢量 图层 散布 组合 生成 镜像 万花筒 网格 svg scatter fui composition 图层合成 版式",
+  },
+  {
     /* 外部网站入口：只做跳转，不本地部署、不复制源码 / 字体 / 素材、不 iframe、不引入运行时请求。
      * external:true 时首页渲染为带本地官网缩略图的入口（缩略图由验收方从公开官网当前页面截取，
      * 保存到 public/assets/covers/<id>.png），并保留「外部网站 · 跳转官网」标识与主机名；
@@ -185,5 +201,21 @@ window.IMAGELAB_TOOLS = [
     cover: "assets/covers/brand-assets-generator.png",
     coverQuery: "20261015-upstream",
     keywords: "品牌 素材 生成器 logo 版式 组合 assets brand generator stoyanov"
+  },
+  {
+    /* 字符抖动海报（Dither//ASCII Poster Tool）：
+     * 线上 https://sashamartinsen.github.io/auto-dither-journal-poster/ ，
+     * 公开仓库 https://github.com/sashamartinsen/auto-dither-journal-poster 根目录只有
+     * README.md / app.js / index.html / style.css，没有 LICENSE（LICENSE.md 亦 404）；
+     * README 与三份源码头均无版权或许可声明，GitHub 仓库页也没有 license 字段
+     * → 无明确授权，不复制源码 / 不本地部署 / 不 iframe / 不引入运行时请求，只登记为外链入口。
+     * 同样因为没有可用授权封面，不登记 cover；首页走既有「外部网站 · 跳转官网」中性文字占位。 */
+    id: "auto-dither-journal-poster",
+    name: "字符抖动海报",
+    en: "Dither ASCII Poster",
+    cat: "字符与文字",
+    href: "https://sashamartinsen.github.io/auto-dither-journal-poster/",
+    external: true,
+    keywords: "字符 抖动 海报 ascii dither poster 字符画 点阵 二值 排版 sashamartinsen auto-dither"
   }
 ];

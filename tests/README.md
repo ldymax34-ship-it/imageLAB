@@ -13,6 +13,18 @@ npm run build     # 正常
 npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/serve.test.cjs 服务器自检 + tests/extrude3d-tabs.test.cjs 双页签静态自检 + tests/extrude3d-color.test.cjs 颜色空间自检 + tests/extrude3d-pipeline.test.mjs（vgpu 官方 mock adapter 的 API 合约）+ tests/workspace-ui.test.cjs 工作台 UI 静态自检 + scripts/check.mjs 静态自检）
 ```
 
+> 2026-10-15 玻璃前后表面 / 光束层级修复轮（仅 `tools/extrude3d` 与测试）：
+> `tools/extrude3d/shaders/glass-back.wgsl` 改为输出 premultiplied 界面反射（rgb = 反射 × F、a = F），
+> 去掉「相机到背面顶点距离」的错误吸收；`glass.wgsl` 用背面世界坐标 + 法线做射线-平面求交得到出射点、
+> 修正第二次折射法线方向，并在出射点按 `back.rgb + (背景 + 光束) × (1 - back.a)` 合成；
+> `render-vgpu.js` 新增带深度的 `backShadeTarget`，`sceneTarget` 只画正面（alpha=1、无混合）；
+> `present.wgsl` 只在模型轮廓之外叠加光束（轮廓内由玻璃透射采样），并对 `scene.rgb * scene_alpha` 做透明导出保护。
+> 测试同步：`tests/extrude3d-tabs.test.cjs` 重写玻璃前后表面断言并新增 1 项「背面不再写进 sceneTarget /
+> 光束不再整体盖在模型上」，`tests/extrude3d-pipeline.test.mjs` mock 管线同步新目标与新绑定。
+> 实现侧只跑 `npm test` / `npm run build` / `git diff --check`，**未启动浏览器**；透明玻璃的真实 GPU 成像
+> 仍待 Codex 用真实 Chrome 复核。
+>
+
 > 2026-10-14 工作台 UI 改版（DSH 执行；Codex 真实 Chrome 已验收通过）：
 > 带播放控制的 5 个自建工具（`shaders-logo` / `shaders-bg` / `shaders-halftone` / `wave-grid` / `ascii-motion`）
 > 与 `extrude3d` 改为紧凑顶栏 + 分类悬浮检查器 + 画布下方播放条（extrude3d 为检查器内分类 + 画布工具栏重置视图）。
@@ -72,8 +84,10 @@ npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/
 > `common.wgsl` 的 `srgb_to_linear` 数学在 Node 里逐位复现，与 IEC 61966-2-1 参考值和 three 0.186.1 的
 > `Color.setStyle(hex, SRGBColorSpace)`（同一组 0.04045 / 12.92 / 1.055 / 0.055 / 2.4 常数）对照；
 > `tests/extrude3d-tabs.test.cjs` 增加背景绑定不回退白色 fallback、图片 sRGB→线性、黑 / 白预设映射与默认白色、
-> 玻璃背面写进 `sceneTarget`、背面 uniform 结构、色散默认值 / 映射对齐官方 `dispersion_spread` 的断言；
-> `tests/extrude3d-pipeline.test.mjs` 的 mock 管线同步改成「背面 draw 同时进 backTarget 与 sceneTarget」。
+> 玻璃背面 per-multiplied 反射独立成 `backShadeTarget`（不再写 `sceneTarget`）、背面 uniform 结构（吸收 / 基色
+> 只在正面）、色散默认值 / 映射对齐官方 `dispersion_spread` 的断言；
+> `tests/extrude3d-pipeline.test.mjs` 的 mock 管线同步改成「背面世界坐标 / 法线预通道 → 背面界面反射目标 →
+> 正面玻璃写 sceneTarget → present 合成」，并覆盖背面 uniform 与 `beam_tex` 绑定。
 > `tests/specs/extrude3d.mjs` 增加：默认白色 / 点击黑 · 白预设后的背景亮度、上传马赛克后外圈彩色与亮度、
 > 色散默认值与 0 关闭、透明玻璃模型区域的前后界面亮度结构。实现侧本轮仍未运行浏览器；这些浏览器断言
 > 待 Codex 用真实 Chrome WebGPU 复核。
@@ -102,8 +116,8 @@ npm test          # 正常（纯 Node：纹理间 4 套测试共 34 项 + tests/
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke              # 全部工具，顺序执行，只启动一个 Chrome
 IMAGELAB_BROWSER_TESTS=on npm run smoke -- texture   # 只跑指定工具
-IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs   # 刷新 12 张内置工具封面（真实导出画面）
-IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs   # 抓取 4 张外链官网本地缩略图
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs   # 刷新内置工具封面（13 条登记；含待生成的 fui-scatter）
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs   # 抓取 4 张外链官网本地缩略图（只覆盖 4 个有预览的外链）
 
 SMOKE_HEADFUL=1        # 需要看到窗口时
 SMOKE_PORT=5199        # dev server 端口（默认 5199）
@@ -149,12 +163,28 @@ Codex 执行（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`），实�
 **已并入 Codex 本轮 SVG立体 81/81 PASS**（`IMAGELAB_BROWSER_TESTS=on npm run smoke -- extrude3d`）；
 实现侧只跑 `npm run check` / `npm test` / `npm run build`。
 
-首页现有 16 个入口：12 个内置（12 张真实封面齐备；进入链接可达断言不变）+ 4 个外部网站
+首页现有 18 个入口：13 个内置（12 张真实封面齐备 + `fui-scatter` 为已登记待生成、走既有中性占位；
+进入链接可达断言不变）+ 5 个外部网站
 （校验标注、两处链接 `target="_blank" rel="noopener noreferrer"`、准确网址、关键词搜索，以及
 **本地加载成功的 cover img 且 cover URL 是站内 `assets/covers` 路径、不是远程 URL**；
+其中 4 个已登记本地封面，另 1 个 `auto-dither-journal-poster`（字符抖动海报）上游无 LICENSE / 无授权声明，
+不截取 / 不复制素材、不登记 cover，只走中性文字占位；
 **不向外部 fetch**，避免 CORS 假失败）。外链本地封面由
 `IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs` 从 4 个固定公开官网
-当前视口截取，脚本不接受任意 URL、页面打不开即失败退出、不创建伪封面。
+当前视口截取（该脚本只覆盖这 4 个有预览的外链，不含 `auto-dither-journal-poster`），
+脚本不接受任意 URL、页面打不开即失败退出、不创建伪封面。
+
+2026-10-16：新增 `tests/specs/fui-scatter.mjs`——`tools/fui-scatter`（上游 sashamartinsen/fui-scatter，
+pin `bd940620806bedfb3350fec042ab2b37a4076af2`，MIT 代码 + CC BY 4.0 素材；**整合副本的界面文案已汉化，
+不是上游逐字节副本**）的浏览器规格：
+进入 / 唯一左上返回首页 / 上游素材库（`shape-library/manifest.json`）与内置预设加载 / 默认构图渲染到
+预览画布 / `#export` 得到真实 1200×1200 PNG（`scatter-<w>x<h>.png`）/ 0 页面错误。`home.mjs` 同步为
+13 内置 + 5 外部 = **18**，`fui-scatter` 保留内置「已登记待生成封面」豁免（只允许走既有
+`is-cover-missing` 中性占位分支，不接受破图；封面补齐后该断言自动恢复为「全部真实封面」），
+`auto-dither-journal-poster` 为外链「无授权封面」占位（不登记 cover、无 cover img，仍保留标注与主机名）。
+实现侧未启动浏览器，等待 Codex 复跑。
+另：`assets/tools.js` 中仅 `extrude3d` 的 `coverQuery` 改为 `20261016-glass`，其缩略图由 Codex 从本地真实渲染
+重新生成并覆盖同名 PNG；本实现方未运行浏览器、未目视确认该新缩略图，不宣称验收过。
 
 本批新增 3 份规格：`tests/specs/mixed-type.mjs`（默认可渲染 / 固定种子可复现 / 重新随机 / 描边 /
 本地字体降级 / 空文本空态 / 导出 PNG）、`tests/specs/wave-grid.mjs`（固定字符网格 / 发光条带与字母图形 / 暂停帧 / 当前帧 PNG）、`tests/specs/ascii-motion.mjs`

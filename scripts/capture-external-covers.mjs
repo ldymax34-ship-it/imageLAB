@@ -6,6 +6,12 @@
  *     作为导航用的页面缩略图。外链站点内容由对方提供，本项目不部署、不复制源码 / 字体 / 素材、
  *     不 iframe、不把站点资源下载进仓库。
  *
+ * 覆盖范围（重要）：首页 `assets/tools.js` 共有 **5 个外链入口**，本脚本只覆盖其中
+ * **4 个有本地预览封面登记的官网**（见下方 `EXTERNAL_TARGETS`）。第 5 个
+ * `auto-dither-journal-poster`（字符抖动海报）上游无 LICENSE / 无授权声明，本项目不截取、
+ * 不复制其素材，因此**不登记 cover、不在本脚本内**，首页走既有「外部网站 · 跳转官网」中性文字占位。
+ * 所以本脚本「跑完」不等于「5 个外链封面都齐了」，它只保证这 4 张。
+ *
  * 安全边界：
  *   - 只接受下面 `EXTERNAL_TARGETS` 里的 4 个固定 HTTPS 官网；**不接受任意 URL 参数**，
  *     也没有「传一个网址就截图」的能力。
@@ -24,7 +30,8 @@ import { ROOT, launchBrowser, newPage, sleep, pngInfo } from "../tests/harness.m
 
 requireBrowserOptIn("scripts/capture-external-covers.mjs");
 
-/** 首页外链入口的固定官网清单（与 assets/tools.js 的 external 条目一一对应）。 */
+/** 首页**有本地预览封面**的外链入口固定清单（对应 assets/tools.js 中已登记 cover 的 4 个 external 条目；
+ *  第 5 个外链 auto-dither-journal-poster 无授权封面、不在此清单内）。 */
 const EXTERNAL_TARGETS = [
   { id: "space-type-generator", url: "https://spacetypegenerator.com/" },
   { id: "shader-lab", url: "https://eng.basement.studio/tools/shader-lab" },

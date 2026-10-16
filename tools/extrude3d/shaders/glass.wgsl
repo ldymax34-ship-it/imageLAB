@@ -2,18 +2,33 @@
 //
 // 结构参考 vercel-labs/vgpu 官方 MIT 仓库 `apps/docs/examples/transmission/glass.wgsl`
 // （commit 81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5；Fresnel、色散谱权重、粗糙度锥形
-// 采样、吸收、两次折射），但把官方写死立方体的 `trace_cube_exit` 换成「背面预通道 +
-// 当前正面片元」：
-//   1. 背面预通道（`glass-back-info.wgsl`）把最近背面片元的世界坐标写进 back_tex
-//      （alpha=1 命中）、世界法线写进 back_normal_tex；
-//   2. 正面片元先按官方逻辑做空气→玻璃的第一次折射；
-//   3. 命中背面时，用背面世界法线对 `inside` 做玻璃→空气的第二次折射
-//      （`refract(inside, -exit_normal, ior)`，与官方出射折射一致），出射点 =
-//      背面位置 + 出射方向 × 小步长，投影回屏幕采样背景；
-//   4. 未命中背面（边缘 / 背面超出视口）退回「沿内部方向 × 厚度」的旧屏幕空间近似。
-// 这是对任意闭合挤出网格的屏幕空间近似（背面法线是最近背面片元，不逐像素追踪
-// 折射后的射线交点），不是完整光线追踪；TIR 仍按反射处理。
-// 背面同一趟还会以 (1 - Fresnel) 的权重写进 sceneTarget，因此最终成像同时有前、后两个界面。
+// 采样、吸收、两次折射）与同仓 prism-background 的前 / 后界面拆分，把官方写死立方体的
+// `trace_cube_exit` 换成「背面预通道 + 当前正面片元」：
+//   1. `glass-back-info.wgsl` 把最近背面片元的世界坐标写进 back_tex（alpha=1 命中）、
+//      世界法线写进 back_normal_tex；
+//   2. `glass-back.wgsl` 把同一背面的界面反射以 premultiplied 形式写进 backShadeTarget
+//      （rgb = 反射 × Fresnel，a = Fresnel），与官方 prism 背面层语义一致；
+//   3. 正面片元先做空气→玻璃的第一次折射；
+//   4. 命中背面时，用背面世界坐标 + 法线做一次射线-平面求交得到出射点（等价于官方的
+//      平面追踪思路），再用背面法线做玻璃→空气的第二次折射，出射方向只用于把采样点
+//      挪到背面外侧；未命中时退回「沿内部方向 × 厚度」的旧屏幕空间近似；
+//   5. 背面（内侧）界面反射用「玻璃内部入射方向 + 背面法线」的真实反射方向重新求一次
+//      （与正面视线反射不同），权重用该界面的 Fresnel；未命中背面时退回预通道结果。
+//      再按 `back.rgb + 背板 × (1 - back.a)` 合成，这就是「背面贡献进入正面透射」的位置。
+//      正面只把最终颜色写进 sceneTarget（alpha=1），不再让背面片元单独写在场景里被覆盖。
+//
+// 透射的背板辐亮度：官方 Transmission 把预渲染场景直接当作透射辐亮度。本工具的「纯色 /
+// 棚拍 / 图片」背景是合成用背板，只有**纯色**背板按「被棚拍环境照亮的朗伯反照率」处理，
+// 于是透射 = 背板颜色 × 内部折射方向的棚拍环境辐亮度（`pure_backdrop = 1`）。默认纯白
+// 背景因此能透过玻璃看到棚拍环境的前后界面对比（不再是一层被白色淹没的淡灰实心壳）。
+// 棚拍 / 图片背景已经是渲染好的辐亮度，直接保留原始值（`pure_backdrop = 0`），不再乘
+// 环境调制——否则图片会被整体压暗，色散位移也会被调制放大成不真实的通道差。黑色背景
+// （含色散光束验收：黑底玻璃自身不得产生彩色像素）无论哪种模式都保持逐像素一致。
+// 法线约定：预通道写入的背面法线已朝向相机（玻璃内侧 = 玻璃→空气界面的入射侧），
+// 因此第二次折射直接传 `exit_normal`；官方 `refract(inside, -exit.normal, ...)` 里的
+// `exit.normal` 是背离玻璃的外向法线，两者等价。
+// 这是对任意闭合挤出网格的屏幕空间近似（背面法线是最近背面片元，不逐像素追踪折射后
+// 的射线交点），不是完整光线追踪；TIR 仍按反射处理。
 // 支持明显折射、Fresnel、有限色散与有限 TIR（refract 失败按反射处理）；
 // 不承诺任意非流形 / 高度凹陷模型的多次内反射。
 //
@@ -50,6 +65,9 @@ struct Glass {
   absorption: vec3f,
   env_intensity: f32,
   key_intensity: f32,
+  // 1 = 纯色背板（背板颜色当作被棚拍环境照亮的朗伯反照率，透射再乘环境辐亮度）；
+  // 0 = 棚拍 / 图片等已渲染背板（背板本身就是辐亮度，原样进入透射）。
+  pure_backdrop: f32,
   key_direction: vec3f,
   key_color: vec3f,
 };
@@ -62,6 +80,11 @@ struct Glass {
 @group(0) @binding(5) var back_samp: sampler;
 @group(0) @binding(6) var back_normal_tex: texture_2d<f32>;
 @group(0) @binding(7) var back_normal_samp: sampler;
+// 背面界面（premultiplied 反射，见 glass-back.wgsl）与色散光束（内部透射）。
+@group(0) @binding(8) var back_shade_tex: texture_2d<f32>;
+@group(0) @binding(9) var back_shade_samp: sampler;
+@group(0) @binding(10) var beam_tex: texture_2d<f32>;
+@group(0) @binding(11) var beam_samp: sampler;
 
 struct VertexOut {
   @builtin(position) position: vec4f,
@@ -126,6 +149,9 @@ fn fs_main(in: FragIn, @builtin(position) frag_coord: vec4f) -> @location(0) vec
 
   let back_sample = textureSampleLevel(back_tex, back_samp, screen_uv, 0.0);
   let back_normal_sample = textureSampleLevel(back_normal_tex, back_normal_samp, screen_uv, 0.0);
+  // 光束已经按 CPU 的二维截面光路画好（入射 / 内部折射 / 出射扇形都在自己的平面上），
+  // 这里在原始屏幕位置采样它，作为玻璃内部透射的一部分；模型轮廓之外由 present 叠加。
+  let beam = max(textureSampleLevel(beam_tex, beam_samp, screen_uv, 0.0).rgb, vec3f(0.0));
   var thickness = glass.fallback_thickness * glass.thickness_scale;
   if (back_sample.a > 0.5) {
     thickness = max(length(back_sample.xyz - in.world_position), 1e-3) * glass.thickness_scale;
@@ -154,25 +180,70 @@ fn fs_main(in: FragIn, @builtin(position) frag_coord: vec4f) -> @location(0) vec
       inside = reflect(incident, normal);
     }
     inside = cone_direction(inside, i, cone_radius, rotation, f32(sample_count));
+    // 出射点：优先用背面预通道的位置 / 法线做一次射线-平面求交；未命中
+    // （边缘 / 背面超出视口）退回「沿内部方向 × 厚度」的屏幕空间近似。
     var exit_world = in.world_position + inside * thickness;
-    // Double refraction：出玻璃时用背面世界法线再折一次；小步长只为把采样点
-    // 挪到背面外侧。TIR（refract 返回零向量）退回旧的屏幕空间近似出射点。
-    var exit_uv = project_to_uv(camera.view_projection * vec4f(exit_world, 1.0));
     if (back_sample.a > 0.5 && back_normal_sample.a > 0.5) {
       let exit_normal = normalize(back_normal_sample.rgb);
-      let outgoing = refract(inside, -exit_normal, spectral_ior);
+      let denominator = dot(inside, exit_normal);
+      if (abs(denominator) > 1e-4) {
+        let plane_t = dot(back_sample.xyz - in.world_position, exit_normal) / denominator;
+        if (plane_t > 0.0) {
+          exit_world = in.world_position + inside * plane_t;
+        }
+      }
+      // Double refraction：玻璃→空气的第二折。预通道法线朝向入射侧（玻璃内侧），
+      // 与官方 `refract(inside, -exit.normal, ...)` 的外向法线取反等价；出射方向只用于
+      // 把采样点挪到背面外侧，TIR（refract 返回零向量）时保留平面交点。
+      let outgoing = refract(inside, exit_normal, spectral_ior);
       if (dot(outgoing, outgoing) > 1e-6) {
-        exit_world = back_sample.xyz + outgoing * 0.02;
-        exit_uv = project_to_uv(camera.view_projection * vec4f(exit_world, 1.0));
+        exit_world = exit_world + outgoing * 0.02;
       }
     }
+    var exit_uv = project_to_uv(camera.view_projection * vec4f(exit_world, 1.0));
     // 「折射变形」只放大屏幕空间里已有的折射位移（0% 即不发生位移 = 普通透明玻璃），
     // 不改模型几何、不改第一次 / 第二次折射的实际方向。
     exit_uv = screen_uv + (exit_uv - screen_uv) * glass.refraction;
     exit_uv = clamp(exit_uv, vec2f(0.0), vec2f(1.0));
     // dispersion = 0 时权重恒为 1 / 1 / 1，11 个样本平均后就是无分色的普通折射。
     let weight = select(vec3f(1.0), spectral_weight(t), glass.dispersion > 0.001);
-    spectrum += textureSampleLevel(scene_tex, scene_samp, exit_uv, 0.0).rgb * weight;
+    // 透过玻璃看到的背板辐亮度：只有纯色背板按「被棚拍环境照亮的朗伯反照率」处理，
+    // transmitted = 背板颜色 × 内部折射方向的棚拍环境；棚拍 / 图片背景已是渲染好的
+    // 辐亮度，原样保留。背板为黑时两种模式结果都为黑，因此黑色背景 / 色散光束验收与
+    // 逐像素背景正确性不受影响。
+    let backdrop = textureSampleLevel(scene_tex, scene_samp, exit_uv, 0.0).rgb;
+    let env_radiance = studio_env(
+      inside,
+      glass.key_direction,
+      glass.key_color,
+      glass.key_intensity,
+    ) * glass.env_intensity;
+    let environment = select(
+      backdrop,
+      backdrop * env_radiance,
+      glass.pure_backdrop > 0.5,
+    ) + beam;
+
+    // 背面（内侧）界面反射：用「玻璃内部入射方向 + 背面法线」求真实反射方向（与正面
+    // 视线反射不同），权重用该界面的 Fresnel；未命中背面时退回预通道的界面反射。
+    let back_shade = textureSampleLevel(back_shade_tex, back_shade_samp, exit_uv, 0.0);
+    var back_reflection = back_shade.rgb;
+    var back_transmission = 1.0 - clamp(back_shade.a, 0.0, 1.0);
+    if (back_sample.a > 0.5 && back_normal_sample.a > 0.5) {
+      let exit_normal = normalize(back_normal_sample.rgb);
+      let back_facing = saturate(dot(-inside, exit_normal));
+      let back_fresnel = dielectric_fresnel(glass.ior, back_facing);
+      back_reflection = studio_env(
+        reflect(inside, exit_normal),
+        glass.key_direction,
+        glass.key_color,
+        glass.key_intensity,
+      ) * glass.env_intensity * back_fresnel;
+      back_transmission = 1.0 - back_fresnel;
+    }
+    // premultiplied：背面反射 + 背板 × 背面透射，进入正面透射。
+    let through = back_reflection + environment * back_transmission;
+    spectrum += through * weight;
     total += weight;
   }
   var transmitted = spectrum / max(total, vec3f(1e-4));

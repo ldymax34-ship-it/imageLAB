@@ -2,13 +2,14 @@
 
 名称拼写固定为 **ImageLAB**（首字母 `I` 大写、`mage` 小写、`LAB` 大写）。
 
-生成纹理、处理图片、探索材质。调好参数，直接出图。12 个内置工具在本地处理素材、不上传。
+生成纹理、处理图片、探索材质。调好参数，直接出图。13 个内置工具在本地处理素材、不上传。
 
 一个**纯静态、纯前端**的图像设计工具箱：首页 `index.html` + `tools/<id>/` 下的独立工具网页。
 内置工具只在本地浏览器里处理素材，不上传；没有数据库、没有账号、没有服务端渲染、也没有运行时远程模型或 API。
-首页另登记 **4 个外部网站入口，只做跳转**（外部网站内容由对方提供，本项目不部署、不复制源码 / 字体 / 素材、
-不 iframe、不引入运行时外部请求；外链卡片上的缩略图是验收方从公开官网当前页面截取、保存进本仓库的本地 PNG，
-运行时只从 `assets/covers/` 加载），因此「素材不上传」只适用于 12 个内置工具，不构成对第三方网站的保证。
+首页另登记 **5 个外部网站入口，只做跳转**（外部网站内容由对方提供，本项目不部署、不复制源码 / 字体 / 素材、
+不 iframe、不引入运行时外部请求；其中 4 个有验收方从公开官网当前页面截取、保存进本仓库的本地 PNG 缩略图，
+运行时只从 `assets/covers/` 加载；`字符抖动海报` 因上游无许可证据、不截取素材，走中性文字占位），
+因此「素材不上传」只适用于 13 个内置工具，不构成对第三方网站的保证。
 
 ## 快速开始
 
@@ -35,8 +36,8 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 > 卡片行距 56–88px，工具区上下留白 72–120px，区块标题是小字号 + 0.2em 字距的标签（压得住卡片名）。
 > 页面文案只保留必要信息：卡片只有「封面 / 名称 / 分类 / 入口」四段，
 > `assets/tools.js` 也据此不再登记 desc / note / span（keywords 只服务搜索）。
-> 首页回归：16 个入口（12 个内置 + 4 个外部）、12 张内置真实封面、全部内置入口 HTTP 200、
-> 4 个外链卡片都有本地加载成功的官网缩略图（cover URL 必须是站内 `assets/covers`，不是远程 URL）、
+> 首页回归：18 个入口（13 个内置 + 5 个外部）、12 张内置真实封面 + 1 张已登记待生成封面（`fui-scatter`，首页显示中性占位）、全部内置入口 HTTP 200、
+> 4 个外链卡片都有本地加载成功的官网缩略图（cover URL 必须是站内 `assets/covers`，不是远程 URL）、另 1 个外链（`字符抖动海报`）无授权封面、走中性文字占位、
 > bayer 搜索、分类、1440 与 390 宽无横向溢出、body 纯白、1440/1920/2560/390 四档每行个数、
 > 首屏「只有字标」+ 字标尺寸 + 上下留白定量（96–150 / 84–140px，首屏 240–420px）；
 > 外部入口只断言标注 / target-rel / 网址 / 关键词 / 本地封面，不向外部发请求。
@@ -57,8 +58,9 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `tools/mixed-type/` | 文字混排 | `tools/mixed-type/index.html` | 中英文混排文字海报：字族池 / 字号 / 行高 / 字距 / 随机抖动 / 描边比例，固定种子可复现 | PNG | 已通过浏览器验收 |
 | `tools/wave-grid/` | 辉光点阵 | `tools/wave-grid/index.html` | 竖幅 4:5 宽厚分段色带（固定种子稳定构图）：密度真值 + 粗/中/细预设、辉光强度 / 长度（0–120px，默认 72px）/ 方向 / 色带宽度；字母与本地图片取样 | PNG（当前帧） | 已通过浏览器验收（51/51）；封面已随本批 `coverQuery=20261014-refresh1` 重抓（720×900，已目视确认） |
 | `tools/ascii-motion/` | 动态字符画 | `tools/ascii-motion/index.html` | Three 预设 / 本地文字 / 图片以复用 Canvas 字符渲染；自定义字符集与动效 | PNG（当前帧） | 已通过浏览器验收（25 项） |
+| `tools/fui-scatter/` | 矢量图层散布 | `tools/fui-scatter/index.html`（静态整合副本；**界面文案已汉化，不是上游逐字节副本**；`npm run build` 后随静态目录复制） | 上游 FUI Scatter 整合（代码 MIT / 素材 CC BY 4.0；界面文案已汉化）：SVG 图层组合生成器（随机散布 / 镜像 X / 镜像 Y / 双镜像 / 万花筒 / 网格；逐层种子与位置 / 选择 / 尺寸 / 不透明度 / 旋转 / 颜色的独立偏移；尺寸与不透明度各为一条双端区间；纯色或双色渐变取样；逐对象与整幅可加法 / 正片叠底混合；Bloom / 色差 / 颗粒 / CRT 后期），内置 b1 / y2k / fui / uav 本地矢量素材库 | PNG（1× / 2× / 4×，从矢量源按导出分辨率重新渲染，含当前后期效果）+ 可移植 `.scatter.json` 构图预设 | 待 Codex 浏览器验收 |
 
-首页登记全部 12 个内置入口（含 `tools/psychos`）。此前的 **310/310 浏览器验收** 与 9 页主题审计是本轮改动前的历史基线；本批已由 Codex 独立复验通过：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过。画布、源图片、纹理图案、材质与封面保留各自的颜色。静态检查、单元测试与构建以本轮实际结果为准。
+首页登记全部 13 个内置入口（含 `tools/psychos` 与 `tools/fui-scatter`）。此前的 **310/310 浏览器验收** 与 9 页主题审计是本轮改动前的历史基线；本批已由 Codex 独立复验通过：其余 11 份规格合计 **365 项断言**通过，`wave-grid` **11/11**、`ascii-motion` **25/25**，0 浏览器错误；首页白底、12 个工具黑色外壳与唯一左上返回在桌面 1440 / 390 宽通过。画布、源图片、纹理图案、材质与封面保留各自的颜色。静态检查、单元测试与构建以本轮实际结果为准。
 
 ### 工具工作台 UI（2026-10-14，用户专项授权；Codex 真实 Chrome 已验收通过）
 
@@ -123,9 +125,10 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 
 ### 外部网站入口（仅跳转，不接入）
 
-首页另有 4 个已核实公开官网的外链卡片（`external: true`）：封面区显示**本仓库本地**的官网页面缩略图
+首页另有 5 个已核实公开官网的外链卡片（`external: true`）：其中 4 个封面区显示**本仓库本地**的官网页面缩略图
 （右下角叠层保留「外部网站 · 跳转官网」标识与主机名），按钮为「打开官网 ↗」，封面区与按钮均
 `target="_blank" rel="noopener noreferrer"`。缩略图缺失 / 加载失败时退回纯文字外链块，不显示破图。
+第 5 个 `字符抖动海报` 因上游无 LICENSE、无授权声明，不截取 / 不登记 cover，直接走中性文字占位。
 它们不是内置开源接入：不部署、不复制源码 / 字体 / 媒体、不 iframe、不引入运行时外部请求或依赖；
 外链缩略图只是导航预览，运行时首页只从 `assets/covers/` 加载本地图片；第三方站点的 `free`
 声明不当作代码授权。
@@ -136,15 +139,23 @@ macOS 用户可以直接双击 **`启动图像实验室.command`**：会自动�
 | `shader-lab` | 图片特效（Shader Lab） | 着色器效果 | https://eng.basement.studio/tools/shader-lab | `assets/covers/shader-lab.png` |
 | `tooooools` | 图像网点（Tooooools） | 像素与点阵 | https://www.tooooools.app/ | `assets/covers/tooooools.png` |
 | `brand-assets-generator` | 品牌素材生成（Brand Assets Generator） | 版式与切片 | https://brand-generator.stoyanov.works/ | `assets/covers/brand-assets-generator.png` |
+| `auto-dither-journal-poster` | 字符抖动海报（Dither ASCII Poster） | 字符与文字 | https://sashamartinsen.github.io/auto-dither-journal-poster/ | 无（无授权封面，中性文字占位） |
 
 **Brand Assets Generator 未找到公开源码 / 许可证**：官网 HTML 与打包 bundle 没有 GitHub 或许可证链接，
 GitHub 公共搜索也没有对应仓库 → 不能认定开源，**不本地镜像源码 / 字体 / 素材**，只登记为外链入口；
 外链封面是验收方从公开官网当前页面截取的本地 PNG，**截图许可不等于代码开源许可**，也不代表获得再分发授权。
 
+**字符抖动海报（Dither//ASCII Poster Tool）同样无许可证据**：公开仓库根目录只有
+`README.md` / `app.js` / `index.html` / `style.css`，没有 `LICENSE`（`LICENSE.md` 亦 404），源码与 README
+均无版权或许可声明，GitHub 仓库页也没有 license 字段 → 不能认定开源，**不复制源码、不本地部署、
+不 iframe、不引入运行时请求**，只登记为外链入口；无可用授权封面，`assets/tools.js` 不登记 `cover`，
+首页走既有「外部网站 · 跳转官网」中性文字占位。
+
 搜索分类沿用现有系统（不新增 tab / filter 开关）。`scripts/check.mjs` 对内置入口校验本地文件 / spec / dist，
-并统一要求所有入口（含外链）的 cover 是本地相对路径、禁止 http(s) 封面；外链额外校验 4 张封面文件位于
-`public/assets/covers/`；`tests/specs/home.mjs` 对外链卡片断言标注 / target-rel / 准确网址 / 关键词搜索 /
-本地缩略图加载成功且 URL 是站内 `assets/covers`，不向外部 fetch（避免 CORS 假失败）。
+并统一要求所有已登记 cover 的入口（含外链）是本地相对路径、禁止 http(s) 封面；外链额外校验 4 张封面文件位于
+`public/assets/covers/`，并放行 1 个已登记的「无授权封面」外链（`auto-dither-journal-poster`）走中性文字占位；
+`tests/specs/home.mjs` 对外链卡片断言标注 / target-rel / 准确网址 / 关键词搜索 /
+本地缩略图加载成功且 URL 是站内 `assets/covers`（无 cover 的那 1 个断言其占位），不向外部 fetch（避免 CORS 假失败）。
 
 `tools/extrude3d` 的本地 SVG 导入上限为 **1 MiB**；单个 `<path>` 曲线过多时，会按**本次真实使用的**
 `curveSegments` / `bevelSegments` / `bevelEnabled` 采样轮廓点估算挤出顶点数：超预算先按采样数把
@@ -171,23 +182,34 @@ Canvas 2D / `Intl.Segmenter` / `FontFaceSet` / `window.queryLocalFonts`，不复
 字体一律使用访问者本机已安装的系统字体，仓库**不打包、不分发**任何字体文件；本机字体的许可由使用者在
 自己的机器上自行确认。三条封面路径已登记，并已由 Codex 用真实导出入库，占位图不伪造效果图。
 
-`public/assets/covers/*.png` 是首页运行时唯一加载的封面来源（**全部为仓库本地图片**，共 16 张，
-已全部由 Codex 在真实浏览器抓取完成并目视确认）：
+`public/assets/covers/*.png` 是首页运行时唯一加载的封面来源（**全部为仓库本地图片**，共 16 张文件；
+13 条内置登记路径中 12 张已有文件，`fui-scatter` 为已登记待生成，另有 4 张外链缩略图；
+第 5 个外链 `auto-dither-journal-poster` 无授权封面、不登记 cover，走中性文字占位；
+4 张外链缩略图已由 Codex 在真实浏览器抓取完成并目视确认）：
 
-- **12 张内置工具封面**：真实工具 PNG 导出（互不相同，实际内容已核验），由
+- **12 张内置工具封面 + 1 张已登记待生成（`fui-scatter`）**：真实工具 PNG 导出（互不相同，实际内容已核验），由
   `IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs` 生成（先服务构建产物 `dist/`；
   优先取工具真实导出，退路只截真实预览画布，不截节点编辑器 UI；每个工具使用独立临时下载目录，
   只等待本次导出结果）。本批已按当前 DOM / 分类结构刷新全部 12 张（含双页签 `extrude3d` 的
   渲染页导出，以及导出按钮位于隐藏「输出」分类的 shader / wave-grid / ascii-motion）。
+  `extrude3d`（SVG 转 3D）的缩略图 `assets/covers/extrude3d.png` 另由 **Codex 从本地真实渲染重新生成**
+  （对应 `coverQuery` 换为 `20261016-glass`）；本实现方**未运行浏览器、未目视确认该新缩略图**，不宣称验收过。
+  `tools/fui-scatter` 的上游仓库**不含任何成品预览图 / 截图**（只有无背景的矢量素材），
+  本项目不合成、不 AI 生图、不截测试图，因此封面如实登记为缺口、待验收方用该工具导出补齐；
+  在此之前首页对该卡片显示既有中性文字占位（`is-cover-missing`），不伪造效果图。
 - **4 张外链官网缩略图**：由
   `IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs` 从 4 个固定公开官网的
   当前视口截取（1440×900 视口、非整页长图，缩到 ≤1280px 宽），保存为
   `assets/covers/<id>.png`，来源 URL 记录在 `public/assets/covers/external-covers.json`；
   4 张均为 **1280×800**。
-  该脚本默认关闭、只接受固定 id（不接受任意 URL），页面打不开即失败退出、不创建伪封面。
+  该脚本默认关闭、只接受固定 id（不接受任意 URL），页面打不开即失败退出、不创建伪封面；
+  它只覆盖这 4 个**已登记封面**的外链，第 5 个 `auto-dither-journal-poster`（字符抖动海报）因上游无许可证据、
+  不截取素材，不在脚本内，首页走中性文字占位。
 
-`assets/tools.js` 中 16 个入口统一使用 `coverQuery: "20261014-refresh1"`，强制换新缓存、避免首页命中旧封面。
-封面缺失时首页显示中性文字占位（内置）或退回纯文字外链块（外链），不会破图、也不会用 AI 图或整页截图冒充效果图。
+`assets/tools.js` 中 18 个入口都带 `coverQuery`，强制换新缓存、避免首页命中旧封面；
+其中 `extrude3d` 单独使用 `20261016-glass`（由 Codex 从本地真实渲染重新生成同名 PNG，本实现方未目视确认），
+其余 17 个入口保持 `20261015-upstream`。
+封面缺失时首页显示中性文字占位（内置 / 无授权外链）或退回纯文字外链块（外链），不会破图、也不会用 AI 图或整页截图冒充效果图。
 `public/` 会在 `npm run build` 时复制进 `dist/`，供首页直接使用。
 
 `tools/psychos` 不参与主站 Vite 多页打包，由 `scripts/build-psychos.mjs` 单独构建；它需要 WebGPU
@@ -223,7 +245,8 @@ CHANGELOG.md               变更记录
 ```
 
 约定：`tools/<id>/index.html` 中带 `<!-- imagelab:entry -->` 标记的会被 Vite 当多页入口打包；
-不带标记的（原样搬运的工具）由 `scripts/copy-static.mjs` 整体复制进 `dist/`，源码保持上游字节。
+不带标记的静态工具由 `scripts/copy-static.mjs` 整体复制进 `dist/`（其中 `tools/fui-scatter` 是**已汉化的整合副本**，
+除 `tools/texture` 等确为上游逐字节搬运的目录外，不应再对 `fui-scatter` 声称与上游逐字节一致）。
 首页页脚引用的 `README.md` / `THIRD_PARTY.md` / `CHANGELOG.md` 也会一并复制进 `dist/`，不会 404。
 
 ## 浏览器要求
@@ -234,6 +257,7 @@ CHANGELOG.md               变更记录
 | 着色器工具（WebGL2） | Chrome / Edge / Firefox / Safari 支持 WebGL2 的版本 |
 | `tools/psychos`（图片拼贴） | 需要 **WebGPU**，且必须在 `http://127.0.0.1` 或 HTTPS 这类安全上下文下打开 |
 | `tools/extrude3d`（SVG 转 3D） | 建模页签任意现代浏览器；**渲染页签**需要 **WebGPU** 与安全上下文（`http://127.0.0.1` / HTTPS）。WebGPU 不可用时渲染页签显示中文提示，建模页签仍可用 |
+| `tools/fui-scatter`（矢量图层散布） | 任意现代浏览器（Canvas 2D；**不需要** WebGPU / WebGL2）。本地构图预设使用浏览器 IndexedDB |
 
 ## 测试与验收
 
@@ -243,8 +267,8 @@ PNG 尺寸；GPU 工具断言 WebGL2 / WebGPU 真实可用）；SVG立体由 Cod
 ```bash
 IMAGELAB_BROWSER_TESTS=on npm run smoke                      # 顺序跑全部工具，只启动一个 Chrome
 IMAGELAB_BROWSER_TESTS=on npm run smoke -- texture home      # 只跑指定工具
-IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs             # 刷新 12 张内置工具封面（真实导出画面 / 画布区域）
-IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs    # 抓取 4 张外链官网本地缩略图（固定官网、当前视口）
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-covers.mjs             # 刷新内置工具封面（13 条登记；含待生成的 fui-scatter）
+IMAGELAB_BROWSER_TESTS=on node scripts/capture-external-covers.mjs    # 抓取 4 张外链官网本地缩略图（固定官网、当前视口；只覆盖 4 个有预览的外链）
 IMAGELAB_BROWSER_TESTS=on SMOKE_HEADFUL=1 npm run smoke      # 需要看到窗口时
 CHROME_PATH=/path/to/chrome npm run smoke
 ```
@@ -256,7 +280,7 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
 > 说明：仓库根 `package.json` **不设** `"type": "module"`——`tools/texture` 的那份 Node 测试套件是
 > 上游原样的 CommonJS（`require("./engine.js")`），设成 module 会让它全部失败。构建与脚本一律用 `.mjs`。
 
-`npm run build` 会：Vite 打包多页入口 → 复制原样搬运的静态工具 → 构建 `tools/psychos`。
+`npm run build` 会：Vite 打包多页入口 → 复制静态工具（含已汉化的 `tools/fui-scatter`）→ 构建 `tools/psychos`。
 
 ## 许可
 
@@ -440,3 +464,21 @@ Node 侧不受影响：`npm run build`、`npm test`（纹理间 4 套 Node 测�
   `IMAGELAB_BROWSER_TESTS=on npm run smoke -- home` **113/113**、**0 页面错误**；`git diff --check` 通过。
   DSH 实现阶段未启动浏览器、未生成 PNG、未用占位图绕过（历史事实），以上数字为抓图后的最终结果；
   本轮已本地 commit，未 push / 未部署。
+
+### 2026-10-16 · 文档对齐：18 入口 / fui-scatter 汉化 / extrude3d 封面缓存标记（DSH 执行文档收尾）
+
+- **首页入口 18 = 13 内置 + 5 外链**：新增第 5 个外链 `auto-dither-journal-poster`（中文「字符抖动海报」，
+  Dither//ASCII Poster Tool，`https://sashamartinsen.github.io/auto-dither-journal-poster/`）。其公开仓库
+  根目录只有 `README.md` / `app.js` / `index.html` / `style.css`，没有 `LICENSE`（`LICENSE.md` 亦 404），
+  README 与源码均无版权或许可声明 → 无明确授权，**不复制源码、不本地部署、不 iframe、不引入运行时请求**，
+  仅登记为外链；因无可用授权封面，`assets/tools.js` 不登记 `cover`，首页走既有「外部网站 · 跳转官网」中性文字占位。
+  `scripts/check.mjs` / `tests/specs/home.mjs` 已按 18（13 + 5）校对，外链校验放行这一个已登记的无封面占位。
+- **`tools/fui-scatter` 已汉化，不再是上游逐字节副本**：界面用户可见文案改为中文后，除入口页外壳外也与上游
+  `dist/` 存在文案差异；文档中「原样搬运 / 逐字节一致」的表述已更正（许可与署名不变，代码 MIT＋素材 CC BY 4.0）。
+- **`extrude3d` 缩略图缓存标记**：`assets/tools.js` 仅把 `extrude3d` 的 `coverQuery` 改为 `20261016-glass`
+  （其余 17 个入口保持 `20261015-upstream`）。该缩略图由 **Codex 从本地真实渲染重新生成**后覆盖同名 PNG；
+  本实现方**未运行浏览器、未目视确认该新缩略图**，不宣称验收过。
+- **`scripts/capture-external-covers.mjs` 头注释**：明确它只覆盖 4 个**已登记封面**的外链，不含第 5 个
+  `auto-dither-journal-poster`，因此脚本跑完不等于 5 个外链封面齐备。
+- 本轮只改文档与上述一处缓存标记；未运行浏览器、未运行 `npm run build`、未提交 / 未合并 / 未 push，
+  既有未提交改动与 `03_WORKSPACE/` 保持原样。

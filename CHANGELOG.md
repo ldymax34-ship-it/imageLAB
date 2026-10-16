@@ -1,5 +1,146 @@
 # CHANGELOG
 
+### 2026-10-16 · 玻璃内部折射 / 反射修复 + fui-scatter 内置预设图层名汉化 + extrude3d 真实缩略图（字母 A + 星形）
+
+范围（本轮补充记录，用户明确授权）：`tools/extrude3d/shaders/glass.wgsl`、`glass-back.wgsl`、`present.wgsl`；
+`tools/fui-scatter/presets/*.scatter.json`；`public/assets/covers/extrude3d.png` 与 `assets/tools.js`
+（仅 `extrude3d` 的 `coverQuery`）。未 reset / clean、未提交 / 合并 / push；改动保留未提交供 Codex 审查。
+**浏览器实测由 Codex 独立执行**，本实现方未启动浏览器、未截图，不宣称浏览器通过。
+
+- **玻璃内部折射 / 反射修复（`glass.wgsl` / `glass-back.wgsl`）**：背面界面反射改为按「玻璃内部入射方向 +
+  背面法线」的真实反射方向 `reflect(inside, exit_normal)` 求值，权重用该界面 Fresnel，并以 premultiplied
+  写进带深度的 `backShadeTarget`；正面用背面世界坐标 + 法线做一次射线-平面求交得到出射点，再按
+  `back.rgb + 背板 × (1 - back.a)` 把背面贡献并进透射项。纯色背板按「被棚拍环境照亮的朗伯反照率」
+  （`backdrop × studio_env(inside)`）处理，黑色背板（含色散光束验收场景）仍保持逐像素不变。
+  **仍是屏幕空间近似，不是光线追踪，也不宣称物理精确**；根因与取舍见 `玻璃前后表面合成与光束层级修复` 条目。
+- **`tools/fui-scatter` 内置预设图层名汉化**：8 个内置 `.scatter.json` 构图预设内的图层 `name` 统一改为
+  「图层 N」，作为既有 `汉化 tools/fui-scatter` 条目的补充；预设名（`B1 default`、`Y2K-Echo` 等）、
+  素材库名（`b1` / `y2k` / `fui` / `uav`）、`manifest.json`、DOM id、枚举值、持久化键与导出文件名均不变。
+- **extrude3d 真实缩略图（字母 A + 星形，非 AI 生成）**：`public/assets/covers/extrude3d.png` 是本机用
+  **真实渲染 / 导出**内置样例 `tools/extrude3d/samples/letter-a-star.svg`（字母 A + 星形）后覆盖的同名 PNG，
+  **不是 AI 生图、不是占位图、不截测试图**；`assets/tools.js` 仅把 `extrude3d` 的 `coverQuery` 改为
+  `20261016-glass` 以避开旧封面缓存，其余 17 个入口不变。缩略图观感由 Codex 在真实 Chrome / WebGPU 环境复核。
+- **验证**：`npm run build` 通过；`npm test` 通过；`git diff --check` 通过。浏览器规格（含玻璃前后界面与
+  缩略图观感）由 Codex 复跑验收，**结论待 Codex，不视为已全部通过**。
+
+### 2026-10-16 · 首页第 5 个外链 auto-dither-journal-poster（字符抖动海报）+ 文档对齐
+
+范围：只改 `assets/tools.js`（仅 `extrude3d` 的 `coverQuery`）与文档；未 reset / clean、未提交 / 未合并 / 未 push，
+未运行浏览器、未运行 `npm run build`，既有未提交改动与 `03_WORKSPACE/` 保持原样。
+
+- **首页入口 18 = 13 内置 + 5 外链**：新增第 5 个外链 `auto-dither-journal-poster`（中文「字符抖动海报」，
+  Dither//ASCII Poster Tool，https://sashamartinsen.github.io/auto-dither-journal-poster/ ），
+  `scripts/check.mjs` / `tests/specs/home.mjs` 已按 18（13 + 5）校对。
+- **许可与封面**：上游公开仓库根目录只有 `README.md` / `app.js` / `index.html` / `style.css`，
+  没有 `LICENSE`（`LICENSE.md` 亦 404），README 与源码均无版权 / 许可声明，GitHub 仓库页也没有 license 字段
+  → 无明确授权，**不复制源码 / 不本地部署 / 不 iframe / 不引入运行时请求，也不截取 / 复制其素材**，仅登记为外链；
+  因无可用授权封面，`assets/tools.js` 不登记 `cover`，首页走既有「外部网站 · 跳转官网」中性文字占位。
+- **文档对齐**：`README.md` / `tests/README.md` 入口计数改为 18（13 + 5），并撤销 `tools/fui-scatter`
+  「原样搬运 / 与上游逐字节一致」的表述（界面文案已由专项授权汉化，非上游逐字节副本）；
+  `scripts/capture-external-covers.mjs` 头注释说明只覆盖 4 个有预览封面的外链、不含该入口。
+- **extrude3d 缩略图缓存标记**：`assets/tools.js` 仅 `extrude3d` 的 `coverQuery` 改为 `20261016-glass`
+  （其余 17 个入口不变），该缩略图由 Codex 从本地真实渲染重新生成后覆盖同名 PNG；本实现方未运行浏览器、
+  未目视确认，不宣称验收过。
+
+### 2026-10-16 · 汉化 tools/fui-scatter（矢量图层散布）界面文案
+
+范围（本轮用户明确授权）：只汉化 `tools/fui-scatter`，不碰既有 `tools/extrude3d` 及其未提交修复；
+只改该工具、`tests/specs/fui-scatter.mjs` 与 `CHANGELOG.md` / `THIRD_PARTY.md`；未 reset / clean、
+未提交 / push / 合并，改动保留未提交供 Codex 审查。
+
+- **本轮改动（沿用源码直接最小文字替换，不引入翻译框架 / DOM 轮询）**：`index.html` 静态外壳与
+  `app.js` / `engine.js` / `composition-presets.js` / `shape-library.js` / `fx-panels.js` / `render.js` /
+  `svg-assets.js` 里的动态 UI、图层参数、`title` / `aria-label`、状态与错误提示、预设保存弹窗、导出提示改为中文。
+- **保留项**：品牌 `FUI SCATTER`、作者署名（`LICENSE` / `LICENSE-ASSETS.md` 与 `THIRD_PARTY.md`）、
+  上游素材库名 `b1` / `y2k` / `fui` / `uav` 与素材 / 预设文件名、`SVG` / `PNG` / `CRT` / `RGB` / `px` / `°`
+  等常用缩写、用户输入与用户预设名；DOM id、枚举值（`normal` / `additive` / `multiply`、
+  `random` / `x` / `y` / `both` / `kaleidoscope` / `grid`、`solid` / `hue` / `gradient`、
+  `none` / `quarter` / `free` 等）、持久化键（`scatter-preset-defaults`、`scatter-composition-presets`、
+  `scatter-svg-library`、`scatter-studio-preset` 等）、路径与导出文件名 `scatter-<w>x<h>.png` 保持不变；
+  新建 / 复制图层的默认名改为「图层 N」，动态刷新不回到英文。
+- **撤销原「逐字节一致」表述**：汉化后 `tools/fui-scatter` 除入口页外壳外已不是上游 `dist/` 的逐字节副本；
+  上方接入条目中的该表述同步更正，`THIRD_PARTY.md` 对应小节一并更新。上游 MIT 代码与 CC BY 4.0 素材许可、
+  署名与分发方式不变，`LICENSE` / `LICENSE-ASSETS.md` 原文未改。
+- **测试**：`tests/specs/fui-scatter.mjs` 标题断言适配为「中文并保留品牌 FUI SCATTER」，并新增少量动态汉化断言——
+  默认图层名 / 复制与删除按钮 / 对象计数 / 检查器标题 / 后期效果标题、新增图层与复制图层的默认名。
+- **验证**：`npm test` 通过；`npm run build` 通过；`git diff --check` 通过。
+  **浏览器规格由 Codex 复跑验收**，本轮未启动浏览器、未截图。
+
+### 2026-10-16 · 接入 sashamartinsen/fui-scatter（矢量图层散布 · MIT 代码 + CC BY 4.0 素材）
+
+范围（本轮用户明确授权）：只接入本次工具，不碰既有 `tools/extrude3d` 及其未提交修复；
+未 reset / clean、未提交 / push / 合并，改动保留未提交供 Codex 审查。
+
+- **来源与固定 commit**：https://github.com/sashamartinsen/fui-scatter ，`main` HEAD
+  `bd940620806bedfb3350fec042ab2b37a4076af2`（`gh-pages` `e23d092dccfba48f3e4e4c78fbbb061a29f9c85`
+  与其 `dist/` 内容一致）。代码 **MIT**；原始视觉素材、shape sets 与设计 **CC BY 4.0**
+  （Copyright (c) 2026 Sasha Martinsen）。
+- **整合模式：原样搬运**。上游 `dist/` 就是可静态运行的成品（相对 URL、无后端 / 无构建依赖），
+  因此整体复制到 `tools/fui-scatter/`；**仅 `index.html`** 注入共享外壳
+  （`<link rel="stylesheet" href="../../assets/backlink.css">` + body 首个
+  `<a class="il-back" href="../../index.html">← 返回首页</a>`），其余文件与上游固定 commit
+  **逐字节一致**（`diff -rq` 复核，55 个文件仅入口页有差异）。该「逐字节一致」表述**已由同日汉化轮次撤销**：
+  现版本除入口页外壳外还有界面文案汉化差异，见上方汉化条目。登记进
+  `scripts/static-tools.json` 的 `staticDirs`，`npm run build` 原样复制进 `dist/`，不参与 Vite 打包。
+- **功能与导出（上游原样保留，未重写）**：SVG 图层组合生成器——散布 / 镜像 X / 镜像 Y / 双镜像 /
+  万花筒 / 网格，逐层种子与位置 / 选择 / 尺寸 / 不透明度 / 旋转 / 颜色的独立偏移，区间尺寸与不透明度、
+  纯色或双色渐变取样、逐对象与整幅加法 / 正片叠底混合、Bloom / 色差 / 颗粒 / CRT 后期，内置
+  b1 / y2k / fui / uav 本地矢量素材库；**PNG 优先导出**（1× / 2× / 4×，从矢量源按导出分辨率重新渲染），
+  另有上游自带 `.scatter.json` 构图预设导入 / 导出。无后端、无新增远程运行时依赖（素材库与预设均为站内
+  相对路径；仅有的 `http(s)://` 字面量是 SVG / Inkscape / `w3.org` XML 命名空间常量）。
+- **首页**：`assets/tools.js` 新增实际入口 `fui-scatter`，中文名「矢量图层散布」、分类「版式与切片」。
+- **封面缺口（如实登记）**：上游不含成品预览图 / 截图，本项目不合成封面、不 AI 生图、不截测试图，
+  `public/assets/covers/fui-scatter.png` 登记为「待生成」；首页显示既有中性文字占位。已把该工具加入
+  `scripts/capture-covers.mjs`、并在 `scripts/check.mjs` 与 `tests/specs/home.mjs` 中沿用既有
+  `PENDING_COVERS` 约定，供验收方用真实导出补齐。
+- **许可**：`third-party-licenses/fui-scatter-LICENSE.txt` 与 `fui-scatter-LICENSE-ASSETS.md`；
+  `vendor-licenses/` 存原文并加入 `scripts/collect-licenses.mjs` 与 `scripts/check.mjs` 必需清单；
+  两份原文随整合副本 `tools/fui-scatter/LICENSE`、`tools/fui-scatter/LICENSE-ASSETS.md` 一起分发。
+- **测试**：新增 `tests/specs/fui-scatter.mjs`（进入 / 返回首页 / 素材库与预设加载 / 预览渲染 /
+  真实 PNG 导出 / 0 页面错误）；`scripts/check.mjs` 计数更新为 **17 个入口（13 内置 + 4 外部）**。
+- **验证**：`npm run build` 通过；`npm test` 通过（Node 测试 **77/77** + `scripts/check.mjs` **62/62**）；
+  `git diff --check` 通过。**浏览器验收由 Codex 执行**，本轮未启动浏览器、未截图。
+
+### 2026-10-15 · 玻璃前后表面合成与光束层级修复（render-vgpu / glass shader）
+
+范围（用户本轮明确授权）：`tools/extrude3d`（`render-vgpu.js`、`shaders/glass.wgsl`、
+`shaders/glass-back.wgsl`、`shaders/present.wgsl`）与 `tests/`（`extrude3d-tabs.test.cjs`、
+`extrude3d-pipeline.test.mjs`、`README.md`）。只做最小整合适配：不新增依赖、不升级 vgpu（仍锁 0.6.0）、
+不改其他工具。本轮未 push、未合并、未清理未跟踪文件，改动保留未提交供 Codex 审查。
+
+- **根因 1（背面被覆盖、前后表面不合成）**：`render-vgpu.js` 在同一趟 `sceneTarget` 里先
+  `glassBackDraw` 再 `glassDraw`，没有启用混合，而正面 `glass.wgsl` 恒返回 alpha=1 且只采样
+  `backgroundTarget`；背面着色被正面整像素覆盖。`backTarget` 里只有背面世界坐标 / 法线这类几何信息，
+  并不是最终成像里可见的背面。
+- **修复（对照本地官方 vgpu transmission 与已保存上游 prism-background）**：上游把背面界面做成
+  **premultiplied** 环境层（`vec4f(环境 × F, F)`），正面在出射点采样这份已解析的环境。最小可靠适配为：
+  `glass-back.wgsl` 只输出界面反射并改成 premultiplied，写进新增的带深度目标 `backShadeTarget`
+  （最近背面片元胜出）；`sceneTarget` 的玻璃趟只画正面（alpha=1、无混合、不重影）。正面 `glass.wgsl`
+  用背面世界坐标 + 法线做一次射线-平面求交得到出射点，再按 `back.rgb + (背景 + 光束) × (1 - back.a)`
+  把背面贡献并进透射项，最后仍 `mix(transmitted, reflection, fresnel)`。这是屏幕空间近似，
+  **不是完整光线追踪，也不宣称物理精确**。
+- **decision**：采用「背面 premultiplied 反射 + 正面按背面透射合成」；放弃「给正面降低 alpha 再开混合」
+  （会产生背景 / 模型双影），也放弃把背面画进 `sceneTarget` 再让正面覆盖（就是本轮根因）。
+  参考来源：`apps/docs/examples/transmission/glass.wgsl` 与同仓
+  `prism-background/pipelines/shared/glass/glass-back.wgsl`（commit 81c4a27e…，MIT）。
+- **Double refraction 修正**：第二次折射原先传 `-exit_normal`。预通道法线已朝向入射侧（玻璃内侧），
+  与官方 `refract(inside, -exit.normal, ior)` 里的外向法线取反等价，故应直接传 `exit_normal`。
+  Node 数值核对（平行平板）：`exit_normal` 还原入射方向，旧写法把出射折回相机侧，是错误方向。
+- **背面吸收修正**：旧 `glass-back.wgsl` 用 `length(camera_position - 背面点)` 当吸收光程，混进了玻璃外的
+  空气段；已删除。吸收 / 基色只在正面按预通道估出的真实厚度计算一次，`GlassBack` 随之只保留
+  ior / 环境 / 主光字段。
+- **透明导出污染**：`present.wgsl` 改为对 `scene.rgb * scene_alpha` 再合成；`sceneTarget` 不再有 alpha<1
+  的背面片元，透明 PNG 不会出现 alpha=0 却 RGB 非零的残留。
+- **光束层级**：光束不再由 `present` 无条件盖在模型之上。正面 `glass.wgsl` 采样同一张 `beamTarget`
+  （内部光路本来就是 CPU 算好的二维截面，复用现有输出、未新增光线追踪器），`present` 只在
+  `(1 - scene_alpha)` 的轮廓之外叠加光束与 bloom；关闭时绑定黑色 1×1 贴图与 0 强度。
+- **验证**：`npm test` **77/77**（`tests/extrude3d-tabs.test.cjs` 20 项，其中新增 1 项回归「背面不再写进
+  sceneTarget / 光束不再整体盖在模型上」；`tests/extrude3d-pipeline.test.mjs` mock 覆盖背面反射目标、
+  新绑定与 base_color/absorption 从背面 uniform 移除；`node scripts/check.mjs` **61/61**）；
+  `npm run build` 通过；`git diff --check` 通过。
+- **未验证风险**：透明玻璃的真实 GPU 成像、前后界面亮度、光束在玻璃内的位置仍需真实 Chrome WebGPU 复核
+  （本轮按要求未启动浏览器、未截图）；掠射角 / 背面超出视口时屏幕空间近似仍有偏差。
+
 ### 2026-10-15 · 色散光束作用于用户 SVG（替换固定「官方棱镜」场景）+ 三个设计师参数
 
 范围（用户本轮明确授权）：`tools/extrude3d`（建模→渲染外轮廓交接、渲染页光束与玻璃参数、上游 optics

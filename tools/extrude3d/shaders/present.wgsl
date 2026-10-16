@@ -10,7 +10,8 @@
 // 导出 PNG 时在 JS 侧反预乘回直通 alpha。
 //
 // 色散光束（可选）：`beam_tex` 是 prism 光束通道的 HDR 结果，`bloom_tex` 是它的上游 bloom。
-// 两者都是发光体（自身 alpha = 0、加法混合），这里按自身亮度充当覆盖度后加法合成；
+// 光束只在模型轮廓之外直接叠加——轮廓之内由正面玻璃的透射项按原始屏幕位置采样同一张
+// `beam_tex`（见 glass.wgsl），避免把光路"贴"在前表面上。`scene_alpha` 是模型覆盖度。
 // 光束关闭时绑定黑色 1×1 贴图与 0 强度，合成结果与未接入光束时逐像素一致。
 
 import { tonemap_aces, linear_to_srgb } from "./common.wgsl";
@@ -32,18 +33,22 @@ struct Present {
 fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let scene = textureSampleLevel(color_tex, color_samp, uv, 0.0);
   let bg = textureSampleLevel(bg_tex, bg_samp, uv, 0.0);
+  let scene_alpha = clamp(scene.a, 0.0, 1.0);
+  // 光束只在模型轮廓之外直接叠加；轮廓内由正面玻璃的透射项负责（避免盖在正面片元上）。
   let beam = max(
-    textureSampleLevel(beam_tex, bg_samp, uv, 0.0).rgb
-      + textureSampleLevel(bloom_tex, bg_samp, uv, 0.0).rgb * max(present.bloom_strength, 0.0),
+    (textureSampleLevel(beam_tex, bg_samp, uv, 0.0).rgb
+      + textureSampleLevel(bloom_tex, bg_samp, uv, 0.0).rgb * max(present.bloom_strength, 0.0))
+      * (1.0 - scene_alpha),
     vec3f(0.0),
   );
 
-  let scene_alpha = clamp(scene.a, 0.0, 1.0);
   let bg_alpha = clamp(bg.a, 0.0, 1.0);
   let beam_alpha = clamp(max(max(beam.r, beam.g), beam.b), 0.0, 1.0);
   let lit_alpha = clamp(max(scene_alpha, beam_alpha), 0.0, 1.0);
   // 背景以直通 alpha 输出，「模型 over 背景」得到预乘结果与合成 alpha。
-  let premultiplied = scene.rgb + beam + bg.rgb * bg_alpha * (1.0 - lit_alpha);
+  // scene.rgb 按直通色处理并乘 scene_alpha：模型片元 alpha=1 时不变，alpha=0 的
+  // 残留像素不会漏进最终颜色（透明导出不出现 alpha=0 的 RGB 污染）。
+  let premultiplied = scene.rgb * scene_alpha + beam + bg.rgb * bg_alpha * (1.0 - lit_alpha);
   let alpha = clamp(lit_alpha + bg_alpha * (1.0 - lit_alpha), 0.0, 1.0);
   let straight = premultiplied / max(alpha, 0.0001);
   let mapped = linear_to_srgb(tonemap_aces(straight * present.exposure));

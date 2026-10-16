@@ -1,20 +1,25 @@
-// 透射材质的两用背面通道：剔除正面（`cull: "front"`），一次绘制同时产出
-//   1. `backTarget`：背面片元世界坐标写进 RGB；正面通道按同一屏幕像素读回 `back_tex.a > 0.5`
-//      作为命中标记，估算厚度与出射点；
-//   2. `sceneTarget`：同一片元按背面着色写进场景，成为最终成像里可见的后表面 / 内部界面
-//      （不透明材质不走这一趟）。
+// 透射材质的背面（内侧）界面通道：剔除正面（`cull: "front"`），只画朝向相机的后表面，
+// 写进独立的 `backShadeTarget`（自带深度，最近背面片元胜出）。正面通道把它与环境一起
+// 合成，背面因此成为正面透射里可见的内侧界面，而不是被正面片元覆盖掉的另一层。
 //
-// 之前只有第 1 项：`backTarget` 是辅助纹理，最终画面只剩正面透射通道，闭合模型看上去是
-// 只有前表面的空心壳、看不到背面。现在把同一趟背面片元也写进 `sceneTarget`，正面玻璃
-// 再以官方 `transmission/glass.wgsl` 的 Fresnel 权重叠上去，前后两个界面都能辨认。
+// 结构与语义对照 vercel-labs/vgpu 官方 MIT 仓库 prism-background 的
+// `pipelines/shared/glass/glass-back.wgsl`（commit 81c4a27e548c4b4e1fd445bca6b65004a6e6fdf5；
+// 见 THIRD_PARTY.md 与 third-party-licenses/vgpu-LICENSE.txt）：官方背面层只做环境反射，
+// 用 **premultiplied** 混合（rgb = 反射 × F，a = F），上一层已画的背景 / 外光保持为透射分量。
+// 本文件输出同一语义，由正面通道按 `back.rgb + environment × (1 - back.a)` 的 premultiplied
+// 形式合成（命中背面时正面会用内部折射方向重算反射，见文件末尾说明）。
 //
-// 与官方示例对齐（vercel-labs/vgpu 0.6.0，MIT，见 third-party-licenses/vgpu-LICENSE.txt）：
+// 最小适配范围（不宣称物理精确）：
 //   - 法线朝向：`select(-geometric_normal, geometric_normal, dot(geometric_normal, view) > 0.0)`；
-//   - 菲涅耳：背面用 Schlick 近似（见 `fresnel_scale`），正面用 `common.wgsl` 的 `dielectric_fresnel`；
+//   - 菲涅耳：Schlick，f0 由 ior 给出，与正面 `common.wgsl` 的 `dielectric_fresnel` 同形；
 //   - 环境反射：`studio_env(reflect(incident, normal), ...)`。
-// 不引入 raymarch / SDF、第二个渲染引擎或新依赖。alpha 记录 (1 - Fresnel)，让正面透射在
-// 正对相机的区域为主、掠射区域由反射接管，和官方 `mix(transmitted, reflection, fresnel)`
-// 的能量关系一致。
+// 不追踪玻璃→空气的后续路径 / 内部多次反射，也不在这里做吸收：光程由正面通道按预通道
+// 估出的真实厚度统一计算。旧版把「相机到背面顶点的距离」当吸收光程，混进了玻璃外的空气段，
+// 已删除。
+//
+// 本通道的入射方向是相机视线（背面片元自己的 `view`），不是玻璃内部的折射方向；正面通道
+// 在命中背面时用「内部折射方向 + 预通道背面法线」重算真实的内侧界面反射（权重用该界面的
+// Fresnel），因此这里的结果只作为「未命中背面 / 边缘」时的兜底，不再冒充真实背面朝向。
 
 import { studio_env } from "./common.wgsl";
 
@@ -23,15 +28,13 @@ struct BackCamera {
   camera_position: vec3f,
 };
 
+/** 背面只保留界面反射需要的字段；吸收 / 基色 / 透明开关由正面通道统一负责。 */
 struct GlassBack {
-  base_color: vec3f,
   ior: f32,
-  absorption: vec3f,
   env_intensity: f32,
   key_intensity: f32,
   key_direction: vec3f,
   key_color: vec3f,
-  transparent: f32,
 };
 
 @group(0) @binding(0) var<uniform> camera: BackCamera;
@@ -58,11 +61,10 @@ fn vs_main(
   return out;
 }
 
-// 背面界面的 Schlick 近似菲涅耳（掠射更强）。正面通道仍用 `dielectric_fresnel(ior, facing)`
-// 这条更完整的官方公式；背面只承担「后表面 / 内部界面」的可见度与合成权重，用同形近似即可，
-// 两种写法在 ior 1.5 附近的差异远小于可感知范围。
-fn fresnel_scale(facing: f32) -> f32 {
-  return 0.04 + 0.96 * pow(1.0 - clamp(facing, 0.0, 1.0), 5.0);
+/** 背面界面的 Schlick 菲涅耳反射率（与正面 `dielectric_fresnel` 同一形式）。 */
+fn fresnel_scale(ior: f32, facing: f32) -> f32 {
+  let f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+  return f0 + (1.0 - f0) * pow(1.0 - clamp(facing, 0.0, 1.0), 5.0);
 }
 
 @fragment
@@ -73,30 +75,15 @@ fn fs_main(in: VertexOut) -> @location(0) vec4f {
   let incident = -view;
   let facing = clamp(dot(view, normal), 0.0, 1.0);
 
-  // 出射方向的环境辐射（反射锥 + 漫反射平均，取自 common.wgsl 的解析棚拍环境）。
-  let reflected = reflect(incident, normal);
   let reflection = studio_env(
-    reflected,
+    reflect(incident, normal),
     glass.key_direction,
     glass.key_color,
     glass.key_intensity,
-  );
-  let average = studio_env(
-    normal,
-    glass.key_direction,
-    glass.key_color,
-    glass.key_intensity,
-  ) * 0.35 + vec3f(0.22, 0.24, 0.28) * 0.65;
-  let radiance = (reflection * fresnel_scale(facing) + average * 0.35) * glass.env_intensity;
+  ) * glass.env_intensity;
 
-  // 视线穿过闭合体的内部光程：只做吸收 / 色调，不做第二次折射（出射仍由正面通道负责）。
-  let path = max(length(camera.camera_position - in.world_position), 0.0);
-  let color = radiance * exp(-glass.absorption * path) * glass.base_color;
-
-  // 一次输出同时满足两处读取：
-  //   - backTarget：alpha = 1 是「命中标记」，正面通道用 .rgb 拿背面世界坐标估厚度，不读 alpha 之外的语义；
-  //   - sceneTarget：alpha = (1 - Fresnel) 作为背景 / 正面玻璃之下的合成权重，正面透射在正对相机处为主、
-  //     掠射处交给反射，和官方 `mix(transmitted, reflection, fresnel)` 的能量关系一致。
-  //     透明背景模式整体清零，导出 PNG 不出现依赖背景的后表面。
-  return vec4f(color, (1.0 - fresnel_scale(facing)) * (1.0 - clamp(glass.transparent, 0.0, 1.0)));
+  // premultiplied：rgb 已乘 F、a = F。正面通道用
+  // `back.rgb + environment × (1 - back.a)` 还原「反射 + 透射」。
+  let fresnel = fresnel_scale(glass.ior, facing);
+  return vec4f(reflection * fresnel, fresnel);
 }

@@ -242,6 +242,26 @@ const TARGETS = {
     // 退路：只截真实字符画预览区（不是整页，也不含任何参数面板 UI）。
     canvas: "#ascii-holder"
   },
+  "fui-scatter": {
+    path: "/tools/fui-scatter/index.html",
+    async setup(page) {
+      // 上游素材库（shape-library/manifest.json）与内置预设都是异步载入：
+      // 等 shape-set 出现内置分组（b1 / y2k / fui / uav）后再导出，保证封面是真实构图。
+      await page
+        .waitForFunction(
+          () => {
+            const s = document.getElementById("shape-set");
+            return !!s && [...s.options].some((o) => o.value === "b1");
+          },
+          { timeout: 30000 }
+        )
+        .catch(() => {});
+      await sleep(2500);
+    },
+    export: "#export",
+    // 退路：只截真实构图预览画布（不是整页，也不含参数面板 UI）。
+    canvas: "#raster-preview"
+  },
   psychos: {
     path: "/tools/psychos/index.html",
     webgpu: true,

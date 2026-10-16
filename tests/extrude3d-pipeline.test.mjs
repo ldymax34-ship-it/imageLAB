@@ -2,9 +2,9 @@
  * SVG 转 3D 渲染页签 · vgpu API 合约自检（官方 mock adapter，纯 Node）
  *
  * 用 vgpu 官方 mock adapter 在 Node 里跑一遍 `render-vgpu.js` 的真实调用方式：
- * 解析 5 份 WGSL、上传 stride 32 的自定义网格、draw / effect 预编译、多趟 frame
- * （背景 effect → 玻璃背面预通道 → 模型写带深度目标 → present 合成）、导出目标 read，
- * 以及导出倍率时的 target resize + 重新绑定。
+ * 解析 6 份 WGSL、上传 stride 32 的自定义网格、draw / effect 预编译、多趟 frame
+ * （背景 effect → 背面世界坐标 / 法线预通道 → 背面界面反射目标 → 正面玻璃写带深度目标 → present 合成）、
+ * 导出目标 read，以及导出倍率时的 target resize + 重新绑定。
  *
  * 其中背景是 fragment-only shader，必须走 `effect()` 的内置全屏顶点通道；
  * `present` 额外绑定背景并把模型合成到背景之上（回归 vgpu `vs_main` 缺失与深度遮挡问题）。
@@ -228,6 +228,8 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
     const backgroundTarget = target(gpu, { size, format: "rgba16float" });
     // 与生产一致：backTarget 双颜色附件（RGB 世界坐标 + RGB 世界法线）。
     const backTarget = target(gpu, { size, format: "rgba16float", depth: true, colors: [{ format: "rgba16float" }, { format: "rgba16float" }] });
+    // 背面界面着色独立成一张带深度的目标（premultiplied 反射），不再写进 sceneTarget。
+    const backShadeTarget = target(gpu, { size, format: "rgba16float", depth: true });
     const exportTarget = target(gpu, { size, format: "rgba8unorm" });
     const linear = sampler(gpu, { minFilter: "linear", magFilter: "linear" });
     const nearest = sampler(gpu, { minFilter: "nearest", magFilter: "nearest" });
@@ -296,6 +298,8 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
         absorption: [0.1, 0.05, 0.05],
         env_intensity: 1,
         key_intensity: 1,
+        // 纯色背板：透射按「背板 × 棚拍环境」调制（图片 / 棚拍背景应为 0）。
+        pure_backdrop: 1,
         key_direction: [0.5, 0.7, 0.5],
         key_color: [1, 1, 1]
       },
@@ -304,20 +308,22 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
       back_tex: backTarget,
       back_samp: nearest,
       back_normal_tex: backTarget.colors[1],
-      back_normal_samp: nearest
+      back_normal_samp: nearest,
+      back_shade_tex: backShadeTarget,
+      back_shade_samp: nearest,
+      beam_tex: fallback,
+      beam_samp: linear
     });
-    // 背面通道与生产代码一致：camera 多一个 camera_position，glass 只取背面着色需要的字段。
+    // 背面通道与生产代码一致：camera 多一个 camera_position，glass 只取界面反射需要的字段
+    // （吸收 / 基色 / 透明开关由正面通道统一负责）。
     const glassBackUniforms = () => ({
       camera: { view_projection: vp, camera_position: cameraPosition },
       glass: {
-        base_color: [1, 1, 1],
         ior: 1.5,
-        absorption: [0.1, 0.05, 0.05],
         env_intensity: 1,
         key_intensity: 1,
         key_direction: [0.5, 0.7, 0.5],
-        key_color: [1, 1, 1],
-        transparent: 0
+        key_color: [1, 1, 1]
       }
     });
     const refreshBindings = () => {
@@ -357,7 +363,7 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
       presentEffect.compile(exportTarget),
       pbrDraw.compile(sceneTarget),
       glassDraw.compile(sceneTarget),
-      glassBackDraw.compile(backTarget),
+      glassBackDraw.compile(backShadeTarget),
       glassBackInfoDraw.compile(backTarget)
     ]);
 
@@ -368,13 +374,15 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
         // present 再把模型合成到背景之上（与 render-vgpu.js 的接线一致）。
         f.pass({ target: backgroundTarget, clear: [0, 0, 0, 0] }, (p) => p.draw(backgroundEffect));
         if (glass) {
-          // 背面信息预通道（世界坐标 + 法线，双附件）供正面玻璃做第二次折射。
+          // 背面信息预通道（世界坐标 + 法线，双附件）供正面玻璃求出射点与第二次折射。
           f.pass({ target: backTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (p) => p.draw(glassBackInfoDraw));
+          // 背面界面反射独立成一张带深度的目标，正面通道再把它与环境合成。
+          f.pass({ target: backShadeTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (p) => p.draw(glassBackDraw));
         }
         f.pass({ target: sceneTarget, clear: [0, 0, 0, 0], clearDepth: 1 }, (p) => {
+          // 玻璃只画正面：背面贡献已经在 glass.wgsl 的透射项里合成，sceneTarget 不再有
+          // alpha < 1 的背面片元，present 的 over 合成不会重影、透明导出也没有 RGB 残留。
           if (glass) {
-            // 玻璃：先背面（写后表面 + 深度）再正面，两个界面都进入最终合成。
-            p.draw(glassBackDraw);
             p.draw(glassDraw);
           } else {
             p.draw(pbrDraw);
@@ -397,6 +405,7 @@ test("vgpu mock：自定义网格 + 不透明 / 玻璃多趟管线可构建、�
     sceneTarget.resize(big);
     backgroundTarget.resize(big);
     backTarget.resize(big);
+    backShadeTarget.resize(big);
     exportTarget.resize(big);
     refreshBindings();
     render(true, [...big]);

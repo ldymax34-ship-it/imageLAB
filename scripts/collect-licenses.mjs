@@ -15,6 +15,10 @@ const items = [
   ["node_modules/@paper-design/shaders/LICENSE", "paper-design-shaders-LICENSE.txt"],
   ["node_modules/@paper-design/shaders/NOTICE", "paper-design-shaders-NOTICE.txt"],
   ["vendor-licenses/visantlabs-os-LICENSE.txt", "visant-extrude3d-LICENSE.txt"],
+  // sashamartinsen/fui-scatter（pin bd940620806bedfb3350fec042ab2b37a4076af2）：MIT 代码 + CC BY 4.0 素材，
+  // 两份原文由人工从固定 commit 原样放入 vendor-licenses/，不依赖临时克隆。
+  ["vendor-licenses/fui-scatter-LICENSE.txt", "fui-scatter-LICENSE.txt"],
+  ["vendor-licenses/fui-scatter-LICENSE-ASSETS.md", "fui-scatter-LICENSE-ASSETS.md"],
   [".tmp/upstream/pixelit/LICENSE", "pixelit-LICENSE.txt"],
   [".tmp/upstream/Image-to-Pixel/LICENSE-library.txt", "tezumie-image-to-pixel-LICENSE-library.txt"],
   [".tmp/upstream/Image-to-Ascii/LICENSE", "nitch193-image-to-ascii-LICENSE.txt"],

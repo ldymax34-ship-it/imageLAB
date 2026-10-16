@@ -66,7 +66,7 @@ for (const id of toolDirs) {
   if (!html.includes("../../assets/backlink.css")) shellIssues.push(`${id}: 未载入共享工具样式`);
   if (shellStyles.length !== 1) shellIssues.push(`${id}: 共享工具样式引用数量为 ${shellStyles.length}`);
 }
-ok("12 个工具都有唯一的共享返回首页入口", shellIssues.length === 0, shellIssues.join("；") || "href=../../index.html");
+ok(`${toolDirs.length} 个工具都有唯一的共享返回首页入口`, shellIssues.length === 0, shellIssues.join("；") || "href=../../index.html");
 ok("共享工具样式使用深色系统控件、变量和 26px 左上导航", /color-scheme:\s*dark/i.test(sharedShell) && /top:\s*8px/i.test(sharedShell) && /left:\s*12px/i.test(sharedShell) && /height:\s*26px/i.test(sharedShell) && /padding-top:\s*42px/i.test(sharedShell) && /--ink:#eee\s*!important/i.test(sharedShell));
 
 /* ---------- 2. 运行时远程资源 ---------- */
@@ -300,7 +300,9 @@ const REQUIRED_LICENSES = [
   "tezumie-image-to-pixel-LICENSE-library.txt",
   "nitch193-image-to-ascii-LICENSE.txt",
   "blakeshao-a-psychos-gd-tool-LICENSE.txt",
-  "vgpu-LICENSE.txt"
+  "vgpu-LICENSE.txt",
+  "fui-scatter-LICENSE.txt",
+  "fui-scatter-LICENSE-ASSETS.md"
 ];
 const missingLic = REQUIRED_LICENSES.filter((f) => !existsSync(resolve(ROOT, "third-party-licenses", f)));
 ok("third-party-licenses 齐备", missingLic.length === 0, missingLic.length ? `缺少 ${missingLic.join(", ")}` : `${REQUIRED_LICENSES.length} 个文件`);
@@ -406,8 +408,8 @@ const externalEntries = entries.filter((e) => e.external);
 
 ok("首页清单非空", entries.length > 0, `${entries.length} 个入口`);
 ok(
-  "入口总数为 16（12 内置 + 4 外部）",
-  entries.length === 16 && builtinEntries.length === 12 && externalEntries.length === 4,
+  "入口总数为 18（13 内置 + 5 外部）",
+  entries.length === 18 && builtinEntries.length === 13 && externalEntries.length === 5,
   `总 ${entries.length}：内置 ${builtinEntries.length}，外部 ${externalEntries.length}`
 );
 ok(
@@ -424,24 +426,35 @@ ok(
 );
 
 // 内置入口：只校验仓库里的本地文件（入口页与封面）真实存在（封面经 public/ 复制进 dist 根）。
-// 本批已由验收方用真实导出刷新全部 12 张内置封面，因此内置封面必须齐备，无「待生成」豁免。
+// 本批已由验收方用真实导出刷新全部 12 张内置封面；本轮新增的 `tools/fui-scatter` 是唯一例外：
+// 上游仓库不含任何**成品预览图 / 截图**（只有无背景的矢量素材），本项目不自行合成封面、不 AI 生图、
+// 不截测试图，因此按历史约定登记为「待生成」——预期封面路径已登记，首页在此之前显示中性文字占位。
+const PENDING_COVERS = new Set(["fui-scatter"]);
 const brokenHref = builtinEntries.filter((e) => !existsSync(resolve(ROOT, e.href)));
 ok("内置入口文件都存在", brokenHref.length === 0, brokenHref.map((e) => e.href).join(", "));
 const missingCoverPath = builtinEntries.filter((e) => !e.cover);
 const missingBuiltinCover = builtinEntries.filter((e) => e.cover && !existsSync(resolve(ROOT, "public", e.cover)));
+const unexpectedMissingCover = missingBuiltinCover.filter((e) => !PENDING_COVERS.has(e.id));
 ok(
   "内置入口都登记了封面路径",
   missingCoverPath.length === 0,
   missingCoverPath.length ? missingCoverPath.map((e) => e.id).join(", ") : `${builtinEntries.length} 个`
 );
 ok(
-  "12 张内置封面文件齐备",
-  missingBuiltinCover.length === 0,
-  missingBuiltinCover.length ? `缺少：${missingBuiltinCover.map((e) => e.id).join(", ")}` : `${builtinEntries.length} 张`
+  "内置封面文件齐备（仅登记为待生成的 fui-scatter 例外）",
+  unexpectedMissingCover.length === 0,
+  unexpectedMissingCover.length
+    ? `缺少：${unexpectedMissingCover.map((e) => e.id).join(", ")}`
+    : missingBuiltinCover.length
+      ? `待生成：${missingBuiltinCover.map((e) => e.id).join(", ")}；其余 ${builtinEntries.length - missingBuiltinCover.length} 张齐备`
+      : `${builtinEntries.length} 张`
 );
 
 // 外部网站：确认是合法 HTTPS 地址，并允许声明**本地** cover（外链封面是验收方从公开官网当前页面
 // 截取后保存进仓库的页面缩略图，首页运行时只加载本地图片、不请求第三方站点）。
+// 本轮新增的 auto-dither-journal-poster（字符抖动海报）上游无 LICENSE、无授权声明，不截取 / 不复制其素材，
+// 因此登记为唯一「无授权封面」外链：不声明 cover，首页走既有「外部网站 · 跳转官网」中性文字占位。
+const NO_COVER_EXTERNAL = new Set(["auto-dither-journal-poster"]);
 const badExternal = externalEntries.filter((e) => {
   if (!/^https:\/\//.test(e.href)) return true;
   try {
@@ -452,23 +465,27 @@ const badExternal = externalEntries.filter((e) => {
   }
 });
 ok("外部入口都是合法的 HTTPS 地址", badExternal.length === 0, badExternal.map((e) => `${e.id}:${e.href}`).join(", "));
-const badExternalCoverPath = externalEntries.filter(
-  (e) => !e.cover || !/^assets\/covers\/[A-Za-z0-9._-]+\.png$/.test(e.cover)
+const declaredExternalCovers = externalEntries.filter((e) => e.cover);
+const badExternalCoverPath = declaredExternalCovers.filter(
+  (e) => !/^assets\/covers\/[A-Za-z0-9._-]+\.png$/.test(e.cover)
 );
+const unexpectedNoExternalCover = externalEntries.filter((e) => !e.cover && !NO_COVER_EXTERNAL.has(e.id));
 ok(
-  "外部入口封面路径位于 assets/covers（.png）",
-  externalEntries.length === 4 && badExternalCoverPath.length === 0,
+  "外部入口封面要么是 assets/covers（.png）本地路径，要么是已登记的「无授权封面」中性占位",
+  externalEntries.length === 5 && badExternalCoverPath.length === 0 && unexpectedNoExternalCover.length === 0,
   badExternalCoverPath.length
-    ? badExternalCoverPath.map((e) => `${e.id}:${e.cover || "无 cover"}`).join(", ")
-    : externalEntries.map((e) => e.cover).join(", ")
+    ? badExternalCoverPath.map((e) => `${e.id}:${e.cover}`).join(", ")
+    : unexpectedNoExternalCover.length
+      ? `未登记 cover：${unexpectedNoExternalCover.map((e) => e.id).join(", ")}`
+      : `${declaredExternalCovers.length} 个已登记 cover，${externalEntries.length - declaredExternalCovers.length} 个走中性文字占位`
 );
-const missingExternalCover = externalEntries.filter((e) => !e.cover || !existsSync(resolve(ROOT, "public", e.cover)));
+const missingExternalCover = declaredExternalCovers.filter((e) => !existsSync(resolve(ROOT, "public", e.cover)));
 ok(
-  "4 张外链封面文件齐备（Codex 抓取公开官网页面缩略图）",
-  externalEntries.length === 4 && missingExternalCover.length === 0,
+  `已登记的 ${declaredExternalCovers.length} 张外链封面文件齐备（Codex 抓取公开官网页面缩略图）`,
+  missingExternalCover.length === 0,
   missingExternalCover.length
     ? `待生成：${missingExternalCover.map((e) => e.id).join(", ")}`
-    : externalEntries.map((e) => e.cover).join(", ")
+    : declaredExternalCovers.map((e) => e.cover).join(", ")
 );
 
 const specFiles = (await readdir(resolve(ROOT, "tests/specs")).catch(() => [])).filter((f) => f.endsWith(".mjs"));

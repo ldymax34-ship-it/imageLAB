@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FUI SCATTER — SVG 矢量构图生成器</title>
+<meta name="description" content="模块化 SVG 构图生成器：图层、镜像、万花筒与后期效果。">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2314191c'/%3E%3Cpath d='M8 8h6v6H8zm10 0h6v6h-6zM8 18h6v6H8zm10 0h6v6h-6z' fill='%23c6f277'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css"><link rel="stylesheet" href="compact.css?v=9"><link rel="stylesheet" href="../../assets/backlink.css"><script type="module" src="app.js?v=10"></script>
+</head>
+<body>
+<a class="il-back" href="../../index.html">← 返回首页</a>
+<header><div class="header-identity"><div class="brand"><span class="brandmark">✣</span><strong>FUI<span>SCATTER</span></strong><span class="edition">01</span></div><div class="headnote">矢量构图生成器</div></div><div class="header-actions"><button id="randomize-all" title="为每个图层生成新种子">↻ 全部重新随机</button><button id="export">导出 PNG</button></div></header>
+<main>
+<aside class="left">
+<div class="panel-heading"><span>图层</span><span id="layer-count" class="badge">3</span><button id="add-layer" class="icon-button" aria-label="添加图层">＋</button></div>
+<div class="library-panel"><label><span class="field-label">形状集</span><select id="shape-set"><option value="">自定义构图</option></select></label><label><span class="field-label">预设</span><select id="composition-preset"><option value="">标准</option></select></label><div class="preset-actions"><button id="save-preset">另存为…</button><button id="update-preset" disabled>更新</button><button id="import-preset">导入…</button></div><button id="default-preset" disabled>设为默认</button><p class="hint" id="library-status">正在加载素材库…</p></div>
+<div id="layers"></div><button id="add-layer-bottom" class="add-button">＋ 添加图层</button>
+<div class="canvas-settings"><div class="section-title">画布</div><div class="pair"><label><span class="field-label">宽度</span><input id="width" type="number" min="128" max="4096" step="1" value="1200"></label><label><span class="field-label">高度</span><input id="height" type="number" min="128" max="4096" step="1" value="1200"></label></div><label class="color-label">背景 <input id="background" type="color" value="#0d1619"><span id="background-hex">#0D1619</span></label><label><span class="field-label">图层混合</span><select id="canvas-blend"><option value="normal">正常</option><option value="additive">相加</option><option value="multiply">正片叠底</option></select></label></div>
+<div class="side-foot"><span class="dot"></span> 在浏览器中本地运行</div>
+</aside>
+<section class="workspace">
+<div class="workspace-toolbar"><div class="segmented"><button id="vector-tab" class="active">图层</button><button id="effects-tab">后期效果</button></div><div class="zoom-control"><button id="zoom-out" aria-label="缩小">−</button><span id="zoom-label">适配</span><button id="zoom-in" aria-label="放大">＋</button><button id="zoom-fit" aria-label="适配画布">⤢</button></div></div>
+<div id="stage-wrap"><div id="stage"><canvas id="raster-preview" aria-label="构图"></canvas><div id="rendering" hidden>处理中…</div></div></div>
+<div class="workspace-footer"><span id="canvas-info">1200 × 1200</span><span id="render-info">画布预览</span><span id="object-count">0 个对象</span></div>
+</section>
+<aside class="right"><div class="panel-heading"><span id="inspector-title">图层设置</span><span id="selected-index" class="badge">01</span></div><div id="inspector"></div></aside>
+</main>
+<dialog id="preset-dialog"><form id="preset-form"><h3>保存构图预设</h3><label><span class="field-label">预设名称</span><input id="preset-name" type="text" maxlength="80" required autocomplete="off"></label><p class="hint">保存在此浏览器中，并下载为可移植的 .scatter.json 文件。</p><div class="pair"><button type="button" id="preset-cancel">取消</button><button type="submit" class="primary">保存并下载</button></div></form></dialog><input id="preset-file" type="file" accept=".json,application/json" hidden><input id="svg-file" type="file" accept=".svg,image/svg+xml" hidden><div id="toast" role="status" hidden></div>
+</body></html>
